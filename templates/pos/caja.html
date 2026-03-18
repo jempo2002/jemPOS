@@ -1,0 +1,335 @@
+﻿<!-- Ruta: templates/pos/caja.html -->
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>jemPOS - Caja</title>
+
+  <!-- Google Fonts: Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+
+  <!-- FontAwesome 6 -->
+  <link
+    rel="stylesheet"
+    href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
+    crossorigin="anonymous"
+    referrerpolicy="no-referrer"
+  />
+
+  <!-- Estilos del POS -->
+  <link rel="stylesheet" href="/static/css/caja.css" />
+  <link rel="stylesheet" href="/static/css/flash.css" />
+  <meta name="csrf-token" content="{{ csrf_token() }}" />
+</head>
+
+<body>
+
+<!-- Flash de permisos (RBAC redirect) -->
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+    <div id="flash-container" class="flash-container">
+      {% for category, message in messages %}
+      <div class="flash-msg flash-{{ category }} flash-alert" role="alert">
+        <i class="fa-solid fa-circle-exclamation flash-alert-icon"></i>
+        {{ message }}
+      </div>
+      {% endfor %}
+    </div>
+    <script src="/static/js/flash-auto-dismiss.js"></script>
+  {% endif %}
+{% endwith %}
+<div class="app-shell">
+  <aside class="sidebar" role="navigation" aria-label="Menu principal">
+
+    <!-- Logo -->
+    <div class="sidebar-logo">
+      <div class="logo-text">
+        <span class="jem">jem</span><span class="pos">POS</span>
+      </div>
+      <div class="sub">Punto de Venta</div>
+    </div>
+
+    <!-- Navegacion -->
+    <nav class="sidebar-nav">
+      <a href="/turno" class="nav-link">
+        <i class="fa-solid fa-business-time"></i>
+        <span>Mi Turno</span>
+      </a>
+      <a href="/dashboard" class="nav-link">
+        <i class="fa-solid fa-gauge-high"></i>
+        <span>{% if session.get('rol') == 'Admin' %}Panel de Control{% else %}Inicio{% endif %}</span>
+      </a>
+      <a href="/caja" class="nav-link active" aria-current="page">
+        <i class="fa-solid fa-cash-register"></i>
+        <span>Caja</span>
+      </a>
+      <a href="/inventario" class="nav-link">
+        <i class="fa-solid fa-boxes-stacked"></i>
+        <span>Inventario</span>
+      </a>
+      <a href="/fiados" class="nav-link">
+        <i class="fa-solid fa-handshake-simple"></i>
+        <span>Fiados</span>
+      </a>
+      <a href="{{ url_for('ventas') }}" class="nav-link">
+        <i class="fa-solid fa-file-invoice-dollar"></i>
+        <span>Ventas</span>
+      </a>
+      <a href="/gastos" class="nav-link">
+        <i class="fa-solid fa-receipt"></i>
+        <span>Gastos</span>
+      </a>
+      <a href="/perfil" class="nav-link">
+        <i class="fa-solid fa-circle-user"></i>
+        <span>Mi Perfil</span>
+      </a>
+    </nav>
+
+    <!-- Usuario (pie del sidebar) -->
+    <a href="{{ url_for('logout') }}" class="sidebar-logout no-underline">
+      <img src="/static/img/leave.png" alt="" />
+      Cerrar sesion
+    </a>
+    <div class="sidebar-footer">
+      {% if foto_perfil %}
+      <img src="/static/uploads/perfiles/{{ foto_perfil }}" class="avatar avatar-img" alt="Foto" />
+      {% else %}
+      <div class="avatar">{{ avatar_iniciales }}</div>
+      {% endif %}
+      <div class="user-info">
+        <div class="user-name">{{ nombre_completo }}</div>
+        <div class="user-role">{{ rol }}</div>
+      </div>
+    </div>
+
+  </aside>
+  <!-- /sidebar -->
+  <div class="main-area">
+    <header class="top-bar">
+
+      <!-- Logo (solo visible en movil) -->
+      <div class="top-bar-logo" aria-hidden="true">
+        <span class="jem">jem</span><span class="pos">POS</span>
+      </div>
+
+      <!-- Buscador / Escaner -->
+      <div class="search-wrap">
+        <i class="fa-solid fa-barcode" aria-hidden="true"></i>
+        <input
+          type="search"
+          id="search-input"
+          class="search-input"
+          placeholder="Buscar producto o escanear..."
+          autocomplete="off"
+          autocorrect="off"
+          spellcheck="false"
+          aria-label="Buscar producto o escanear codigo de barras"
+        />
+        <div id="search-dropdown" class="search-dropdown hidden" role="listbox" aria-label="Resultados de busqueda"></div>
+      </div>
+
+    </header>
+    <!-- /top-bar -->
+    <div class="pos-columns flex flex-col md:flex-row h-full gap-4">
+      <div class="left-col flex-1 bg-gray-50 rounded-3xl">
+
+        <!-- Cabecera del carrito -->
+        <div class="cart-header cart-header-main">
+          <span class="cart-title">Carrito</span>
+        </div>
+
+        <!-- Lista de items del carrito -->
+        <div class="cart-section flex-1 overflow-y-auto p-4" id="cart-section" role="list" aria-label="Productos en el carrito">
+
+          <!-- Estado vacio (visible solo cuando no hay items) -->
+          <div class="cart-empty" id="cart-empty" role="status" aria-live="polite">
+            <i class="fa-solid fa-cart-shopping"></i>
+            <p>El carrito esta vacio.<br>Busca un producto arriba para agregar.</p>
+          </div>
+
+          <!-- Los items se inyectan aqui por el JS -->
+          <div id="cart-list"></div>
+
+        </div>
+        <!-- /cart-section -->
+
+      </div>
+      <!-- /left-col -->
+      <aside class="payment-panel w-full md:w-96 bg-white rounded-[2rem] shadow-md border border-gray-100 p-6 flex flex-col justify-between h-full" aria-label="Panel de cobro">
+
+        <div class="payment-footer flex flex-col gap-4">
+
+        <!-- Totales -->
+        <div class="totals-row">
+          <div class="totals-line">
+            <span>Subtotal</span>
+            <span id="val-subtotal">$0</span>
+          </div>
+          <div class="totals-line">
+            <span>Descuento</span>
+            <span id="val-discount" class="amount-positive">$0</span>
+          </div>
+        </div>
+
+        <!-- Total a pagar - el texto mas grande de la pantalla -->
+        <div class="total-block w-full">
+          <span class="total-label">Total a pagar</span>
+          <span class="total-amount" id="val-total">$0</span>
+        </div>
+
+        <!-- Calculadora de cambio (solo visible en modo Efectivo) -->
+        <div class="cash-section visible" id="cash-section" aria-live="polite">
+          <div class="cash-label">Efectivo recibido</div>
+          <div class="cash-input-wrap">
+            <span class="prefix">$</span>
+            <input
+              class="cash-input"
+              id="cash-received"
+              type="tel"
+              inputmode="numeric"
+              pattern="[0-9]*"
+              placeholder="Ej. 20.000"
+              autocomplete="off"
+              aria-label="Efectivo recibido"
+            />
+          </div>
+          <div class="change-block" id="change-block">
+            <span class="change-label">Cambio a devolver</span>
+            <span class="change-amount" id="val-change">-</span>
+          </div>
+        </div>
+
+        <!-- Metodos de pago -->
+        <div class="payment-methods" role="group" aria-label="Metodo de pago">
+
+          <button
+            class="pay-method-btn selected"
+            data-method="efectivo"
+            type="button"
+            aria-pressed="true"
+          >
+            <i class="fa-solid fa-money-bill-wave"></i>
+            <span>Efectivo</span>
+          </button>
+
+          <button
+            class="pay-method-btn"
+            data-method="nequi"
+            type="button"
+            aria-pressed="false"
+          >
+            <i class="fa-solid fa-mobile-screen-button"></i>
+            <span>Nequi</span>
+          </button>
+
+          <button
+            class="pay-method-btn"
+            data-method="tarjeta"
+            type="button"
+            aria-pressed="false"
+          >
+            <i class="fa-solid fa-credit-card"></i>
+            <span>Tarjeta</span>
+          </button>
+
+        </div>
+        <!-- /payment-methods -->
+
+        </div>
+
+        <!-- Boton Cobrar -->
+        <button
+          class="btn-cobrar w-full"
+          id="btn-cobrar"
+          type="button"
+          disabled
+          aria-live="polite"
+        >
+          <i class="fa-solid fa-circle-check"></i>
+          Cobrar
+        </button>
+
+      </aside>
+      <!-- /payment-panel -->
+
+    </div>
+    <!-- /pos-columns -->
+
+  </div>
+  <!-- /main-area -->
+  <nav class="bottom-bar" role="navigation" aria-label="Navegacion principal">
+
+    <a href="/turno" class="bottom-btn" aria-label="Mi Turno">
+      <i class="fa-solid fa-business-time"></i>
+      <span>Mi Turno</span>
+    </a>
+
+    <a href="/dashboard" class="bottom-btn" aria-label="Inicio">
+      <i class="fa-solid fa-gauge-high"></i>
+      <span>Inicio</span>
+    </a>
+
+    <a href="/caja" class="bottom-btn active" aria-current="page" aria-label="Caja">
+      <i class="fa-solid fa-cash-register"></i>
+      <span>Caja</span>
+    </a>
+
+    <a href="/inventario" class="bottom-btn" aria-label="Inventario">
+      <i class="fa-solid fa-boxes-stacked"></i>
+      <span>Inventario</span>
+    </a>
+
+    <a href="/fiados" class="bottom-btn" aria-label="Fiados">
+      <i class="fa-solid fa-handshake-simple"></i>
+      <span>Fiados</span>
+    </a>
+
+    <a href="{{ url_for('ventas') }}" class="bottom-btn" aria-label="Ventas">
+      <i class="fa-solid fa-file-invoice-dollar"></i>
+      <span>Ventas</span>
+    </a>
+    <a href="/gastos" class="bottom-btn" aria-label="Gastos">
+      <i class="fa-solid fa-receipt"></i>
+      <span>Gastos</span>
+    </a>
+
+    <a href="/perfil" class="bottom-btn" aria-label="Mi Perfil">
+      <i class="fa-solid fa-circle-user"></i>
+      <span>Mi Perfil</span>
+    </a>
+
+  </nav>
+  <!-- /bottom-bar -->
+
+</div>
+<!-- /app-shell -->
+
+<!-- Toast de notificacion global -->
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<!-- Scripts (cop-format primero) -->
+<script src="/static/js/cop-format.js"></script>
+<script src="/static/js/caja.js"></script>
+
+  <!-- RBAC + Suscripcion -->
+  <div id="app-context"
+       data-user-rol="{{ rol }}"
+       data-subs-alerta='{{ mostrar_alerta_suscripcion | tojson }}'
+       data-subs-dias="{{ dias_restantes }}"
+       hidden></div>
+  <script src="/static/js/subs-context.js"></script>
+  <script src="/static/js/nav-rbac.js"></script>
+  <script src="/static/js/subs-modal.js"></script>
+
+</body>
+</html>
+
+
+
+
+
+
+

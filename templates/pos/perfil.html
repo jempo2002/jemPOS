@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>jemPOS - Mi Perfil</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+
+  <link
+    rel="stylesheet"
+    href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
+    crossorigin="anonymous"
+    referrerpolicy="no-referrer"
+  />
+
+  <script>
+    tailwind = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Plus Jakarta Sans"', 'ui-sans-serif', 'system-ui'],
+          },
+        },
+      },
+    };
+  </script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <meta name="csrf-token" content="{{ csrf_token() }}" />
+</head>
+
+<body class="font-sans text-slate-900">
+  <div class="flex h-screen bg-gray-50 overflow-hidden">
+    <aside class="hidden md:flex md:fixed md:inset-y-0 md:left-0 md:z-30 md:w-72 md:flex-col bg-white border-r border-gray-100">
+      <div class="px-8 py-8">
+        <div class="text-2xl font-extrabold tracking-tight text-slate-900">
+          <span class="text-slate-900">jem</span><span class="text-blue-500">POS</span>
+        </div>
+        <div class="text-xs uppercase tracking-[0.2em] text-slate-400 mt-2">Punto de Venta</div>
+      </div>
+
+      <nav class="flex-1 px-4 space-y-1" role="navigation" aria-label="Menu principal">
+        <a href="/turno" class="group flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold text-slate-600 hover:bg-gray-50 hover:text-slate-900">
+          <i class="fa-solid fa-business-time text-slate-400 group-hover:text-blue-500"></i>
+          <span>Mi Turno</span>
+        </a>
+        <a href="/dashboard" class="group flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold text-slate-600 hover:bg-gray-50 hover:text-slate-900">
+          <i class="fa-solid fa-gauge-high text-slate-400 group-hover:text-blue-500"></i>
+          <span>{% if session.get('rol') == 'Admin' %}Panel de Control{% else %}Inicio{% endif %}</span>
+        </a>
+        <a href="/caja" class="group flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold text-slate-600 hover:bg-gray-50 hover:text-slate-900">
+          <i class="fa-solid fa-cash-register text-slate-400 group-hover:text-blue-500"></i>
+          <span>Caja</span>
+        </a>
+        <a href="/inventario" class="group flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold text-slate-600 hover:bg-gray-50 hover:text-slate-900">
+          <i class="fa-solid fa-boxes-stacked text-slate-400 group-hover:text-blue-500"></i>
+          <span>Inventario</span>
+        </a>
+        <a href="/fiados" class="group flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold text-slate-600 hover:bg-gray-50 hover:text-slate-900">
+          <i class="fa-solid fa-handshake-simple text-slate-400 group-hover:text-blue-500"></i>
+          <span>Fiados</span>
+        </a>
+        <a href="{{ url_for('ventas') }}" class="group flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold text-slate-600 hover:bg-gray-50 hover:text-slate-900">
+          <i class="fa-solid fa-file-invoice-dollar text-slate-400 group-hover:text-blue-500"></i>
+          <span>Ventas</span>
+        </a>
+        <a href="/gastos" class="group flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold text-slate-600 hover:bg-gray-50 hover:text-slate-900">
+          <i class="fa-solid fa-receipt text-slate-400 group-hover:text-blue-500"></i>
+          <span>Gastos</span>
+        </a>
+        <a href="/perfil" class="group flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold text-blue-600 bg-blue-50" aria-current="page">
+          <i class="fa-solid fa-circle-user text-blue-500"></i>
+          <span>Mi Perfil</span>
+        </a>
+      </nav>
+
+      <div class="px-6 pb-6">
+        <a href="{{ url_for('logout') }}" class="flex items-center justify-center gap-2 rounded-full border border-gray-200 px-4 py-2 text-sm font-semibold text-slate-600 hover:border-blue-200 hover:text-blue-600">
+          <img src="/static/img/leave.png" alt="" class="h-4 w-4" />
+          Cerrar sesion
+        </a>
+      </div>
+
+      <div class="px-6 pb-8 border-t border-gray-100">
+        <div class="pt-6 flex items-center gap-3">
+          {% if foto_perfil %}
+          <img src="/static/uploads/perfiles/{{ foto_perfil }}" class="h-12 w-12 rounded-full object-cover" alt="Foto" />
+          {% else %}
+          <div class="h-12 w-12 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-lg font-bold">
+            {{ avatar_iniciales }}
+          </div>
+          {% endif %}
+          <div class="leading-tight">
+            <div class="text-sm font-semibold text-slate-900">{{ nombre_completo }}</div>
+            <div class="text-xs text-slate-500 perf-display-role">{{ rol }}</div>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <div class="flex-1 md:pl-72 flex flex-col h-screen">
+      <header class="md:hidden flex items-center justify-between px-4 py-4 bg-white border-b border-gray-100">
+        <div class="text-lg font-extrabold tracking-tight text-slate-900">
+          <span class="text-slate-900">jem</span><span class="text-blue-500">POS</span>
+        </div>
+        <div class="flex items-center gap-2 text-xs text-slate-500">
+          <i class="fa-solid fa-circle-user text-blue-500"></i>
+          Perfil
+        </div>
+      </header>
+
+      <main class="flex-1 overflow-y-auto p-4 md:p-8">
+        <div class="max-w-3xl mx-auto space-y-6">
+          <div class="bg-white rounded-[2rem] p-8 shadow-sm border border-gray-100 space-y-6">
+            <div class="flex flex-col gap-3">
+              <div class="flex items-center gap-3 text-sm text-slate-500">
+                <span class="inline-flex items-center justify-center h-10 w-10 rounded-2xl bg-blue-50 text-blue-500">
+                  <i class="fa-solid fa-id-card-clip"></i>
+                </span>
+                <span class="uppercase tracking-[0.25em] text-xs">Perfil</span>
+              </div>
+              <div class="flex flex-col gap-2">
+                <div class="text-2xl font-extrabold text-slate-900">Datos del Usuario</div>
+                <p class="text-sm text-slate-500">Actualiza tu informacion personal y foto de perfil.</p>
+              </div>
+            </div>
+
+            <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+              <div class="flex items-center gap-4">
+                <div class="relative h-20 w-20">
+                  <div id="perf-avatar" class="absolute inset-0 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-2xl font-bold" aria-label="Avatar de usuario">
+                    {{ avatar_iniciales }}
+                  </div>
+                  <img
+                    id="perf-avatar-img"
+                    src="{% if foto_perfil %}/static/uploads/perfiles/{{ foto_perfil }}{% endif %}"
+                    alt="Foto de perfil"
+                    class="absolute inset-0 h-20 w-20 rounded-full object-cover{% if not foto_perfil %} hidden{% endif %}"
+                  />
+                </div>
+                <div>
+                  <div id="perf-display-name" class="text-lg font-semibold text-slate-900">{{ nombre_completo }}</div>
+                  <div class="text-sm text-slate-500 perf-display-role">{{ rol }}</div>
+                </div>
+              </div>
+              <div class="flex flex-col gap-2">
+                <button
+                  class="inline-flex items-center justify-center gap-2 rounded-full bg-blue-500 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-600"
+                  type="button"
+                  id="perf-camera-btn"
+                >
+                  <i class="fa-solid fa-camera"></i>
+                  Cambiar foto
+                </button>
+                <input type="file" id="inp-foto-perfil" accept="image/png, image/jpeg" class="hidden" />
+                <button
+                  type="button"
+                  id="btn-eliminar-foto"
+                  class="inline-flex items-center justify-center gap-2 rounded-full border border-gray-200 px-5 py-2.5 text-sm font-semibold text-slate-600 hover:border-rose-200 hover:text-rose-500{% if not foto_perfil %} hidden{% endif %}"
+                  aria-label="Eliminar foto de perfil"
+                >
+                  <img src="/static/img/basura.png" alt="" class="h-4 w-4" />
+                  Eliminar foto
+                </button>
+              </div>
+            </div>
+
+            <form id="perf-form" class="space-y-4" novalidate>
+              <div class="perf-field space-y-2">
+                <label class="text-sm font-semibold text-slate-700" for="inp-nombre">Nombre Completo</label>
+                <input
+                  type="text"
+                  id="inp-nombre"
+                  class="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                  placeholder="Tu nombre completo"
+                  autocomplete="name"
+                />
+              </div>
+
+              <div class="perf-field space-y-2">
+                <label class="text-sm font-semibold text-slate-700" for="inp-correo">Correo</label>
+                <div class="relative">
+                  <input
+                    type="email"
+                    id="inp-correo"
+                    class="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 pr-10 text-sm font-medium text-slate-500"
+                    readonly
+                    autocomplete="email"
+                  />
+                  <i class="fa-solid fa-lock absolute right-4 top-1/2 -translate-y-1/2 text-slate-400" aria-hidden="true"></i>
+                </div>
+              </div>
+
+              <div class="perf-field space-y-2">
+                <label class="text-sm font-semibold text-slate-700" for="inp-rol">Rol</label>
+                <div class="relative">
+                  <input
+                    type="text"
+                    id="inp-rol"
+                    class="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 pr-10 text-sm font-medium text-slate-500"
+                    readonly
+                  />
+                  <i class="fa-solid fa-lock absolute right-4 top-1/2 -translate-y-1/2 text-slate-400" aria-hidden="true"></i>
+                </div>
+              </div>
+
+              <div class="perf-field space-y-2">
+                <label class="text-sm font-semibold text-slate-700" for="inp-negocio">Nombre del Negocio</label>
+                <input
+                  type="text"
+                  id="inp-negocio"
+                  class="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                  placeholder="Nombre de tu negocio"
+                  autocomplete="organization"
+                />
+              </div>
+
+              <div class="perf-field space-y-2">
+                <label class="text-sm font-semibold text-slate-700" for="inp-telefono">Telefono</label>
+                <input
+                  type="tel"
+                  id="inp-telefono"
+                  class="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                  placeholder="Tu numero de telefono"
+                  inputmode="numeric"
+                  pattern="[0-9\s]*"
+                  autocomplete="tel"
+                />
+              </div>
+
+              <button
+                class="inline-flex items-center justify-center gap-2 rounded-full bg-blue-500 px-6 py-3 text-sm font-semibold text-white shadow-sm hover:bg-blue-600"
+                id="btn-guardar"
+                type="submit"
+              >
+                <i class="fa-solid fa-floppy-disk" id="btn-guardar-icon"></i>
+                <span id="btn-guardar-text">Guardar Cambios</span>
+              </button>
+            </form>
+          </div>
+
+          <div class="bg-white rounded-[2rem] p-8 shadow-sm border border-gray-100 space-y-4">
+            <div class="flex items-center justify-between">
+              <div class="text-xl font-extrabold text-slate-900">Cambiar Contrasena</div>
+              <span class="text-xs uppercase tracking-[0.2em] text-slate-400">Seguridad</span>
+            </div>
+            <div class="perf-field space-y-2">
+              <label class="text-sm font-semibold text-slate-700" for="pwd-actual">Contrasena actual</label>
+              <input
+                type="password"
+                id="pwd-actual"
+                class="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                autocomplete="current-password"
+              />
+            </div>
+            <div class="perf-field space-y-2">
+              <label class="text-sm font-semibold text-slate-700" for="pwd-nueva">Nueva contrasena</label>
+              <input
+                type="password"
+                id="pwd-nueva"
+                class="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                autocomplete="new-password"
+              />
+            </div>
+            <div class="perf-field space-y-2">
+              <label class="text-sm font-semibold text-slate-700" for="pwd-confirmar">Confirmar contrasena</label>
+              <input
+                type="password"
+                id="pwd-confirmar"
+                class="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                autocomplete="new-password"
+              />
+            </div>
+            <button
+              type="button"
+              class="inline-flex items-center justify-center gap-2 rounded-full bg-blue-500/60 px-6 py-3 text-sm font-semibold text-white shadow-sm"
+              disabled
+              aria-disabled="true"
+            >
+              Actualizar Contrasena
+            </button>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <script src="/static/js/perfil.js"></script>
+  <div id="app-context"
+       data-user-rol="{{ rol }}"
+       data-subs-alerta='{{ mostrar_alerta_suscripcion | tojson }}'
+       data-subs-dias="{{ dias_restantes }}"
+       hidden></div>
+  <script src="/static/js/subs-context.js"></script>
+  <script src="/static/js/nav-rbac.js"></script>
+  <script src="/static/js/subs-modal.js"></script>
+</body>
+</html>

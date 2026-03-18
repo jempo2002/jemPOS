@@ -1,0 +1,206 @@
+<!-- Ruta: templates/pos/onboarding.html -->
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>jemPOS — Configuracion Inicial</title>
+
+  <!-- Google Fonts: Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+
+  <!-- FontAwesome 6 -->
+  <link
+    rel="stylesheet"
+    href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
+    crossorigin="anonymous"
+    referrerpolicy="no-referrer"
+  />
+
+  <!-- Estilos propios -->
+  <link rel="stylesheet" href="/static/css/onboarding.css" />
+  <meta name="csrf-token" content="{{ csrf_token() }}" />
+</head>
+
+<body>
+
+  <div class="onboarding-wrapper">
+
+    <!-- ── LOGO ──────────────────────────────────────────── -->
+    <div class="brand-heading">
+      <div class="logo">
+        <span class="jem">jem</span><span class="pos">POS</span>
+      </div>
+      <p class="tagline">Sistema de Punto de Venta</p>
+    </div>
+
+    <!-- ── TARJETA ───────────────────────────────────────── -->
+    <div class="card">
+
+      <!-- Cabecera de bienvenida -->
+      <div class="card-header">
+        <h1>¡Bienvenido a jemPOS!<br>Configuremos tu tienda.</h1>
+
+      </div>
+
+      <!-- ── Indicador de progreso ──────────────────────── -->
+      <div class="progress-bar" role="list" aria-label="Progreso de configuracion">
+
+        <!-- Paso 1 -->
+        <div class="step-item connector-active" id="step-connector" role="listitem">
+          <div class="step-circle" id="circle-1" aria-label="Paso 1">1</div>
+          <span class="step-label" id="label-1">Categoria</span>
+        </div>
+
+        <!-- Paso 2 -->
+        <div class="step-item" role="listitem">
+          <div class="step-circle" id="circle-2" aria-label="Paso 2">2</div>
+          <span class="step-label" id="label-2">Producto</span>
+        </div>
+
+      </div>
+      <!-- /progress-bar -->
+
+      <!-- ══════════════════════════════════════════════════
+           PASO 1 — Crear primera categoria
+           ══════════════════════════════════════════════════ -->
+      <section id="step-1" class="step-section visible" aria-label="Paso 1: Crear categoria">
+
+        <div class="field">
+          <label for="category-name">Nombra tu primera categoria</label>
+          <input
+            type="text"
+            id="category-name"
+            name="category-name"
+            placeholder="Ej. Bebidas, Repuestos, Ropa..."
+            autocomplete="off"
+            maxlength="60"
+            autofocus
+          />
+          <p class="field-help">
+            Podras crear mas categorias luego, esta es solo para empezar.
+          </p>
+          <span class="error-msg" id="category-error" role="alert"></span>
+        </div>
+
+        <button class="btn btn-primary" id="btn-next" type="button">
+          <span>Siguiente paso</span>
+          <i class="fa-solid fa-arrow-right"></i>
+        </button>
+
+      </section>
+      <!-- /step-1 -->
+
+      <!-- ══════════════════════════════════════════════════
+           PASO 2 — Agregar primer producto
+           ══════════════════════════════════════════════════ -->
+      <section id="step-2" class="step-section" aria-label="Paso 2: Agregar producto">
+
+        <p class="step2-title">
+          Agrega tu primer producto a la categoria
+          <span class="cat-name" id="cat-name-display"></span>
+        </p>
+
+        <!-- Nombre del producto -->
+        <div class="field">
+          <label for="product-name">Nombre del producto</label>
+          <input
+            type="text"
+            id="product-name"
+            name="product-name"
+            placeholder="Ej. Coca-Cola 350ml"
+            autocomplete="off"
+            maxlength="80"
+          />
+          <span class="error-msg" id="product-name-error" role="alert"></span>
+        </div>
+
+        <!-- Precios en fila -->
+        <div class="field-row">
+          <div class="field">
+            <label for="cost-price">Precio de costo</label>
+            <input
+              type="tel"
+              id="cost-price"
+              name="cost-price"
+              inputmode="numeric"
+              pattern="[0-9]*"
+              placeholder="Ej. 1.200"
+              autocomplete="off"
+            />
+            <span class="error-msg" id="cost-error" role="alert"></span>
+          </div>
+
+          <div class="field">
+            <label for="sale-price">Precio de venta</label>
+            <input
+              type="tel"
+              id="sale-price"
+              name="sale-price"
+              inputmode="numeric"
+              pattern="[0-9]*"
+              placeholder="Ej. 2.000"
+              autocomplete="off"
+            />
+            <span class="error-msg" id="sale-error" role="alert"></span>
+          </div>
+        </div>
+
+        <!-- Badge dinamico de ganancia -->
+        <div class="field field-spacious">
+          <span class="profit-badge neutral" id="profit-badge">
+            Ganancia por unidad: —
+          </span>
+        </div>
+
+        <!-- Stock inicial -->
+        <div class="field">
+          <label for="stock-initial">Stock inicial</label>
+          <input
+            type="tel"
+            id="stock-initial"
+            name="stock-initial"
+            inputmode="numeric"
+            pattern="[0-9]*"
+            placeholder="Ej. 50"
+            autocomplete="off"
+          />
+          <p class="field-help">¿Cuantas unidades tienes disponibles ahora?</p>
+          <span class="error-msg" id="stock-error" role="alert"></span>
+        </div>
+
+        <!-- Boton final -->
+        <button class="btn btn-success" id="btn-start" type="button">
+          <i class="fa-solid fa-rocket"></i>
+          <span>¡Empezar a vender!</span>
+        </button>
+
+      </section>
+      <!-- /step-2 -->
+
+    </div>
+    <!-- /card -->
+
+  </div>
+  <!-- /onboarding-wrapper -->
+
+  <!-- Utilidade COP (debe ir antes del script de pantalla) -->
+  <script src="/static/js/cop-format.js"></script>
+  <!-- JS propio (siempre al final del body) -->
+  <script src="/static/js/onboarding.js"></script>
+
+  <!-- RBAC + Suscripcion -->
+  <div id="app-context"
+       data-user-rol="{{ rol }}"
+       data-subs-alerta='{{ mostrar_alerta_suscripcion | tojson }}'
+       data-subs-dias="{{ dias_restantes }}"
+       hidden></div>
+  <script src="/static/js/subs-context.js"></script>
+  <script src="/static/js/nav-rbac.js"></script>
+  <script src="/static/js/subs-modal.js"></script>
+
+</body>
+</html>
+

@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>jemPOS - Insumos</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+
+  <link
+    rel="stylesheet"
+    href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
+    crossorigin="anonymous"
+    referrerpolicy="no-referrer"
+  />
+
+  <link rel="stylesheet" href="/static/css/caja.css" />
+  <link rel="stylesheet" href="/static/css/insumos.css" />
+  <meta name="csrf-token" content="{{ csrf_token() }}" />
+</head>
+
+<body>
+<div class="app-shell ins-shell">
+  <aside class="sidebar" role="navigation" aria-label="Menu principal">
+    <div class="sidebar-logo">
+      <div class="logo-text"><span class="jem">jem</span><span class="pos">POS</span></div>
+      <div class="sub">Punto de Venta</div>
+    </div>
+
+    <nav class="sidebar-nav">
+      <a href="/turno" class="nav-link">
+        <i class="fa-solid fa-business-time"></i>
+        <span>Mi Turno</span>
+      </a>
+      <a href="/dashboard" class="nav-link">
+        <i class="fa-solid fa-gauge-high"></i>
+        <span>{% if session.get('rol') == 'Admin' %}Panel de Control{% else %}Inicio{% endif %}</span>
+      </a>
+      <a href="/caja" class="nav-link">
+        <i class="fa-solid fa-cash-register"></i>
+        <span>Caja</span>
+      </a>
+      <a href="/inventario" class="nav-link">
+        <i class="fa-solid fa-boxes-stacked"></i>
+        <span>{% if session.get('es_restaurante') %}Menu y Platos{% else %}Inventario{% endif %}</span>
+      </a>
+      {% if session.get('es_restaurante') %}
+      <a href="/insumos" class="nav-link active" aria-current="page">
+        <i class="fa-solid fa-carrot"></i>
+        <span>Insumos</span>
+      </a>
+      {% endif %}
+      <a href="/fiados" class="nav-link">
+        <i class="fa-solid fa-handshake-simple"></i>
+        <span>Fiados</span>
+      </a>
+      <a href="{{ url_for('ventas') }}" class="nav-link">
+        <i class="fa-solid fa-file-invoice-dollar"></i>
+        <span>Ventas</span>
+      </a>
+      <a href="/gastos" class="nav-link">
+        <i class="fa-solid fa-receipt"></i>
+        <span>Gastos</span>
+      </a>
+      <a href="/perfil" class="nav-link">
+        <i class="fa-solid fa-circle-user"></i>
+        <span>Mi Perfil</span>
+      </a>
+    </nav>
+
+    <a href="{{ url_for('logout') }}" class="sidebar-logout no-underline hover:no-underline">
+      <img src="/static/img/leave.png" alt="" />
+      Cerrar sesion
+    </a>
+
+    <div class="sidebar-footer">
+      {% if foto_perfil %}
+      <img src="/static/uploads/perfiles/{{ foto_perfil }}" class="avatar avatar-img" alt="Foto" />
+      {% else %}
+      <div class="avatar">{{ avatar_iniciales }}</div>
+      {% endif %}
+      <div class="user-info">
+        <div class="user-name">{{ nombre_completo }}</div>
+        <div class="user-role">{{ rol }}</div>
+      </div>
+    </div>
+  </aside>
+
+  <main class="ins-main">
+    <header class="ins-header">
+      <div class="ins-head-top">
+        <h1>Insumos</h1>
+        <button id="btn-ins-new" class="ins-btn-new" type="button">
+          <i class="fa-solid fa-plus"></i>
+          Nuevo Insumo
+        </button>
+      </div>
+      <p class="ins-subtitle">Administra la despensa por unidad y costo para calcular recetas automaticas.</p>
+    </header>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+      <section class="ins-flashes">
+        {% for category, message in messages %}
+        <article class="ins-flash {{ 'error' if category == 'error' else 'success' }}">{{ message }}</article>
+        {% endfor %}
+      </section>
+      {% endif %}
+    {% endwith %}
+
+    <section class="ins-content">
+      <div class="ins-cards">
+        {% if insumos %}
+          {% for insumo in insumos %}
+          <article class="ins-card">
+            <div class="ins-card-title-row">
+              <h3>{{ insumo.nombre }}</h3>
+              <span class="ins-unit">{{ insumo.unidad_medida }}</span>
+            </div>
+            <dl>
+              <div>
+                <dt>Stock Actual</dt>
+                 <dd>{{ '%.3f'|format(insumo.stock_actual) }} {{ insumo.unidad_medida }}</dd>
+              </div>
+              <div>
+                <dt>Costo Unitario</dt>
+                <dd>${{ '{:,.0f}'.format(insumo.costo_unitario|float)|replace(',', '.') }}</dd>
+              </div>
+              <div>
+                <dt>Proveedor</dt>
+                <dd>{{ insumo.proveedor_nombre }}</dd>
+              </div>
+            </dl>
+            <div class="ins-actions">
+              <button
+                class="ins-btn edit"
+                type="button"
+                data-action="edit"
+                data-id="{{ insumo.id_insumo }}"
+                data-nombre="{{ insumo.nombre }}"
+                data-stock="{{ insumo.stock_actual }}"
+                data-unidad="{{ insumo.unidad_medida }}"
+                data-costo="{{ insumo.costo_unitario }}"
+                data-proveedor="{{ insumo.id_proveedor or '' }}"
+              >Editar</button>
+              <form method="POST" action="/insumos/eliminar/{{ insumo.id_insumo }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                <button class="ins-btn del" type="submit">Eliminar</button>
+              </form>
+            </div>
+          </article>
+          {% endfor %}
+        {% else %}
+          <article class="ins-empty">No hay insumos registrados en esta tienda.</article>
+        {% endif %}
+      </div>
+
+      <div class="ins-table-wrap">
+        <table class="ins-table" aria-label="Listado de insumos">
+          <thead>
+            <tr>
+              <th>Nombre</th>
+              <th>Stock Actual</th>
+              <th>Unidad</th>
+              <th>Costo Unitario</th>
+              <th>Proveedor</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% if insumos %}
+              {% for insumo in insumos %}
+              <tr>
+                <td>{{ insumo.nombre }}</td>
+                <td>{{ '%.3f'|format(insumo.stock_actual) }}</td>
+                <td>{{ insumo.unidad_medida }}</td>
+                <td>${{ '{:,.0f}'.format(insumo.costo_unitario|float)|replace(',', '.') }}</td>
+                <td>{{ insumo.proveedor_nombre }}</td>
+                <td>
+                  <div class="ins-actions">
+                    <button
+                      class="ins-btn edit"
+                      type="button"
+                      data-action="edit"
+                      data-id="{{ insumo.id_insumo }}"
+                      data-nombre="{{ insumo.nombre }}"
+                      data-stock="{{ insumo.stock_actual }}"
+                      data-unidad="{{ insumo.unidad_medida }}"
+                      data-costo="{{ insumo.costo_unitario }}"
+                      data-proveedor="{{ insumo.id_proveedor or '' }}"
+                    >Editar</button>
+                    <form method="POST" action="/insumos/eliminar/{{ insumo.id_insumo }}">
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                      <button class="ins-btn del" type="submit">Eliminar</button>
+                    </form>
+                  </div>
+                </td>
+              </tr>
+              {% endfor %}
+            {% else %}
+              <tr>
+                <td colspan="6" class="ins-empty">No hay insumos registrados en esta tienda.</td>
+              </tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <nav class="bottom-bar" aria-label="Navegacion principal">
+    <a href="/turno" class="bottom-btn" aria-label="Mi Turno">
+      <i class="fa-solid fa-business-time"></i>
+      <span>Mi Turno</span>
+    </a>
+    <a href="/dashboard" class="bottom-btn" aria-label="Inicio">
+      <i class="fa-solid fa-gauge-high"></i>
+      <span>Inicio</span>
+    </a>
+    <a href="/caja" class="bottom-btn" aria-label="Caja">
+      <i class="fa-solid fa-cash-register"></i>
+      <span>Caja</span>
+    </a>
+    <a href="/inventario" class="bottom-btn" aria-label="Inventario">
+      <i class="fa-solid fa-boxes-stacked"></i>
+      <span>{% if session.get('es_restaurante') %}Menu{% else %}Inventario{% endif %}</span>
+    </a>
+    {% if session.get('es_restaurante') %}
+    <a href="/insumos" class="bottom-btn active" aria-current="page" aria-label="Insumos">
+      <i class="fa-solid fa-carrot"></i>
+      <span>Insumos</span>
+    </a>
+    {% endif %}
+    <a href="/fiados" class="bottom-btn" aria-label="Fiados">
+      <i class="fa-solid fa-handshake-simple"></i>
+      <span>Fiados</span>
+    </a>
+    <a href="{{ url_for('ventas') }}" class="bottom-btn" aria-label="Ventas">
+      <i class="fa-solid fa-file-invoice-dollar"></i>
+      <span>Ventas</span>
+    </a>
+    <a href="/gastos" class="bottom-btn" aria-label="Gastos">
+      <i class="fa-solid fa-receipt"></i>
+      <span>Gastos</span>
+    </a>
+    <a href="/perfil" class="bottom-btn" aria-label="Mi Perfil">
+      <i class="fa-solid fa-circle-user"></i>
+      <span>Mi Perfil</span>
+    </a>
+  </nav>
+</div>
+
+<div id="ins-modal" class="ins-modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="ins-modal-title">
+  <div class="ins-modal-card">
+    <div class="ins-modal-head">
+      <h2 id="ins-modal-title">Nuevo Insumo</h2>
+      <button id="ins-modal-close" type="button" class="ins-close">
+        <img src="/static/img/equis.png" alt="Cerrar" />
+      </button>
+    </div>
+
+    <form id="ins-form" method="POST" action="/insumos/crear" class="ins-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+
+      <label>Nombre
+        <input id="ins-nombre" name="nombre" type="text" maxlength="120" required />
+      </label>
+
+      <div class="ins-grid-two">
+        <label>Stock Actual
+          <input id="ins-stock" name="stock_actual" type="number" min="0" step="any" required />
+        </label>
+        <label>Unidad
+          <select id="ins-unidad" name="unidad_medida" required>
+            <option value="Gr">Gr</option>
+            <option value="Ml">Ml</option>
+            <option value="Un">Un</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="ins-grid-two">
+        <label>Costo Unitario
+          <input id="ins-costo" name="costo_unitario" type="number" min="0" step="any" required />
+        </label>
+        <label>Proveedor
+          <select id="ins-proveedor" name="id_proveedor">
+            <option value="">Sin proveedor</option>
+            {% for p in proveedores %}
+            <option value="{{ p.id }}">{{ p.empresa }}</option>
+            {% endfor %}
+          </select>
+        </label>
+      </div>
+
+      <div class="ins-modal-actions">
+        <button id="ins-cancel" type="button" class="ins-btn cancel">Cancelar</button>
+        <button type="submit" class="ins-btn save">Guardar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script src="/static/js/logout.js"></script>
+<script src="/static/js/insumos.js"></script>
+<div id="app-context"
+     data-user-rol="{{ rol }}"
+     data-subs-alerta='{{ mostrar_alerta_suscripcion | tojson }}'
+     data-subs-dias="{{ dias_restantes }}"
+     hidden></div>
+<script src="/static/js/subs-context.js"></script>
+<script src="/static/js/nav-rbac.js"></script>
+<script src="/static/js/subs-modal.js"></script>
+
+</body>
+</html>

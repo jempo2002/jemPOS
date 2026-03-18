@@ -1,0 +1,329 @@
+﻿<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>jemPOS - Proveedores</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+
+  <link
+    rel="stylesheet"
+    href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
+    crossorigin="anonymous"
+    referrerpolicy="no-referrer"
+  />
+
+  <link rel="stylesheet" href="/static/css/caja.css" />
+  <link rel="stylesheet" href="/static/css/proveedores.css" />
+  <meta name="csrf-token" content="{{ csrf_token() }}" />
+</head>
+<body>
+<div class="app-shell">
+  <aside class="sidebar" role="navigation" aria-label="Menu principal">
+    <div class="sidebar-logo">
+      <div class="logo-text"><span class="jem">jem</span><span class="pos">POS</span></div>
+      <div class="sub">Punto de Venta</div>
+    </div>
+
+    <nav class="sidebar-nav">
+      <a href="/turno" class="nav-link">
+        <i class="fa-solid fa-business-time"></i>
+        <span>Mi Turno</span>
+      </a>
+      <a href="/dashboard" class="nav-link">
+        <i class="fa-solid fa-gauge-high"></i>
+        <span>{% if session.get('rol') == 'Admin' %}Panel de Control{% else %}Inicio{% endif %}</span>
+      </a>
+      <a href="/caja" class="nav-link">
+        <i class="fa-solid fa-cash-register"></i>
+        <span>Caja</span>
+      </a>
+      <a href="/inventario" class="nav-link">
+        <i class="fa-solid fa-boxes-stacked"></i>
+        <span>Inventario</span>
+      </a>
+      <a href="/proveedores" class="nav-link active" aria-current="page">
+        <i class="fa-solid fa-truck-field"></i>
+        <span>Proveedores</span>
+      </a>
+      <a href="/fiados" class="nav-link">
+        <i class="fa-solid fa-handshake-simple"></i>
+        <span>Fiados</span>
+      </a>
+      <a href="{{ url_for('ventas') }}" class="nav-link">
+        <i class="fa-solid fa-file-invoice-dollar"></i>
+        <span>Ventas</span>
+      </a>
+      <a href="/gastos" class="nav-link">
+        <i class="fa-solid fa-receipt"></i>
+        <span>Gastos</span>
+      </a>
+      <a href="/perfil" class="nav-link">
+        <i class="fa-solid fa-circle-user"></i>
+        <span>Mi Perfil</span>
+      </a>
+    </nav>
+
+    <a href="{{ url_for('logout') }}" class="sidebar-logout">
+      <img src="/static/img/leave.png" alt="" />
+      Cerrar sesion
+    </a>
+    <div class="sidebar-footer">
+      {% if foto_perfil %}
+      <img src="/static/uploads/perfiles/{{ foto_perfil }}" class="avatar avatar-img" alt="Foto" />
+      {% else %}
+      <div class="avatar">{{ avatar_iniciales }}</div>
+      {% endif %}
+      <div class="user-info">
+        <div class="user-name">{{ nombre_completo }}</div>
+        <div class="user-role">{{ rol }}</div>
+      </div>
+    </div>
+  </aside>
+
+  <main class="prov-main">
+    <header class="prov-header">
+      <div class="prov-logo" aria-hidden="true"><span class="jem">jem</span><span class="pos">POS</span></div>
+      <div class="prov-head-row">
+        <h1>Proveedores</h1>
+        <button id="btn-prov-new" class="prov-btn-new" type="button">
+          <i class="fa-solid fa-plus"></i>
+          Nuevo Proveedor
+        </button>
+      </div>
+
+      <div class="prov-search-wrap">
+        <i class="fa-solid fa-magnifying-glass"></i>
+        <input id="prov-search" type="search" class="prov-search" placeholder="Buscar empresa, nombre o celular" autocomplete="off" aria-label="Buscar proveedores" />
+      </div>
+    </header>
+
+    <section class="prov-content">
+      {% if proveedores %}
+      <div class="prov-cards" id="prov-cards">
+        {% for proveedor in proveedores %}
+        <article class="prov-card prov-item" data-search="{{ (proveedor['nombre_empresa'] ~ ' ' ~ (proveedor['nombre_contacto'] or '') ~ ' ' ~ (proveedor['celular'] or ''))|lower }}">
+          <p class="prov-company">{{ proveedor['nombre_empresa'] }}</p>
+          <p class="prov-contact">Nombre: {{ proveedor['nombre_contacto'] or 'Sin registro' }}</p>
+          <p class="prov-phone">Celular: {{ proveedor['celular'] or 'Sin registro' }}</p>
+
+          <div class="prov-actions">
+            <button class="prov-btn view"
+                    type="button"
+                    data-action="view-products"
+                    data-id="{{ proveedor['id_proveedor'] }}"
+                    data-empresa="{{ proveedor['nombre_empresa'] }}">
+              Ver Productos
+            </button>
+            <button class="prov-btn edit"
+                    type="button"
+                    data-action="edit"
+                    data-id="{{ proveedor['id_proveedor'] }}"
+                    data-empresa="{{ proveedor['nombre_empresa'] }}"
+                    data-nombre="{{ proveedor['nombre_contacto'] or '' }}"
+                    data-celular="{{ proveedor['celular'] or '' }}"
+                    data-correo="{{ proveedor['correo'] or '' }}"
+                    data-detalles="{{ proveedor['detalles'] or '' }}">
+              Editar
+            </button>
+            <button class="prov-btn del"
+                    type="button"
+                    data-action="delete"
+                    data-id="{{ proveedor['id_proveedor'] }}"
+                    data-empresa="{{ proveedor['nombre_empresa'] }}">
+              Eliminar
+            </button>
+          </div>
+        </article>
+        {% endfor %}
+      </div>
+
+      <div class="prov-table-wrap">
+        <table class="prov-table" aria-label="Lista de proveedores">
+          <thead>
+            <tr>
+              <th>Empresa</th>
+              <th>Nombre</th>
+              <th>Celular</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody id="prov-table-body">
+            {% for proveedor in proveedores %}
+            <tr class="prov-item" data-search="{{ (proveedor['nombre_empresa'] ~ ' ' ~ (proveedor['nombre_contacto'] or '') ~ ' ' ~ (proveedor['celular'] or ''))|lower }}">
+              <td>{{ proveedor['nombre_empresa'] }}</td>
+              <td>{{ proveedor['nombre_contacto'] or 'Sin registro' }}</td>
+              <td>{{ proveedor['celular'] or 'Sin registro' }}</td>
+              <td>
+                <div class="prov-actions">
+                  <button class="prov-btn view"
+                          type="button"
+                          data-action="view-products"
+                          data-id="{{ proveedor['id_proveedor'] }}"
+                          data-empresa="{{ proveedor['nombre_empresa'] }}">
+                    Ver Productos
+                  </button>
+                  <button class="prov-btn edit"
+                          type="button"
+                          data-action="edit"
+                          data-id="{{ proveedor['id_proveedor'] }}"
+                          data-empresa="{{ proveedor['nombre_empresa'] }}"
+                          data-nombre="{{ proveedor['nombre_contacto'] or '' }}"
+                          data-celular="{{ proveedor['celular'] or '' }}"
+                          data-correo="{{ proveedor['correo'] or '' }}"
+                          data-detalles="{{ proveedor['detalles'] or '' }}">
+                    Editar
+                  </button>
+                  <button class="prov-btn del"
+                          type="button"
+                          data-action="delete"
+                          data-id="{{ proveedor['id_proveedor'] }}"
+                          data-empresa="{{ proveedor['nombre_empresa'] }}">
+                    Eliminar
+                  </button>
+                </div>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="prov-empty-card">No hay proveedores registrados.</div>
+      {% endif %}
+
+      <div class="prov-empty hidden" id="prov-empty-live">No hay proveedores para esta busqueda.</div>
+    </section>
+  </main>
+
+  <nav class="bottom-bar" aria-label="Navegacion principal">
+    <a href="/turno" class="bottom-btn" aria-label="Mi Turno">
+      <i class="fa-solid fa-business-time"></i>
+      <span>Mi Turno</span>
+    </a>
+    <a href="/dashboard" class="bottom-btn" aria-label="Inicio">
+      <i class="fa-solid fa-gauge-high"></i>
+      <span>Inicio</span>
+    </a>
+    <a href="/caja" class="bottom-btn" aria-label="Caja">
+      <i class="fa-solid fa-cash-register"></i>
+      <span>Caja</span>
+    </a>
+    <a href="/inventario" class="bottom-btn" aria-label="Inventario">
+      <i class="fa-solid fa-boxes-stacked"></i>
+      <span>Inventario</span>
+    </a>
+    <a href="/proveedores" class="bottom-btn active" aria-current="page" aria-label="Proveedores">
+      <i class="fa-solid fa-truck-field"></i>
+      <span>Prov.</span>
+    </a>
+    <a href="/fiados" class="bottom-btn" aria-label="Fiados">
+      <i class="fa-solid fa-handshake-simple"></i>
+      <span>Fiados</span>
+    </a>
+    <a href="{{ url_for('ventas') }}" class="bottom-btn" aria-label="Ventas">
+      <i class="fa-solid fa-file-invoice-dollar"></i>
+      <span>Ventas</span>
+    </a>
+    <a href="/gastos" class="bottom-btn" aria-label="Gastos">
+      <i class="fa-solid fa-receipt"></i>
+      <span>Gastos</span>
+    </a>
+    <a href="/perfil" class="bottom-btn" aria-label="Mi Perfil">
+      <i class="fa-solid fa-circle-user"></i>
+      <span>Mi Perfil</span>
+    </a>
+  </nav>
+</div>
+
+<div id="prov-modal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="prov-modal-title">
+  <div class="modal-card prov-modal-card">
+    <img src="/static/img/equis.png" alt="Cerrar" id="prov-modal-close" class="absolute top-4 right-4 w-6 h-6 cursor-pointer" />
+
+    <div class="modal-header prov-modal-headline">
+      <span class="modal-title" id="prov-modal-title">Nuevo Proveedor</span>
+    </div>
+
+    <form id="prov-form" method="POST" action="/proveedores/crear" class="prov-form-body">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+
+      <div class="modal-field prov-field">
+        <label for="prov-empresa">Empresa</label>
+        <input id="prov-empresa" name="empresa" type="text" maxlength="150" required class="w-full rounded-xl border border-slate-300 px-3 py-2" />
+      </div>
+
+      <div class="modal-field prov-field">
+        <label for="prov-nombre">Nombre</label>
+        <input id="prov-nombre" name="nombre_contacto" type="text" maxlength="150" required class="w-full rounded-xl border border-slate-300 px-3 py-2" />
+      </div>
+
+      <div class="modal-field prov-field">
+        <label for="prov-celular">Celular</label>
+        <input id="prov-celular" name="celular" type="text" inputmode="numeric" pattern="[0-9]{1,10}" maxlength="10" oninput="this.value = this.value.replace(/[^0-9]/g, '')" class="w-full rounded-xl border border-slate-300 px-3 py-2" required />
+      </div>
+
+      <div class="modal-field prov-field">
+        <label for="prov-correo">Correo <span class="prov-optional">(opcional)</span></label>
+        <input id="prov-correo" name="correo" type="email" maxlength="100" class="w-full rounded-xl border border-slate-300 px-3 py-2" />
+      </div>
+
+      <div class="modal-field prov-field">
+        <label for="prov-detalles">Detalles <span class="prov-optional">(opcional)</span></label>
+        <textarea id="prov-detalles" name="detalles" maxlength="400" class="w-full rounded-xl border border-slate-300 px-3 py-2"></textarea>
+      </div>
+
+      <div class="modal-footer prov-modal-foot">
+        <button type="button" id="prov-modal-cancel" class="btn-modal-cancel prov-btn-cancel">Cancelar</button>
+        <button type="submit" class="btn-modal-save prov-btn-save">Guardar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div id="prov-products-modal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="prov-products-title">
+  <div class="modal-card prov-modal-card">
+    <img src="/static/img/equis.png" alt="Cerrar" id="prov-products-close" class="absolute top-4 right-4 w-6 h-6 cursor-pointer" />
+
+    <div class="modal-header prov-modal-headline">
+      <span class="modal-title" id="prov-products-title">Productos del proveedor</span>
+    </div>
+    <div class="modal-field prov-modal-body" id="prov-products-body">Cargando...</div>
+  </div>
+</div>
+
+<div id="prov-delete-modal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="prov-delete-title">
+  <div class="modal-card prov-modal-card prov-delete-card">
+    <img src="/static/img/equis.png" alt="Cerrar" id="prov-delete-close" class="absolute top-4 right-4 w-6 h-6 cursor-pointer" />
+
+    <div class="modal-header prov-modal-headline">
+      <span class="modal-title" id="prov-delete-title">Confirmar eliminacion</span>
+    </div>
+    <div class="modal-field prov-modal-body">
+      <p id="prov-delete-text" class="prov-delete-text">Estas seguro de eliminar a este proveedor?</p>
+    </div>
+    <form id="prov-delete-form" method="POST" action="/proveedores/eliminar/0" class="modal-footer prov-modal-foot">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+      <button type="button" id="prov-delete-cancel" class="btn-modal-cancel prov-btn-cancel">Cancelar</button>
+      <button type="submit" class="prov-btn-del">Eliminar</button>
+    </form>
+  </div>
+</div>
+
+<script src="/static/js/proveedores.js"></script>
+
+<div id="app-context"
+     data-user-rol="{{ rol }}"
+     data-subs-alerta='{{ mostrar_alerta_suscripcion | tojson }}'
+     data-subs-dias="{{ dias_restantes }}"
+     hidden></div>
+<script src="/static/js/subs-context.js"></script>
+<script src="/static/js/nav-rbac.js"></script>
+<script src="/static/js/subs-modal.js"></script>
+<script src="/static/js/logout.js"></script>
+</body>
+</html>
+
+

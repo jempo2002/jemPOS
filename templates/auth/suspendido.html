@@ -1,0 +1,108 @@
+<!-- Ruta: templates/auth/suspendido.html -->
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>jemPOS Servicio Suspendido</title>
+
+  <!-- Google Fonts: Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="/static/js/auth-suspendido.tailwind.js"></script>
+
+  <!-- FontAwesome 6 -->
+  <link
+    rel="stylesheet"
+    href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
+    crossorigin="anonymous"
+    referrerpolicy="no-referrer"
+  />
+
+  <link rel="stylesheet" href="/static/css/suspendido.css" />
+</head>
+
+<body class="min-h-screen flex items-center justify-center px-4 py-12">
+
+  <div class="w-full max-w-md animate-fade-up">
+
+    <!-- Logo -->
+    <div class="text-center mb-8">
+      <h1 class="text-3xl font-bold tracking-tight">
+        <span class="text-ink">jem</span><span class="text-brand-500">POS</span>
+      </h1>
+    </div>
+
+    <!-- Tarjeta principal -->
+    <div class="bg-white rounded-2xl shadow-[0_4px_32px_rgba(15,23,42,0.09)] p-8 text-center">
+
+      <!-- Icono de alerta -->
+      <div class="relative inline-flex items-center justify-center mb-6">
+        <div class="pulse-ring relative w-20 h-20 rounded-full bg-danger-50 flex items-center justify-center">
+          <i class="fa-solid fa-triangle-exclamation text-danger-500 text-3xl"></i>
+        </div>
+      </div>
+
+      <!-- Titulo -->
+      <h2 class="text-xl font-bold text-ink mb-2">Servicio Suspendido</h2>
+
+      {% if nombre_negocio %}
+      <p class="text-sm font-semibold text-muted mb-4">{{ nombre_negocio }}</p>
+      {% endif %}
+
+      <!-- Mensaje -->
+      <p class="text-sm text-slate-500 leading-relaxed mb-6">
+        Tu suscripción de <span class="font-semibold text-ink">jemPOS</span> ha vencido y el acceso
+        ha sido bloqueado temporalmente.<br/><br/>
+        Para restaurar el servicio, por favor renueva tu suscripción. Una vez renovada,
+        podrás volver a usar el sistema de inmediato.
+      </p>
+
+      <!-- Separador -->
+      <div class="border-t border-slate-100 my-5"></div>
+
+      <!-- Informacion de contacto -->
+      <div class="bg-slate-50 rounded-xl p-4 mb-6 text-left">
+        <p class="text-xs font-semibold text-muted uppercase tracking-wide mb-2">
+          ¿Como renovar?
+        </p>
+        <ul class="space-y-2 text-sm text-slate-600">
+          <li class="flex items-start gap-2">
+            <i class="fa-solid fa-circle-check text-brand-500 mt-0.5 text-xs flex-shrink-0"></i>
+            Contacta al equipo de soporte de jemPOS.
+          </li>
+          <li class="flex items-start gap-2">
+            <i class="fa-solid fa-circle-check text-brand-500 mt-0.5 text-xs flex-shrink-0"></i>
+            Realiza el pago del plan que mejor se adapte a tu negocio.
+          </li>
+          <li class="flex items-start gap-2">
+            <i class="fa-solid fa-circle-check text-brand-500 mt-0.5 text-xs flex-shrink-0"></i>
+            Tu acceso se reactivará de forma automática al instante.
+          </li>
+        </ul>
+      </div>
+
+      <!-- Boton volver al login (para cambiar de cuenta) -->
+      <a
+        href="/login"
+        class="block w-full py-3 rounded-xl bg-brand-500 hover:bg-brand-600 text-white text-sm font-semibold transition-colors"
+      >
+        Volver al inicio de sesión
+      </a>
+
+    </div>
+
+    <!-- Nota al pie -->
+    <p class="text-center text-xs text-muted mt-5">
+      Si crees que esto es un error, comunícate con el administrador del sistema.
+    </p>
+
+  </div>
+
+</body>
+</html>
+

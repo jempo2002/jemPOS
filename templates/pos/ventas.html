@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Historial de Ventas</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+
+  <link
+    rel="stylesheet"
+    href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
+    crossorigin="anonymous"
+    referrerpolicy="no-referrer"
+  />
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="/static/css/caja.css" />
+  <meta name="csrf-token" content="{{ csrf_token() }}" />
+  <style>
+    .ventas-mobile-only { display: block; }
+    .ventas-desktop-only { display: none; }
+    @media (min-width: 768px) {
+      .ventas-mobile-only { display: none; }
+      .ventas-desktop-only { display: block; }
+    }
+  </style>
+</head>
+
+<body>
+<div class="app-shell">
+  <aside class="sidebar" role="navigation" aria-label="Menu principal">
+    <div class="sidebar-logo">
+      <div class="logo-text"><span class="jem">jem</span><span class="pos">POS</span></div>
+      <div class="sub">Punto de Venta</div>
+    </div>
+
+    <nav class="sidebar-nav">
+      <a href="/turno" class="nav-link">
+        <i class="fa-solid fa-business-time"></i>
+        <span>Mi Turno</span>
+      </a>
+      <a href="/dashboard" class="nav-link">
+        <i class="fa-solid fa-gauge-high"></i>
+        <span>{% if session.get('rol') == 'Admin' %}Panel de Control{% else %}Inicio{% endif %}</span>
+      </a>
+      <a href="/caja" class="nav-link">
+        <i class="fa-solid fa-cash-register"></i>
+        <span>Caja</span>
+      </a>
+      {% if session.get('es_restaurante') %}
+      <a href="/inventario" class="nav-link{% if request.path == '/inventario' %} active{% endif %}">
+        <i class="fa-solid fa-utensils"></i>
+        <span>Menu y Platos</span>
+      </a>
+      <a href="/insumos" class="nav-link{% if request.path == '/insumos' %} active{% endif %}">
+        <i class="fa-solid fa-boxes-stacked"></i>
+        <span>Insumos (Despensa)</span>
+      </a>
+      {% else %}
+      <a href="/inventario" class="nav-link{% if request.path == '/inventario' %} active{% endif %}">
+        <i class="fa-solid fa-boxes-stacked"></i>
+        <span>Inventario</span>
+      </a>
+      {% endif %}
+      <a href="/fiados" class="nav-link">
+        <i class="fa-solid fa-handshake-simple"></i>
+        <span>Fiados</span>
+      </a>
+      <a href="{{ url_for('ventas') }}" class="nav-link active" aria-current="page">
+        <i class="fa-solid fa-file-invoice-dollar"></i>
+        <span>Ventas</span>
+      </a>
+      <a href="/gastos" class="nav-link">
+        <i class="fa-solid fa-receipt"></i>
+        <span>Gastos</span>
+      </a>
+      <a href="/perfil" class="nav-link">
+        <i class="fa-solid fa-circle-user"></i>
+        <span>Mi Perfil</span>
+      </a>
+    </nav>
+
+    <a href="{{ url_for('logout') }}" class="sidebar-logout no-underline hover:no-underline">
+      <img src="/static/img/leave.png" alt="" />
+      Cerrar sesion
+    </a>
+
+    <div class="sidebar-footer">
+      {% if foto_perfil %}
+      <img src="/static/uploads/perfiles/{{ foto_perfil }}" class="avatar avatar-img" alt="Foto" />
+      {% else %}
+      <div class="avatar">{{ avatar_iniciales }}</div>
+      {% endif %}
+      <div class="user-info">
+        <div class="user-name">{{ nombre_completo }}</div>
+        <div class="user-role">{{ rol }}</div>
+      </div>
+    </div>
+  </aside>
+
+  <main class="main-area">
+    <div class="bg-gray-50 min-h-full p-4 md:p-6">
+      <div class="max-w-7xl mx-auto space-y-6">
+        <div class="bg-white rounded-[2rem] shadow-sm p-6 md:p-8 border border-gray-100">
+          <div class="mb-6 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+            <div>
+              <h1 class="text-2xl font-bold text-gray-800">Historial de Ventas</h1>
+              <p class="mt-1 text-sm text-gray-500">Consulta de ventas por periodo y detalle de ticket.</p>
+            </div>
+          </div>
+
+          {% if rol == 'Cajero' %}
+          <div class="mb-6 inline-flex items-center gap-2 rounded-full bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-700 ring-1 ring-blue-100">
+            <i class="fa-solid fa-clock"></i> Mostrando ultimas 24 horas
+          </div>
+          {% else %}
+          <div class="flex flex-wrap items-center gap-2 mb-6">
+            <a href="{{ url_for('ventas', filtro='hoy') }}"
+               class="{% if filtro_activo == 'hoy' %}bg-blue-600 text-white shadow-md rounded-full px-4 py-2 text-sm font-semibold transition{% else %}bg-blue-50 text-blue-700 border border-blue-100 hover:bg-blue-100 rounded-full px-4 py-2 text-sm font-medium transition{% endif %}">
+              Hoy
+            </a>
+            <a href="{{ url_for('ventas', filtro='semana') }}"
+               class="{% if filtro_activo == 'semana' %}bg-blue-600 text-white shadow-md rounded-full px-4 py-2 text-sm font-semibold transition{% else %}bg-blue-50 text-blue-700 border border-blue-100 hover:bg-blue-100 rounded-full px-4 py-2 text-sm font-medium transition{% endif %}">
+              Semana
+            </a>
+            <a href="{{ url_for('ventas', filtro='mes') }}"
+               class="{% if filtro_activo == 'mes' %}bg-blue-600 text-white shadow-md rounded-full px-4 py-2 text-sm font-semibold transition{% else %}bg-blue-50 text-blue-700 border border-blue-100 hover:bg-blue-100 rounded-full px-4 py-2 text-sm font-medium transition{% endif %}">
+              Mes
+            </a>
+            <a href="{{ url_for('ventas', filtro='todas') }}"
+               class="{% if filtro_activo == 'todas' %}bg-blue-600 text-white shadow-md rounded-full px-4 py-2 text-sm font-semibold transition{% else %}bg-blue-50 text-blue-700 border border-blue-100 hover:bg-blue-100 rounded-full px-4 py-2 text-sm font-medium transition{% endif %}">
+              Todas
+            </a>
+          </div>
+          {% endif %}
+
+          {% if ventas %}
+          <div class="ventas-mobile-only space-y-4">
+            {% for venta in ventas %}
+            {% set estado = venta.estado_venta or 'Pagada' %}
+            <div class="bg-gray-50 rounded-2xl p-5 border border-gray-100 flex flex-col gap-3">
+              <div class="flex items-center justify-between gap-3">
+                <p class="text-sm font-semibold text-gray-800">Venta #{{ venta.id_venta }}</p>
+                {% if estado == 'Pagada' %}
+                <span class="rounded-full px-3 py-1 text-xs font-bold bg-green-100 text-green-800">Pagada</span>
+                {% elif estado == 'Anulada' %}
+                <span class="rounded-full px-3 py-1 text-xs font-bold bg-red-100 text-red-800">Anulada</span>
+                {% elif estado == 'Fiada/Pendiente' %}
+                <span class="rounded-full px-3 py-1 text-xs font-bold bg-orange-100 text-orange-800">Fiada/Pendiente</span>
+                {% else %}
+                <span class="rounded-full px-3 py-1 text-xs font-bold bg-gray-200 text-gray-700">{{ estado }}</span>
+                {% endif %}
+              </div>
+
+              <p class="text-sm text-gray-700"><span class="font-semibold text-gray-800">Cliente:</span> {{ venta.nombre_cliente }}</p>
+              <p class="text-lg font-bold text-gray-900">${{ '{:,.0f}'.format(venta.total_final) }}</p>
+              <p class="text-xs text-gray-500">{{ venta.fecha_creacion.strftime('%Y-%m-%d %H:%M') if venta.fecha_creacion else 'Sin fecha' }}</p>
+
+              <button
+                type="button"
+                class="btn-ver-detalle bg-blue-100 text-blue-700 rounded-xl px-4 py-2 text-center font-semibold"
+                data-id="{{ venta.id_venta }}">
+                Ver Detalle
+              </button>
+            </div>
+            {% endfor %}
+          </div>
+
+          <div class="ventas-desktop-only overflow-x-auto">
+            <table class="w-full">
+              <thead>
+                <tr class="text-gray-500 uppercase text-xs">
+                  <th class="py-3 text-left">ID Venta</th>
+                  <th class="py-3 text-left">Fecha</th>
+                  <th class="py-3 text-left">Cliente</th>
+                  <th class="py-3 text-left">Cajero</th>
+                  <th class="py-3 text-left">Total</th>
+                  <th class="py-3 text-left">Estado</th>
+                  <th class="py-3 text-left">Accion</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for venta in ventas %}
+                {% set estado = venta.estado_venta or 'Pagada' %}
+                <tr class="border-b border-gray-50 hover:bg-gray-50 transition">
+                  <td class="py-4 text-sm font-semibold text-gray-800">#{{ venta.id_venta }}</td>
+                  <td class="py-4 text-sm text-gray-700">{{ venta.fecha_creacion.strftime('%Y-%m-%d %H:%M') if venta.fecha_creacion else 'Sin fecha' }}</td>
+                  <td class="py-4 text-sm text-gray-700">{{ venta.nombre_cliente }}</td>
+                  <td class="py-4 text-sm text-gray-700">{{ venta.nombre_cajero }}</td>
+                  <td class="py-4 text-sm font-bold text-gray-900">${{ '{:,.0f}'.format(venta.total_final) }}</td>
+                  <td class="py-4 text-sm">
+                    {% if estado == 'Pagada' %}
+                    <span class="rounded-full px-3 py-1 text-xs font-bold bg-green-100 text-green-800">Pagada</span>
+                    {% elif estado == 'Anulada' %}
+                    <span class="rounded-full px-3 py-1 text-xs font-bold bg-red-100 text-red-800">Anulada</span>
+                    {% elif estado == 'Fiada/Pendiente' %}
+                    <span class="rounded-full px-3 py-1 text-xs font-bold bg-orange-100 text-orange-800">Fiada/Pendiente</span>
+                    {% else %}
+                    <span class="rounded-full px-3 py-1 text-xs font-bold bg-gray-200 text-gray-700">{{ estado }}</span>
+                    {% endif %}
+                  </td>
+                  <td class="py-4 text-sm">
+                    <button
+                      type="button"
+                      class="btn-ver-detalle bg-blue-100 text-blue-700 rounded-xl px-4 py-2 text-center font-semibold"
+                      data-id="{{ venta.id_venta }}">
+                      Ver Detalle
+                    </button>
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          {% else %}
+          <div class="bg-white rounded-[2rem] p-12 text-center border border-gray-100 shadow-sm flex flex-col items-center justify-center">
+            <i class="fa-solid fa-receipt text-6xl text-gray-200 mb-4"></i>
+            <p class="font-semibold text-gray-700">No se encontraron ventas para este filtro</p>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+      <div id="modal-detalle" class="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+        <div class="bg-white rounded-[2rem] p-6 w-full max-w-md shadow-2xl relative max-h-[90vh] overflow-y-auto">
+          <img src="/static/img/equis.png" alt="Cerrar" id="btn-cerrar-modal" class="absolute right-4 top-4 h-6 w-6 cursor-pointer" />
+
+          <div id="ticket-content" class="pr-6">
+            <h2 class="text-lg font-bold text-gray-800">Detalle del Ticket <span id="ticket-numero">-</span></h2>
+            <p id="ticket-loading" class="mt-2 text-sm text-gray-500">Cargando...</p>
+            <div id="ticket-detalle" class="mt-4"></div>
+            <div class="mt-4 pt-3 border-t border-gray-200 flex items-center justify-between">
+              <span class="text-sm text-gray-600">Total</span>
+              <strong id="ticket-total" class="text-lg font-bold text-gray-900">$0</strong>
+            </div>
+          </div>
+
+          <button id="btn-pdf" type="button" class="mt-5 w-full rounded-lg bg-gray-900 text-white py-2.5 text-sm font-medium hover:bg-gray-700 transition-colors">
+            Descargar PDF
+          </button>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <nav class="bottom-bar" aria-label="Navegacion principal">
+    <a href="/turno" class="bottom-btn" aria-label="Mi Turno">
+      <i class="fa-solid fa-business-time"></i>
+      <span>Mi Turno</span>
+    </a>
+
+    <a href="/dashboard" class="bottom-btn" aria-label="Inicio">
+      <i class="fa-solid fa-gauge-high"></i>
+      <span>Inicio</span>
+    </a>
+
+    <a href="/caja" class="bottom-btn" aria-label="Caja">
+      <i class="fa-solid fa-cash-register"></i>
+      <span>Caja</span>
+    </a>
+
+    {% if session.get('es_restaurante') %}
+    <a href="/inventario" class="bottom-btn" aria-label="Menu y Platos">
+      <i class="fa-solid fa-utensils"></i>
+      <span>Menu</span>
+    </a>
+    <a href="/insumos" class="bottom-btn" aria-label="Insumos">
+      <i class="fa-solid fa-boxes-stacked"></i>
+      <span>Insumos</span>
+    </a>
+    {% else %}
+    <a href="/inventario" class="bottom-btn" aria-label="Inventario">
+      <i class="fa-solid fa-boxes-stacked"></i>
+      <span>Inventario</span>
+    </a>
+    {% endif %}
+
+    <a href="/fiados" class="bottom-btn" aria-label="Fiados">
+      <i class="fa-solid fa-handshake-simple"></i>
+      <span>Fiados</span>
+    </a>
+
+    <a href="{{ url_for('ventas') }}" class="bottom-btn active" aria-current="page" aria-label="Ventas">
+      <i class="fa-solid fa-file-invoice-dollar"></i>
+      <span>Ventas</span>
+    </a>
+
+    <a href="/gastos" class="bottom-btn" aria-label="Gastos">
+      <i class="fa-solid fa-receipt"></i>
+      <span>Gastos</span>
+    </a>
+
+    <a href="/perfil" class="bottom-btn" aria-label="Mi Perfil">
+      <i class="fa-solid fa-circle-user"></i>
+      <span>Mi Perfil</span>
+    </a>
+  </nav>
+</div>
+
+<script src="/static/js/logout.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<script>
+  window.USER_ROL = "{{ rol or '' }}";
+
+  (function () {
+    const modal = document.getElementById('modal-detalle');
+    const closeModalBtn = document.getElementById('btn-cerrar-modal');
+    const pdfBtn = document.getElementById('btn-pdf');
+    const ticketNumero = document.getElementById('ticket-numero');
+    const ticketLoading = document.getElementById('ticket-loading');
+    const ticketDetalle = document.getElementById('ticket-detalle');
+    const ticketTotal = document.getElementById('ticket-total');
+    const ticketContent = document.getElementById('ticket-content');
+
+    function money(value) {
+      return '$' + Number(value || 0).toLocaleString('es-CO', { maximumFractionDigits: 0 });
+    }
+
+    function openModal() {
+      modal.classList.remove('hidden');
+      document.body.style.overflow = 'hidden';
+    }
+
+    function closeModal() {
+      modal.classList.add('hidden');
+      document.body.style.overflow = '';
+    }
+
+    async function loadDetalle(idVenta) {
+      openModal();
+      ticketNumero.textContent = '#' + idVenta;
+      ticketLoading.textContent = 'Cargando...';
+      ticketDetalle.innerHTML = '';
+      ticketTotal.textContent = '$0';
+
+      try {
+        const response = await fetch('/ventas/detalle/' + encodeURIComponent(idVenta));
+        const data = await response.json();
+
+        if (!response.ok || !data.ok) {
+          throw new Error(data.msg || 'No fue posible cargar el detalle');
+        }
+
+        ticketNumero.textContent = data.numero_venta || ('#' + idVenta);
+        ticketLoading.textContent = '';
+
+        if (!Array.isArray(data.items) || data.items.length === 0) {
+          ticketDetalle.innerHTML = '<p class="text-sm text-gray-500">Esta venta no tiene productos.</p>';
+          ticketTotal.textContent = money(data.total);
+          return;
+        }
+
+        const rows = data.items.map(function (item) {
+          return (
+            '<tr class="border-b border-gray-100">' +
+              '<td class="py-2 pr-2 text-sm text-gray-700">' + (item.producto || 'Producto') + '</td>' +
+              '<td class="py-2 px-2 text-center text-sm text-gray-700">' + Number(item.cantidad || 0).toLocaleString('es-CO') + '</td>' +
+              '<td class="py-2 pl-2 text-right text-sm font-medium text-gray-700">' + money(item.subtotal || 0) + '</td>' +
+            '</tr>'
+          );
+        }).join('');
+
+        ticketDetalle.innerHTML =
+          '<table class="w-full">' +
+            '<thead><tr class="border-b border-gray-200 text-xs uppercase text-gray-500"><th class="py-2 pr-2 text-left">Producto</th><th class="py-2 px-2 text-center">Cantidad</th><th class="py-2 pl-2 text-right">Subtotal</th></tr></thead>' +
+            '<tbody>' + rows + '</tbody>' +
+          '</table>';
+
+        ticketTotal.textContent = money(data.total);
+      } catch (error) {
+        ticketLoading.textContent = '';
+        ticketDetalle.innerHTML = '<p class="text-sm text-red-600">' + (error.message || 'Error inesperado') + '</p>';
+      }
+    }
+
+    document.querySelectorAll('.btn-ver-detalle').forEach(function (button) {
+      button.addEventListener('click', function () {
+        const idVenta = this.getAttribute('data-id');
+        if (!idVenta) return;
+        loadDetalle(idVenta);
+      });
+    });
+
+    if (closeModalBtn) {
+      closeModalBtn.addEventListener('click', closeModal);
+    }
+
+    if (modal) {
+      modal.addEventListener('click', function (event) {
+        if (event.target === modal) closeModal();
+      });
+    }
+
+    document.addEventListener('keydown', function (event) {
+      if (event.key === 'Escape' && modal && !modal.classList.contains('hidden')) {
+        closeModal();
+      }
+    });
+
+    if (pdfBtn) {
+      pdfBtn.addEventListener('click', function () {
+        if (window.html2pdf) {
+          const filename = 'ticket_' + (ticketNumero.textContent || 'venta').replace(/\s+/g, '_') + '.pdf';
+          window.html2pdf().set({
+            margin: [8, 8, 8, 8],
+            filename: filename,
+            image: { type: 'jpeg', quality: 0.98 },
+            html2canvas: { scale: 2, useCORS: true },
+            jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+          }).from(ticketContent).save();
+        } else {
+          window.print();
+        }
+      });
+    }
+  })();
+</script>
+<div id="app-context"
+     data-user-rol="{{ rol }}"
+     data-subs-alerta='{{ mostrar_alerta_suscripcion | tojson }}'
+     data-subs-dias="{{ dias_restantes }}"
+     hidden></div>
+<script src="/static/js/subs-context.js"></script>
+<script src="/static/js/nav-rbac.js"></script>
+<script src="/static/js/subs-modal.js"></script>
+
+</body>
+</html>

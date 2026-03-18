@@ -1,0 +1,149 @@
+<!-- Ruta: templates/auth/login.html -->
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>jemPOS — Iniciar sesion</title>
+
+  <!-- Google Fonts: Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="/static/js/auth-login.tailwind.js"></script>
+
+  <!-- FontAwesome 6 CDN -->
+  <link
+    rel="stylesheet"
+    href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
+    crossorigin="anonymous"
+    referrerpolicy="no-referrer"
+  />
+
+  <!-- Estilos propios -->
+  <link rel="stylesheet" href="/static/css/login.css" />
+  <meta name="csrf-token" content="{{ csrf_token() }}" />
+</head>
+
+<body class="min-h-screen flex items-center justify-center px-4 py-8">
+
+  <!-- ── TARJETA PRINCIPAL ────────────────────── -->
+  <div class="w-full max-w-sm animate-fade-up">
+
+    <!-- LOGO TIPOGRAFICO -->
+    <div class="text-center mb-7">
+      <h1 class="text-4xl font-bold tracking-tight">
+        <span class="text-ink">jem</span><span class="text-brand-500">POS</span>
+      </h1>
+      <p class="mt-1.5 text-sm font-medium text-slate-500">Bienvenido de nuevo</p>
+    </div>
+
+    <!-- TARJETA BLANCA -->
+    <div class="bg-white rounded-2xl shadow-card border border-border px-7 pt-7 pb-8">
+
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          <div class="mb-4 space-y-2">
+            {% for category, message in messages %}
+            <div class="rounded-xl px-4 py-3 text-sm {% if category == 'success' %}bg-emerald-50 text-emerald-700 border border-emerald-200{% else %}bg-red-50 text-red-700 border border-red-200{% endif %}">
+              {{ message }}
+            </div>
+            {% endfor %}
+          </div>
+        {% endif %}
+      {% endwith %}
+
+      <!-- Encabezado -->
+      <div class="mb-6">
+        <h2 class="text-2xl font-bold text-ink">Iniciar sesion</h2>
+        <p class="text-sm text-slate-600 mt-1">Ingresa tus credenciales para continuar.</p>
+      </div>
+
+      <!-- FORMULARIO -->
+      <form id="formLogin" method="POST" action="/login" novalidate class="space-y-5">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+
+        <!-- ── Correo electronico ── -->
+        <div>
+          <label class="block text-base font-semibold text-slate-800 mb-2" for="correo">
+            Correo electronico
+          </label>
+          <div class="relative">
+            <span class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4 text-muted">
+              <i class="fa-solid fa-envelope"></i>
+            </span>
+            <input
+              id="correo"
+              name="correo"
+              type="email"
+              placeholder="correo@ejemplo.com"
+              autocomplete="email"
+              inputmode="email"
+              class="field-input w-full rounded-xl border border-border bg-surface pl-11 pr-4 py-3.5 text-base text-ink placeholder-slate-500 font-medium"
+              tabindex="1"
+            />
+          </div>
+          <span id="err_correo" class="field-error-msg"></span>
+        </div>
+
+        <!-- ── Contrasena ── -->
+        <div>
+          <div class="flex items-center justify-between mb-2">
+            <label class="block text-base font-semibold text-slate-800" for="contrasena">
+              Contrasena
+            </label>
+          </div>
+          <div class="relative">
+            <span class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4 text-muted">
+              <i class="fa-solid fa-lock"></i>
+            </span>
+            <input
+              id="contrasena"
+              name="contrasena"
+              type="password"
+              placeholder="Tu contrasena"
+              autocomplete="current-password"
+              class="field-input w-full rounded-xl border border-border bg-surface pl-11 pr-12 py-3.5 text-base text-ink placeholder-slate-500 font-medium"
+              tabindex="2"
+            />
+            <!-- Toggle ojo -->
+            <button
+              type="button"
+              id="toggleBtn"
+              class="toggle-pwd absolute inset-y-0 right-0 flex items-center pr-4 text-muted hover:text-brand-500 transition-colors duration-150"
+              aria-label="Mostrar u ocultar contrasena"
+            >
+              <i id="eyeIcon" class="fa-solid fa-eye"></i>
+            </button>
+          </div>
+          <span id="err_contrasena" class="field-error-msg"></span>
+        </div>
+
+        <!-- ── BOTON PRINCIPAL ── -->
+        <button
+          type="submit"
+          class="btn-primary w-full flex items-center justify-center gap-3 rounded-2xl py-4 text-white font-bold text-base tracking-wide shadow-md"
+        >
+          <i class="fa-solid fa-right-to-bracket"></i>
+          Ingresar al POS
+        </button>
+
+        <div class="text-center">
+          <a href="{{ url_for('olvide_password') }}" class="text-sm text-slate-500 hover:text-brand-600 transition-colors">
+            ¿Olvidaste tu contrasena?
+          </a>
+        </div>
+
+      </form>
+    </div>
+
+
+  <!-- JS propio (al final del body) -->
+  <script src="/static/js/login.js"></script>
+
+</body>
+</html>
+

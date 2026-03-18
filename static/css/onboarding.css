@@ -1,0 +1,326 @@
+/* ============================================================
+   Ruta: static/css/onboarding.css
+   Pantalla: Configuracion Inicial (Onboarding de Inventario)
+   Paleta: jemPOS Design System
+   ============================================================ */
+
+/* ── Reset y base ─────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  background-color: #F8FAFC;
+  color: #1E293B;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem 1rem;
+}
+
+/* ── Contenedor centrado ──────────────────────────────────── */
+.onboarding-wrapper {
+  width: 100%;
+  max-width: 540px;
+  animation: fadeUp 0.45s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* ── Logotipo ─────────────────────────────────────────────── */
+.brand-heading {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.brand-heading .logo {
+  font-size: 2.5rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1;
+}
+
+.brand-heading .logo .jem  { color: #1E293B; }
+.brand-heading .logo .pos  { color: #3B82F6; }
+
+.brand-heading .tagline {
+  margin-top: 0.4rem;
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: #475569;
+}
+
+/* ── Tarjeta principal ────────────────────────────────────── */
+.card {
+  background: #ffffff;
+  border-radius: 1.25rem;           /* rounded-2xl */
+  box-shadow: 0 2px 24px 0 rgba(15, 23, 42, 0.07);  /* shadow-sm suave */
+  border: 1px solid #E2E8F0;
+  padding: 2.25rem 2rem;
+  overflow: hidden;
+}
+
+/* ── Cabecera de bienvenida ───────────────────────────────── */
+.card-header {
+  margin-bottom: 1.75rem;
+  text-align: center;
+}
+
+.card-header h1 {
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: #1E293B;
+  line-height: 1.35;
+}
+
+.card-header p {
+  margin-top: 0.4rem;
+  font-size: 0.95rem;
+  color: #475569;
+}
+
+/* ── Indicador de progreso ────────────────────────────────── */
+.progress-bar {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  margin-bottom: 2rem;
+}
+
+.step-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  flex: 1;
+  position: relative;
+}
+
+.step-item:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  top: 1.05rem;
+  left: calc(50% + 1.1rem);
+  width: calc(100% - 2.2rem);
+  height: 2px;
+  background-color: #E2E8F0;
+  transition: background-color 0.4s ease;
+  z-index: 0;
+}
+
+.step-item.connector-active::after {
+  background-color: #3B82F6;
+}
+
+.step-circle {
+  width: 2.1rem;
+  height: 2.1rem;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.85rem;
+  font-weight: 700;
+  border: 2px solid #E2E8F0;
+  background: #F8FAFC;
+  color: #94A3B8;
+  transition: all 0.35s ease;
+  position: relative;
+  z-index: 1;
+}
+
+.step-circle.active {
+  background: #3B82F6;
+  border-color: #3B82F6;
+  color: #ffffff;
+  box-shadow: 0 0 0 4px #BFDBFE;
+}
+
+.step-circle.done {
+  background: #10B981;
+  border-color: #10B981;
+  color: #ffffff;
+}
+
+.step-label {
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: #94A3B8;
+  text-align: center;
+  transition: color 0.35s ease;
+  line-height: 1.3;
+}
+
+.step-label.active { color: #3B82F6; }
+.step-label.done   { color: #10B981; }
+
+/* ── Formulario: secciones paso ──────────────────────────── */
+.step-section {
+  display: none;
+  animation: stepIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.step-section.visible { display: block; }
+
+/* ── Campo de formulario ──────────────────────────────────── */
+.field {
+  margin-bottom: 1.25rem;
+}
+
+.field.field-spacious {
+  margin-bottom: 1.35rem;
+}
+
+.field label {
+  display: block;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #1E293B;
+  margin-bottom: 0.45rem;
+}
+
+.field input {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  font-size: 1rem;
+  font-family: inherit;
+  color: #1E293B;
+  background: #F8FAFC;
+  border: 1.5px solid #E2E8F0;
+  border-radius: 0.75rem;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  appearance: none;
+}
+
+.field input::placeholder { color: #94A3B8; }
+
+.field input:focus {
+  border-color: #3B82F6;
+  background: #ffffff;
+  box-shadow: 0 0 0 3px #BFDBFE;
+}
+
+.field input.error-field {
+  border-color: #EF4444;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.15);
+}
+
+.field-help {
+  margin-top: 0.4rem;
+  font-size: 0.82rem;
+  color: #94A3B8;
+  line-height: 1.45;
+}
+
+/* ── Fila de dos columnas ─────────────────────────────────── */
+.field-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+/* ── Ganancia dinamica ────────────────────────────────────── */
+.profit-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.5rem;
+  padding: 0.3rem 0.75rem;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  background: #A7F3D0;
+  color: #065F46;
+  transition: background 0.25s, color 0.25s;
+}
+
+.profit-badge.negative {
+  background: rgba(239, 68, 68, 0.12);
+  color: #B91C1C;
+}
+
+.profit-badge.neutral {
+  background: #E2E8F0;
+  color: #475569;
+}
+
+/* ── Titulo dinamico paso 2 ───────────────────────────────── */
+.step2-title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #1E293B;
+  margin-bottom: 1.35rem;
+  line-height: 1.4;
+}
+
+.step2-title .cat-name {
+  color: #3B82F6;
+}
+
+/* ── Error inline ─────────────────────────────────────────── */
+.error-msg {
+  display: none;
+  margin-top: 0.35rem;
+  font-size: 0.8rem;
+  color: #EF4444;
+  font-weight: 500;
+}
+
+/* ── Botones ──────────────────────────────────────────────── */
+.btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.8rem 1.25rem;
+  font-size: 1rem;
+  font-family: inherit;
+  font-weight: 700;
+  border: none;
+  border-radius: 0.85rem;
+  cursor: pointer;
+  transition: background-color 0.2s, transform 0.12s, box-shadow 0.2s;
+  outline: none;
+}
+
+.btn:active { transform: scale(0.98); }
+
+/* Boton principal azul */
+.btn-primary {
+  background-color: #3B82F6;
+  color: #ffffff;
+  box-shadow: 0 4px 14px rgba(59, 130, 246, 0.3);
+}
+
+.btn-primary:hover  { background-color: #1D4ED8; }
+.btn-primary:focus  { box-shadow: 0 0 0 3px #BFDBFE; }
+
+/* Boton exito verde (paso final) */
+.btn-success {
+  background-color: #10B981;
+  color: #ffffff;
+  font-size: 1.1rem;
+  padding: 0.95rem 1.25rem;
+  box-shadow: 0 4px 14px rgba(16, 185, 129, 0.3);
+}
+
+.btn-success:hover  { background-color: #059669; }
+.btn-success:focus  { box-shadow: 0 0 0 3px #A7F3D0; }
+
+/* ── Animaciones ──────────────────────────────────────────── */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0);    }
+}
+
+@keyframes stepIn {
+  from { opacity: 0; transform: translateX(18px); }
+  to   { opacity: 1; transform: translateX(0);    }
+}
+
+/* ── Responsive ───────────────────────────────────────────── */
+@media (max-width: 480px) {
+  .card { padding: 1.5rem 1.1rem; }
+  .field-row { grid-template-columns: 1fr; }
+  .brand-heading .logo { font-size: 2rem; }
+}

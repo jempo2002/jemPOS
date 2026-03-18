@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>jemPOS - Inicio</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+
+  <link
+    rel="stylesheet"
+    href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
+    crossorigin="anonymous"
+    referrerpolicy="no-referrer"
+  />
+
+  <link rel="stylesheet" href="/static/css/caja.css" />
+  <link rel="stylesheet" href="/static/css/dashboard.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <meta name="csrf-token" content="{{ csrf_token() }}" />
+</head>
+
+<body>
+<div class="app-shell">
+  <aside class="sidebar" role="navigation" aria-label="Menu principal">
+    <div class="sidebar-logo">
+      <div class="logo-text"><span class="jem">jem</span><span class="pos">POS</span></div>
+      <div class="sub">Punto de Venta</div>
+    </div>
+
+    <nav class="sidebar-nav">
+      <a href="/turno" class="nav-link">
+        <i class="fa-solid fa-business-time"></i>
+        <span>Mi Turno</span>
+      </a>
+      <a href="/dashboard" class="nav-link active" aria-current="page">
+        <i class="fa-solid fa-gauge-high"></i>
+        <span>{% if session.get('rol') == 'Admin' %}Panel de Control{% else %}Inicio{% endif %}</span>
+      </a>
+      <a href="/caja" class="nav-link">
+        <i class="fa-solid fa-cash-register"></i>
+        <span>Caja</span>
+      </a>
+      <a href="/inventario" class="nav-link">
+        <i class="fa-solid fa-boxes-stacked"></i>
+        <span>Inventario</span>
+      </a>
+      <a href="/fiados" class="nav-link">
+        <i class="fa-solid fa-handshake-simple"></i>
+        <span>Fiados</span>
+      </a>
+      <a href="{{ url_for('ventas') }}" class="nav-link">
+        <i class="fa-solid fa-file-invoice-dollar"></i>
+        <span>Ventas</span>
+      </a>
+      <a href="/gastos" class="nav-link">
+        <i class="fa-solid fa-receipt"></i>
+        <span>Gastos</span>
+      </a>
+      <a href="/perfil" class="nav-link">
+        <i class="fa-solid fa-circle-user"></i>
+        <span>Mi Perfil</span>
+      </a>
+    </nav>
+
+    <a href="{{ url_for('logout') }}" class="sidebar-logout no-underline hover:no-underline">
+      <img src="/static/img/leave.png" alt="" />
+      Cerrar sesion
+    </a>
+    <div class="sidebar-footer">
+      {% if foto_perfil %}
+      <img src="/static/uploads/perfiles/{{ foto_perfil }}" class="avatar avatar-img" alt="Foto" />
+      {% else %}
+      <div class="avatar">{{ avatar_iniciales }}</div>
+      {% endif %}
+      <div class="user-info">
+        <div class="user-name">{{ nombre_completo }}</div>
+        <div class="user-role">{{ rol }}</div>
+      </div>
+    </div>
+  </aside>
+
+  <div class="dash-main flex-1">
+    <div class="dash-mobile-logo" aria-hidden="true">
+      <span class="jem">jem</span><span class="pos">POS</span>
+    </div>
+
+    <div class="max-w-7xl mx-auto space-y-8">
+      <header class="space-y-3">
+        <div>
+          <h1 class="dash-title">{% if rol == 'Admin' %}Panel de Control{% else %}Resumen del Negocio{% endif %}</h1>
+          <p class="dash-subtitle">Panel de control - <span id="dash-date"></span></p>
+        </div>
+        <div class="pill-bar-wrap">
+          <div class="pill-bar" role="group" aria-label="Filtro de tiempo">
+            <button class="pill {% if filtro_activo == 'dia' %}active{% endif %}" data-filter="dia" type="button">Dia</button>
+            <button class="pill {% if filtro_activo == 'semana' %}active{% endif %}" data-filter="semana" type="button">Semana</button>
+            <button class="pill {% if filtro_activo == 'mes' %}active{% endif %}" data-filter="mes" type="button">Mes</button>
+            <button class="pill {% if filtro_activo == 'semestre' %}active{% endif %}" data-filter="semestre" type="button">Semestre</button>
+            <button class="pill {% if filtro_activo == 'anio' %}active{% endif %}" data-filter="anio" type="button">Ano</button>
+          </div>
+        </div>
+      </header>
+
+      {% set ventas_val = dashboard.kpis.ventas or 0 %}
+      {% set gastos_val = dashboard.kpis.gastos or 0 %}
+      {% set balance_val = ventas_val - gastos_val %}
+
+      <section aria-label="Indicadores principales">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div class="bg-white rounded-[2rem] p-6 shadow-sm border border-gray-100">
+            <div class="text-sm text-slate-500 font-semibold">Ventas Totales</div>
+            <div class="text-3xl font-extrabold text-slate-900 mt-2">$ {{ "{:,.0f}".format(ventas_val).replace(',', '.') }}</div>
+          </div>
+          <div class="bg-white rounded-[2rem] p-6 shadow-sm border border-gray-100">
+            <div class="text-sm text-slate-500 font-semibold">Gastos Totales</div>
+            <div class="text-3xl font-extrabold text-red-600 mt-2">$ {{ "{:,.0f}".format(gastos_val).replace(',', '.') }}</div>
+          </div>
+          <div class="bg-white rounded-[2rem] p-6 shadow-sm border border-gray-100">
+            <div class="text-sm text-slate-500 font-semibold">Balance</div>
+            <div class="text-3xl font-extrabold text-slate-900 mt-2">$ {{ "{:,.0f}".format(balance_val).replace(',', '.') }}</div>
+          </div>
+        </div>
+      </section>
+
+      <section aria-label="Grafico comparativo de ingresos y gastos">
+        <div class="chart-card">
+          <div class="ranking-header chart-header">
+            <i class="fa-solid fa-chart-column ranking-icon ranking-icon-blue"></i>
+            <span class="ranking-title">Ingresos vs Gastos</span>
+            <span class="ranking-sub">{{ filtro_activo|capitalize }}</span>
+          </div>
+          <div class="chart-wrap">
+            <canvas id="ventas-chart" height="120"></canvas>
+          </div>
+        </div>
+      </section>
+
+      {% if session.get('rol') == 'Admin' %}
+      <section aria-label="Panel de administrador" class="space-y-4">
+        <h2 class="text-xl font-extrabold text-slate-900">Gestion Administrativa</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div class="bg-white rounded-[2rem] p-6 shadow-sm border border-gray-100 space-y-4">
+            <div>
+              <div class="text-lg font-bold text-slate-900">Gestion de Usuarios</div>
+              <p class="text-sm text-slate-500">Crea y administra el acceso de tu equipo.</p>
+            </div>
+            <button type="button" id="btn-abrir-crear-usuario" class="dash-create-user-btn">
+              <i class="fa-solid fa-user-plus"></i>
+              Crear Usuario
+            </button>
+          </div>
+          <div class="bg-white rounded-[2rem] p-6 shadow-sm border border-gray-100 space-y-4">
+            <div>
+              <div class="text-lg font-bold text-slate-900">Inventario</div>
+              <p class="text-sm text-slate-500">Revisa productos, stock y movimientos.</p>
+            </div>
+            <a href="/inventario" class="dash-create-user-btn">
+              <i class="fa-solid fa-boxes-stacked"></i>
+              Ver Inventario
+            </a>
+          </div>
+          <div class="bg-white rounded-[2rem] p-6 shadow-sm border border-gray-100 space-y-4">
+            <div>
+              <div class="text-lg font-bold text-slate-900">Gastos</div>
+              <p class="text-sm text-slate-500">Controla salidas y medios de pago.</p>
+            </div>
+            <a href="/gastos" class="dash-create-user-btn">
+              <i class="fa-solid fa-receipt"></i>
+              Ver Gastos
+            </a>
+          </div>
+        </div>
+      </section>
+      {% endif %}
+    </div>
+  </div>
+
+  <nav class="bottom-bar" aria-label="Navegacion principal">
+    <a href="/turno" class="bottom-btn" aria-label="Mi Turno">
+      <i class="fa-solid fa-business-time"></i>
+      <span>Mi Turno</span>
+    </a>
+
+    <a href="/dashboard" class="bottom-btn active" aria-current="page" aria-label="Inicio">
+      <i class="fa-solid fa-gauge-high"></i>
+      <span>Inicio</span>
+    </a>
+
+    <a href="/caja" class="bottom-btn" aria-label="Caja">
+      <i class="fa-solid fa-cash-register"></i>
+      <span>Caja</span>
+    </a>
+
+    <a href="/inventario" class="bottom-btn" aria-label="Inventario">
+      <i class="fa-solid fa-boxes-stacked"></i>
+      <span>Inventario</span>
+    </a>
+
+    <a href="/fiados" class="bottom-btn" aria-label="Fiados">
+      <i class="fa-solid fa-handshake-simple"></i>
+      <span>Fiados</span>
+    </a>
+
+    <a href="{{ url_for('ventas') }}" class="bottom-btn" aria-label="Ventas">
+      <i class="fa-solid fa-file-invoice-dollar"></i>
+      <span>Ventas</span>
+    </a>
+    <a href="/gastos" class="bottom-btn" aria-label="Gastos">
+      <i class="fa-solid fa-receipt"></i>
+      <span>Gastos</span>
+    </a>
+
+    <a href="/perfil" class="bottom-btn" aria-label="Mi Perfil">
+      <i class="fa-solid fa-circle-user"></i>
+      <span>Mi Perfil</span>
+    </a>
+  </nav>
+</div>
+
+<div id="modal-crear-usuario"
+     class="hidden cu-modal"
+     role="dialog" aria-modal="true" aria-labelledby="modal-cu-titulo">
+  <div id="modal-cu-overlay" class="cu-overlay"></div>
+  <div class="cu-card">
+    <div class="cu-modal-header">
+      <div>
+        <p id="modal-cu-titulo" class="cu-modal-title">Crear Usuario</p>
+        <p class="cu-modal-subtitle">Completa los datos del nuevo integrante.</p>
+      </div>
+      <button type="button" id="btn-cerrar-modal-cu" class="cu-close-btn" aria-label="Cerrar">
+        <img src="/static/img/equis.png" alt="Cerrar" class="cu-close-icon" />
+      </button>
+    </div>
+
+    <form id="form-crear-usuario" novalidate class="cu-form">
+      <div>
+        <label class="cu-label" for="cu-nombre">Nombre completo</label>
+        <div class="cu-field-wrap">
+          <span class="cu-field-icon">
+            <i class="fa-solid fa-user"></i>
+          </span>
+          <input id="cu-nombre" name="nombre" type="text" autocomplete="off"
+                 placeholder="Ej. Maria Garcia"
+                 class="cu-input" />
+        </div>
+      </div>
+
+      <div>
+        <label class="cu-label" for="cu-cedula">Cedula / NIT <span class="cu-label-opt">(opcional)</span></label>
+        <div class="cu-field-wrap">
+          <span class="cu-field-icon">
+            <i class="fa-solid fa-id-card"></i>
+          </span>
+          <input id="cu-cedula" name="cedula" type="text" autocomplete="off"
+                 placeholder="Ej. 1001234567"
+                 class="cu-input" />
+        </div>
+      </div>
+
+      <div>
+        <label class="cu-label" for="cu-telefono">Telefono <span class="cu-label-opt">(opcional)</span></label>
+        <div class="cu-field-wrap">
+          <span class="cu-field-icon">
+            <i class="fa-solid fa-phone"></i>
+          </span>
+          <input id="cu-telefono" name="telefono" type="tel" autocomplete="off" inputmode="numeric"
+                 placeholder="Ej. 310 456 7890"
+                 class="cu-input" />
+        </div>
+      </div>
+
+      <div>
+        <label class="cu-label" for="cu-correo">Correo electronico</label>
+        <div class="cu-field-wrap">
+          <span class="cu-field-icon">
+            <i class="fa-solid fa-envelope"></i>
+          </span>
+          <input id="cu-correo" name="correo" type="email" autocomplete="off" inputmode="email"
+                 placeholder="correo@ejemplo.com"
+                 class="cu-input" />
+        </div>
+      </div>
+
+      {% if rol == 'Master' %}
+      <div>
+        <label class="cu-label" for="cu-rol">Rol del usuario</label>
+        <div class="cu-field-wrap">
+          <span class="cu-field-icon">
+            <i class="fa-solid fa-shield-halved"></i>
+          </span>
+          <select id="cu-rol" name="rol" class="cu-input cu-select">
+            <option value="Cajero">Cajero</option>
+            <option value="Admin">Administrador</option>
+            <option value="Master">Master</option>
+          </select>
+        </div>
+      </div>
+
+      <div id="cu-negocio-wrap" class="cu-hidden-block">
+        <label class="cu-label" for="cu-negocio">Nombre del Negocio / Local</label>
+        <div class="cu-field-wrap">
+          <span class="cu-field-icon">
+            <i class="fa-solid fa-store"></i>
+          </span>
+          <input id="cu-negocio" name="nombre_negocio" type="text" autocomplete="off"
+                 placeholder="Ej. Tienda La Esperanza"
+                 class="cu-input" />
+        </div>
+      </div>
+
+      <div id="cu-tienda-wrap" class="cu-hidden-block">
+        <label class="cu-label" for="cu-tienda-search">Asignar a Tienda</label>
+        <div class="cu-field-wrap">
+          <span class="cu-field-icon cu-z1">
+            <i class="fa-solid fa-shop"></i>
+          </span>
+          <input id="cu-tienda-search" type="text" autocomplete="off"
+                 placeholder="Busca por nombre de tienda..."
+                 class="cu-input" />
+          <div id="cu-tienda-dropdown" class="cu-dropdown"></div>
+        </div>
+        <input type="hidden" id="cu-tienda-id" />
+      </div>
+      {% endif %}
+
+      <div>
+        <label class="cu-label" for="cu-password">Contrasena</label>
+        <div class="cu-field-wrap">
+          <span class="cu-field-icon">
+            <i class="fa-solid fa-lock"></i>
+          </span>
+          <input id="cu-password" name="password" type="password" autocomplete="new-password"
+                 placeholder="Min. 8 caracteres"
+                 class="cu-input cu-input-pwd" />
+          <button type="button" id="cu-toggle-pwd" class="cu-toggle-btn" aria-label="Mostrar contrasena">
+            <i id="cu-eye-icon" class="fa-solid fa-eye cu-eye-icon"></i>
+          </button>
+        </div>
+        <ul class="cu-checklist">
+          <li class="cu-check-item" id="chk-length">
+            <i class="fa-solid fa-circle cu-check-icon"></i>
+            <span class="cu-check-text">8+ caracteres</span>
+          </li>
+          <li class="cu-check-item" id="chk-upper">
+            <i class="fa-solid fa-circle cu-check-icon"></i>
+            <span class="cu-check-text">Mayuscula</span>
+          </li>
+          <li class="cu-check-item" id="chk-lower">
+            <i class="fa-solid fa-circle cu-check-icon"></i>
+            <span class="cu-check-text">Minuscula</span>
+          </li>
+          <li class="cu-check-item" id="chk-number">
+            <i class="fa-solid fa-circle cu-check-icon"></i>
+            <span class="cu-check-text">Numero</span>
+          </li>
+        </ul>
+      </div>
+
+      <div>
+        <label class="cu-label" for="cu-confirm">Confirmar contrasena</label>
+        <div class="cu-field-wrap">
+          <span class="cu-field-icon">
+            <i class="fa-solid fa-lock"></i>
+          </span>
+          <input id="cu-confirm" name="confirm_password" type="password" autocomplete="new-password"
+                 placeholder="Repite la contrasena"
+                 class="cu-input" />
+        </div>
+      </div>
+
+      <div id="cu-error-box" class="cu-error-box" role="alert">
+        <i class="fa-solid fa-circle-exclamation cu-error-icon"></i>
+        <span id="cu-error-msg"></span>
+      </div>
+
+      <button type="submit" id="btn-cu-submit" class="cu-submit-btn cu-submit-full">
+        <i class="fa-solid fa-user-plus"></i>
+        Crear Usuario
+      </button>
+    </form>
+  </div>
+</div>
+
+<script src="/static/js/logout.js"></script>
+<script type="application/json" id="dash-filter-data">{{ filtro_activo | tojson }}</script>
+<script type="application/json" id="dash-chart-data">{{ dashboard.chart | tojson }}</script>
+<script src="/static/js/cop-format.js"></script>
+<script src="/static/js/dashboard.js"></script>
+<script src="/static/js/dashboard-modal.js"></script>
+
+<div id="app-context"
+     data-user-rol="{{ rol }}"
+     data-subs-alerta='{{ mostrar_alerta_suscripcion | tojson }}'
+     data-subs-dias="{{ dias_restantes }}"
+     hidden></div>
+<script src="/static/js/subs-context.js"></script>
+<script src="/static/js/nav-rbac.js"></script>
+<script src="/static/js/subs-modal.js"></script>
+
+</body>
+</html>

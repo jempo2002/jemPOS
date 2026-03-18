@@ -1,0 +1,662 @@
+/* ============================================================
+   Ruta: static/css/gastos.css
+   Pantalla: Control de Gastos y Compras
+   Extiende caja.css (layout compartido: sidebar, bottom-bar)
+   Mobile-first — jemPOS Design System
+   ============================================================ */
+
+/* ── Area principal ──────────────────────────────────────── */
+.gast-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  /* espacio para bottom bar en movil (incluye safe area iOS) */
+  padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px));
+}
+
+@media (min-width: 768px) {
+  .gast-main { padding-bottom: 0; }
+  .gast-logo { display: none; }
+  .gast-topbar { padding: 1.25rem 1.75rem 1rem; }
+  .btn-nuevo-gasto {
+    padding: 0.7rem 1.4rem;
+    font-size: 0.9rem;
+  }
+}
+
+/* ── Cabecera ─────────────────────────────────────────────── */
+.gast-topbar {
+  background: #ffffff;
+  border-bottom: 1px solid #E2E8F0;
+  padding: 1rem 1.1rem 0.9rem;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.gast-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.gast-title {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: #1E293B;
+  letter-spacing: -0.02em;
+  line-height: 1;
+  flex: 1;
+}
+
+/* Logo movil */
+.gast-logo {
+  font-size: 1.3rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  flex-shrink: 0;
+}
+.gast-logo .jem { color: #1E293B; }
+.gast-logo .pos { color: #3B82F6; }
+
+/* Boton Nuevo Gasto */
+.btn-nuevo-gasto {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.6rem 1rem;
+  background: #3B82F6;
+  color: #ffffff;
+  font-size: 0.875rem;
+  font-weight: 700;
+  font-family: inherit;
+  border: none;
+  border-radius: 0.75rem;
+  cursor: pointer;
+  white-space: nowrap;
+  box-shadow: 0 4px 12px rgba(59,130,246,0.3);
+  transition: background 0.18s, transform 0.12s;
+  flex-shrink: 0;
+}
+.btn-nuevo-gasto:hover  { background: #1D4ED8; }
+.btn-nuevo-gasto:active { transform: scale(0.97); }
+.btn-nuevo-gasto i      { font-size: 0.8rem; }
+
+/* ── Tarjetas de resumen ──────────────────────────────────── */
+.gast-summary {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.6rem;
+}
+
+.gast-summary-card {
+  border-radius: 0.85rem;
+  padding: 0.7rem 0.9rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  border: 1.5px solid transparent;
+}
+
+.gast-summary-hoy {
+  background: #FFF7F7;
+  border-color: rgba(239,68,68,0.2);
+}
+
+.gast-summary-mes {
+  background: #F8FAFC;
+  border-color: #E2E8F0;
+}
+
+.gast-summary-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #94A3B8;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.gast-summary-amount {
+  font-size: 1.2rem;
+  font-weight: 800;
+  color: #EF4444;
+  letter-spacing: -0.03em;
+  line-height: 1;
+}
+
+.gast-summary-mes .gast-summary-amount {
+  color: #1E293B;
+}
+
+@media (min-width: 768px) {
+  .gast-summary {
+    grid-template-columns: repeat(2, minmax(0, 220px));
+  }
+  .gast-summary-amount {
+    font-size: 1.4rem;
+  }
+}
+
+/* ── Cuerpo scrollable ────────────────────────────────────── */
+.gast-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1rem 1rem 1.5rem;
+}
+
+@media (min-width: 768px) {
+  .gast-body { padding: 1.5rem 1.5rem 2rem; }
+}
+
+/* ══════════════════════════════════════════════════════════
+   VISTA MOVIL — TARJETAS
+   ══════════════════════════════════════════════════════════ */
+.gast-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+@media (min-width: 768px) {
+  .gast-cards { display: none; }
+}
+
+/* Tarjeta individual */
+.gast-card {
+  background: #ffffff;
+  border: 1.5px solid #E2E8F0;
+  border-radius: 1rem;
+  padding: 0.9rem 1rem;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+  display: flex;
+  align-items: flex-start;
+  gap: 0.85rem;
+  transition: box-shadow 0.18s;
+}
+.gast-card:hover { box-shadow: 0 4px 14px rgba(0,0,0,0.08); }
+
+/* Icono de categoria */
+.gast-card-icon {
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 0.65rem;
+  background: #FFF7F7;
+  border: 1.5px solid rgba(239,68,68,0.15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+  color: #EF4444;
+  flex-shrink: 0;
+}
+
+.gast-card-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.gast-card-cat {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #94A3B8;
+  margin-bottom: 0.15rem;
+}
+
+.gast-card-desc {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #1E293B;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.gast-card-meta {
+  font-size: 0.78rem;
+  color: #64748B;
+  margin-top: 0.2rem;
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.gast-origen-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  background: #F1F5F9;
+  border-radius: 9999px;
+  padding: 0.1rem 0.55rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #475569;
+}
+.gast-origen-pill.efectivo {
+  background: rgba(16,185,129,0.1);
+  color: #059669;
+}
+.gast-origen-pill.banco {
+  background: #BFDBFE;
+  color: #1D4ED8;
+}
+
+.gast-card-amount {
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: #EF4444;
+  letter-spacing: -0.03em;
+  text-align: right;
+  flex-shrink: 0;
+  align-self: center;
+}
+
+/* ══════════════════════════════════════════════════════════
+   VISTA DESKTOP — TABLA
+   ══════════════════════════════════════════════════════════ */
+.gast-table-wrap {
+  display: none;
+}
+
+@media (min-width: 768px) {
+  .gast-table-wrap {
+    display: block;
+    background: #ffffff;
+    border: 1.5px solid #E2E8F0;
+    border-radius: 1rem;
+    overflow: hidden;
+  }
+}
+
+.gast-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.92rem;
+}
+
+.gast-table thead {
+  background: #F8FAFC;
+  border-bottom: 1.5px solid #E2E8F0;
+}
+
+.gast-table thead th {
+  padding: 0.85rem 1.1rem;
+  text-align: left;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #64748B;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+}
+
+.gast-table thead th.th-monto {
+  text-align: right;
+}
+
+.gast-table tbody tr {
+  border-bottom: 1px solid #F1F5F9;
+  transition: background 0.12s;
+}
+.gast-table tbody tr:last-child { border-bottom: none; }
+.gast-table tbody tr:hover      { background: #FAFBFF; }
+
+.gast-table td {
+  padding: 0.9rem 1.1rem;
+  vertical-align: middle;
+  color: #475569;
+}
+
+.gast-td-fecha {
+  font-size: 0.82rem;
+  color: #94A3B8;
+  white-space: nowrap;
+}
+
+.gast-td-cat {
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #64748B;
+}
+
+.gast-td-desc {
+  font-weight: 500;
+  color: #1E293B;
+  max-width: 240px;
+}
+
+.gast-td-monto {
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: #EF4444;
+  letter-spacing: -0.03em;
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* ── Estado vacio ─────────────────────────────────────── */
+.gast-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 3rem 1rem;
+  color: #94A3B8;
+  text-align: center;
+}
+.gast-empty i    { font-size: 2.5rem; opacity: 0.35; }
+.gast-empty p    { font-size: 1.05rem; font-weight: 600; color: #475569; margin: 0; }
+.gast-empty span { font-size: 0.88rem; }
+.gast-empty.hidden { display: none; }
+
+/* ══════════════════════════════════════════════════════════
+   MODAL
+   ══════════════════════════════════════════════════════════ */
+.gast-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15,23,42,0.55);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  z-index: 900;
+  padding: 1rem;
+  animation: gBackdropIn 0.2s ease;
+}
+.gast-backdrop.hidden { display: none; }
+
+@keyframes gBackdropIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@media (min-width: 540px) {
+  .gast-backdrop { align-items: center; }
+}
+
+.gast-modal-card {
+  width: 100%;
+  max-width: 460px;
+  background: #ffffff;
+  border-radius: 1.25rem;
+  box-shadow: 0 24px 60px rgba(0,0,0,0.18);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: gCardUp 0.22s cubic-bezier(0.34,1.3,0.64,1);
+}
+
+@keyframes gCardUp {
+  from { transform: translateY(1.5rem); opacity: 0; }
+  to   { transform: translateY(0);      opacity: 1; }
+}
+
+.gast-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.1rem 1.25rem 1rem;
+  border-bottom: 1px solid #E2E8F0;
+}
+
+.gast-modal-title {
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: #1E293B;
+  letter-spacing: -0.02em;
+}
+
+.gast-modal-close {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 0.5rem;
+  border: none;
+  background: #F1F5F9;
+  color: #64748B;
+  font-size: 1rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s;
+  flex-shrink: 0;
+}
+.gast-modal-close:hover { background: #E2E8F0; color: #1E293B; }
+
+.gast-modal-close img {
+  width: 1.25rem;
+  height: 1.25rem;
+  opacity: 0.7;
+  transition: opacity 0.15s;
+}
+.gast-modal-close:hover img {
+  opacity: 1;
+}
+
+.bg-blue-600 { background: #2563EB !important; }
+.hover\:bg-blue-700:hover { background: #1D4ED8 !important; }
+
+.relative { position: relative; }
+.absolute { position: absolute; }
+.z-50 { z-index: 50; }
+.w-full { width: 100%; }
+.bg-white { background: #FFFFFF; }
+.shadow-lg { box-shadow: 0 10px 24px rgba(15, 23, 42, 0.14); }
+.rounded-xl { border-radius: 0.75rem; }
+.mt-1 { margin-top: 0.25rem; }
+.border { border-width: 1px; border-style: solid; }
+.border-slate-200 { border-color: #E2E8F0; }
+.hidden { display: none !important; }
+.max-h-48 { max-height: 12rem; }
+.overflow-y-auto { overflow-y: auto; }
+.cursor-pointer { cursor: pointer; }
+.p-3 { padding: 0.75rem; }
+.hover\:bg-slate-50:hover { background: #F8FAFC; }
+
+.gast-modal-body {
+  padding: 1.2rem 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  overflow-y: auto;
+  max-height: 70vh;
+}
+
+/* Campos */
+.gast-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.gast-field label {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #475569;
+}
+
+.gast-field input,
+.gast-select {
+  width: 100%;
+  padding: 0.7rem 0.9rem;
+  font-size: 1rem;
+  font-family: inherit;
+  color: #1E293B;
+  background: #F8FAFC;
+  border: 1.5px solid #E2E8F0;
+  border-radius: 0.75rem;
+  outline: none;
+  box-sizing: border-box;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  appearance: none;
+  -webkit-appearance: none;
+}
+.gast-field input::placeholder { color: #94A3B8; }
+.gast-field input:focus,
+.gast-select:focus {
+  border-color: #3B82F6;
+  box-shadow: 0 0 0 3px rgba(59,130,246,0.12);
+  background: #fff;
+}
+
+/* Select con chevron */
+.gast-select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='%2394A3B8' viewBox='0 0 16 16'%3E%3Cpath d='M7.247 11.14 2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.9rem center;
+  padding-right: 2.5rem;
+  cursor: pointer;
+}
+
+/* Input gigante de monto */
+.gast-big-input {
+  font-size: 2.2rem !important;
+  font-weight: 800 !important;
+  text-align: center;
+  letter-spacing: -0.04em;
+  color: #1E293B !important;
+  padding: 1rem !important;
+}
+.gast-big-input::placeholder {
+  font-size: 2.2rem;
+  font-weight: 800;
+  color: #CBD5E1 !important;
+}
+
+/* Label opcional */
+.gast-optional {
+  font-weight: 400;
+  color: #94A3B8;
+  font-size: 0.78rem;
+}
+
+/* Badge de origen dinamico */
+.gast-origen-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.45rem 0.85rem;
+  border-radius: 0.6rem;
+  font-size: 0.83rem;
+  font-weight: 700;
+  align-self: flex-start;
+}
+.gast-origen-badge.efectivo {
+  background: rgba(16,185,129,0.1);
+  color: #059669;
+}
+.gast-origen-badge.banco {
+  background: #BFDBFE;
+  color: #1D4ED8;
+}
+.gast-origen-badge.hidden { display: none; }
+
+/* Pie del modal */
+.gast-modal-footer {
+  display: flex;
+  gap: 0.6rem;
+  padding: 0.9rem 1.25rem 1.1rem;
+  border-top: 1px solid #F1F5F9;
+}
+
+.btn-gast-cancel {
+  flex: 1;
+  padding: 0.7rem 1rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  font-family: inherit;
+  background: #F1F5F9;
+  color: #475569;
+  border: none;
+  border-radius: 0.75rem;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.btn-gast-cancel:hover { background: #E2E8F0; }
+
+.btn-gast-confirm {
+  flex: 2;
+  padding: 0.7rem 1rem;
+  font-size: 0.9rem;
+  font-weight: 700;
+  font-family: inherit;
+  background: #EF4444;
+  color: #fff;
+  border: none;
+  border-radius: 0.75rem;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(239,68,68,0.3);
+  transition: background 0.15s, transform 0.12s;
+}
+.btn-gast-confirm:hover  { background: #DC2626; }
+.btn-gast-confirm:active { transform: scale(0.97); }
+
+/* ══════════════════════════════════════════════════════════
+   TOAST
+   ══════════════════════════════════════════════════════════ */
+/* ── Ordenamiento de tabla ───────────────────────────────── */
+.th-sortable {
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.1s;
+}
+.th-sortable:hover { background: #F1F5F9; }
+.sort-icon-wrap {
+  display: inline-flex;
+  align-items: center;
+  vertical-align: middle;
+}
+.sort-icon {
+  color: #94A3B8;
+  font-size: 0.75rem;
+  transition: color 0.15s;
+}
+.sort-img {
+  width: 0.8rem;
+  height: 0.8rem;
+  object-fit: contain;
+  display: inline-block;
+  pointer-events: none;
+}
+
+.gast-toast {
+  position: fixed;
+  bottom: 80px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #1E293B;
+  color: #fff;
+  font-size: 0.88rem;
+  font-weight: 600;
+  padding: 0.65rem 1.2rem;
+  border-radius: 0.75rem;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+  z-index: 9999;
+  pointer-events: none;
+  white-space: nowrap;
+  animation: gToastIn 0.22s ease;
+}
+.gast-toast.hidden { display: none; }
+.gast-toast.success { background: #059669; }
+.gast-toast.error   { background: #DC2626; }
+
+@keyframes gToastIn {
+  from { opacity: 0; transform: translateX(-50%) translateY(6px); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+@media (min-width: 768px) {
+  .gast-toast { bottom: 2rem; }
+}

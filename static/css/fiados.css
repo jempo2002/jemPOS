@@ -1,0 +1,756 @@
+/* ============================================================
+   Ruta: static/css/fiados.css
+   Pantalla: Fiados y Cuentas por Cobrar
+   Extiende caja.css (layout compartido: sidebar, bottom-bar)
+   Mobile-first — jemPOS Design System
+   ============================================================ */
+
+/* ── Area principal ──────────────────────────────────────── */
+.fiad-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px)); /* espacio para bottom-bar movil */
+}
+
+@media (min-width: 768px) {
+  .fiad-main { padding-bottom: 0; }
+}
+
+/* ── Cabecera ─────────────────────────────────────────────── */
+.fiad-topbar {
+  background: #ffffff;
+  border-bottom: 1px solid #E2E8F0;
+  padding: 1rem 1.1rem 0.9rem;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.fiad-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.fiad-title {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: #1E293B;
+  letter-spacing: -0.02em;
+  line-height: 1;
+  flex: 1;
+}
+
+/* Logo movil */
+.fiad-logo {
+  font-size: 1.3rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  flex-shrink: 0;
+}
+.fiad-logo .jem { color: #1E293B; }
+.fiad-logo .pos { color: #3B82F6; }
+
+/* Boton Nuevo Cliente */
+.btn-new-client {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.6rem 1rem;
+  background: #3B82F6;
+  color: #ffffff;
+  font-size: 0.875rem;
+  font-weight: 700;
+  font-family: inherit;
+  border: none;
+  border-radius: 0.75rem;
+  cursor: pointer;
+  white-space: nowrap;
+  box-shadow: 0 4px 12px rgba(59,130,246,0.3);
+  transition: background 0.18s, transform 0.12s;
+  flex-shrink: 0;
+}
+.btn-new-client:hover  { background: #1D4ED8; }
+.btn-new-client:active { transform: scale(0.97); }
+.btn-new-client i      { font-size: 0.8rem; }
+
+/* ── Stats rapidos ─────────────────────────────────────────── */
+.fiad-stats {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.fiad-stat {
+  flex: 1;
+  background: #F8FAFC;
+  border: 1.5px solid #E2E8F0;
+  border-radius: 0.75rem;
+  padding: 0.55rem 0.9rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.fiad-stat-label {
+  font-size: 0.75rem;
+  color: #94A3B8;
+  font-weight: 500;
+}
+
+.fiad-stat-value {
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: #EF4444;
+  letter-spacing: -0.02em;
+}
+
+.fiad-stat-neutral {
+  color: #1E293B;
+}
+
+/* ── Buscador ─────────────────────────────────────────────── */
+.fiad-search-wrap {
+  position: relative;
+}
+.fiad-search-wrap i {
+  position: absolute;
+  left: 0.9rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #94A3B8;
+  font-size: 0.95rem;
+  pointer-events: none;
+}
+.fiad-search {
+  width: 100%;
+  padding: 0.65rem 1rem 0.65rem 2.5rem;
+  font-size: 1rem;
+  font-family: inherit;
+  color: #1E293B;
+  background: #F8FAFC;
+  border: 1.5px solid #E2E8F0;
+  border-radius: 0.75rem;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.fiad-search::placeholder { color: #94A3B8; }
+.fiad-search:focus {
+  border-color: #3B82F6;
+  box-shadow: 0 0 0 3px rgba(59,130,246,0.12);
+  background: #fff;
+}
+
+/* ── Cuerpo scrollable ────────────────────────────────────── */
+.fiad-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1rem 1rem 1.5rem;
+}
+
+@media (min-width: 768px) {
+  .fiad-body { padding: 1.5rem 1.5rem 2rem; }
+}
+
+/* ══════════════════════════════════════════════════════════
+   VISTA MOVIL — TARJETAS
+   ══════════════════════════════════════════════════════════ */
+.hidden { display: none !important; }
+.block { display: block; }
+
+@media (min-width: 768px) {
+  .md\:hidden { display: none !important; }
+  .md\:block { display: block !important; }
+  .md\:table { display: table !important; }
+}
+
+.fiad-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+@media (min-width: 768px) {
+  .fiad-cards { display: none; }
+}
+
+/* Tarjeta de cliente */
+.fiad-card {
+  background: #ffffff;
+  border: 1.5px solid #E2E8F0;
+  border-radius: 1rem;
+  padding: 1rem 1rem 0.85rem;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  transition: box-shadow 0.18s;
+}
+.fiad-card:hover { box-shadow: 0 4px 14px rgba(0,0,0,0.08); }
+
+/* Fila superior: avatar + info + deuda */
+.fiad-card-top {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.85rem;
+}
+
+.fiad-avatar {
+  width: 2.6rem;
+  height: 2.6rem;
+  border-radius: 50%;
+  background: #BFDBFE;
+  color: #1D4ED8;
+  font-size: 0.95rem;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  letter-spacing: -0.01em;
+}
+
+.fiad-card-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.fiad-card-name {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #1E293B;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fiad-card-phone {
+  font-size: 0.83rem;
+  color: #64748B;
+  margin-top: 0.1rem;
+}
+
+/* Deuda en la tarjeta */
+.fiad-card-debt {
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.fiad-debt-tag {
+  display: inline-block;
+  font-size: 1.3rem;
+  font-weight: 800;
+  color: #EF4444;
+  letter-spacing: -0.03em;
+  line-height: 1;
+}
+
+.fiad-debt-tag.at-zero {
+  color: #10B981;
+  font-size: 0.9rem;
+  font-weight: 700;
+  background: rgba(16,185,129,0.1);
+  padding: 0.25rem 0.6rem;
+  border-radius: 9999px;
+}
+
+.fiad-debt-sublabel {
+  font-size: 0.72rem;
+  color: #94A3B8;
+  margin-top: 0.15rem;
+  text-align: right;
+}
+
+/* Fila de botones de accion */
+.fiad-card-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+/* ══════════════════════════════════════════════════════════
+   BOTONES DE ACCION (compartidos entre tarjeta y tabla)
+   ══════════════════════════════════════════════════════════ */
+.fiad-action-btn {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  padding: 0.55rem 0.8rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+  font-family: inherit;
+  border: none;
+  border-radius: 0.65rem;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.1s;
+  white-space: nowrap;
+}
+.fiad-action-btn:active { transform: scale(0.96); }
+.fiad-action-btn i      { font-size: 0.8rem; }
+
+/* Abonar — verde */
+.fiad-action-btn.btn-abonar {
+  background: rgba(16,185,129,0.1);
+  color: #059669;
+}
+.fiad-action-btn.btn-abonar:hover { background: rgba(16,185,129,0.2); }
+
+/* Sumar deuda — rojo */
+.fiad-action-btn.btn-sumar {
+  background: rgba(239,68,68,0.12);
+  color: #DC2626;
+}
+.fiad-action-btn.btn-sumar:hover { background: rgba(239,68,68,0.22); }
+
+/* En tabla: botones mas compactos */
+.fiad-table-actions {
+  display: flex;
+  gap: 0.4rem;
+}
+.fiad-table-actions .fiad-action-btn {
+  flex: unset;
+  padding: 0.45rem 0.75rem;
+  font-size: 0.8rem;
+}
+
+/* ══════════════════════════════════════════════════════════
+   VISTA DESKTOP — TABLA
+   ══════════════════════════════════════════════════════════ */
+.fiad-table-wrap {
+  display: none;
+}
+
+@media (min-width: 768px) {
+  .fiad-table-wrap {
+    display: block;
+    background: #ffffff;
+    border: 1.5px solid #E2E8F0;
+    border-radius: 1rem;
+    overflow: hidden;
+  }
+}
+
+.fiad-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.92rem;
+}
+
+.fiad-table thead {
+  background: #F8FAFC;
+  border-bottom: 1.5px solid #E2E8F0;
+}
+
+.fiad-table thead th {
+  padding: 0.85rem 1.1rem;
+  text-align: left;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #64748B;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+}
+
+.fiad-table tbody tr {
+  border-bottom: 1px solid #F1F5F9;
+  transition: background 0.12s;
+}
+.fiad-table tbody tr:last-child { border-bottom: none; }
+.fiad-table tbody tr:hover      { background: #FAFBFF; }
+
+.fiad-table td {
+  padding: 0.95rem 1.1rem;
+  vertical-align: middle;
+  color: #475569;
+}
+
+/* Celda de cliente: avatar inline */
+.fiad-td-client {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.fiad-td-name {
+  font-weight: 600;
+  color: #1E293B;
+}
+
+.fiad-td-phone {
+  color: #64748B;
+  font-size: 0.9rem;
+}
+
+/* Celda de deuda: grande y destacada */
+.fiad-td-debt {
+  font-size: 1.25rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: #EF4444;
+}
+.fiad-td-debt.at-zero {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #10B981;
+  background: rgba(16,185,129,0.1);
+  padding: 0.25rem 0.65rem;
+  border-radius: 9999px;
+  display: inline-block;
+}
+
+/* ── Estado vacio ─────────────────────────────────────── */
+.fiad-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 3rem 1rem;
+  color: #94A3B8;
+  text-align: center;
+}
+.fiad-empty i    { font-size: 2.5rem; opacity: 0.35; }
+.fiad-empty p    { font-size: 1.05rem; font-weight: 600; color: #475569; margin: 0; }
+.fiad-empty span { font-size: 0.88rem; }
+.fiad-empty.hidden { display: none; }
+
+/* ══════════════════════════════════════════════════════════
+   MODALES
+   ══════════════════════════════════════════════════════════ */
+.fiad-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15,23,42,0.55);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  z-index: 900;
+  padding: 1rem;
+  animation: backdropIn 0.2s ease;
+}
+
+.fiad-backdrop.hidden { display: none; }
+
+@keyframes backdropIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@media (min-width: 540px) {
+  .fiad-backdrop { align-items: center; }
+}
+
+.fiad-modal-card {
+  width: 100%;
+  max-width: 440px;
+  background: #ffffff;
+  border-radius: 1.25rem;
+  box-shadow: 0 24px 60px rgba(0,0,0,0.18);
+  display: flex;
+  flex-direction: column;
+  animation: cardUp 0.22s cubic-bezier(0.34,1.3,0.64,1);
+  overflow: hidden;
+}
+
+@keyframes cardUp {
+  from { transform: translateY(1.5rem); opacity: 0; }
+  to   { transform: translateY(0);      opacity: 1; }
+}
+
+/* Encabezado del modal */
+.fiad-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.1rem 1.25rem 1rem;
+  border-bottom: 1px solid #E2E8F0;
+}
+
+.fiad-modal-title {
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: #1E293B;
+  letter-spacing: -0.02em;
+}
+
+.fiad-modal-close {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 0.5rem;
+  border: none;
+  background: #F1F5F9;
+  color: #64748B;
+  font-size: 1rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s;
+  flex-shrink: 0;
+}
+.fiad-modal-close:hover { background: #E2E8F0; color: #1E293B; }
+
+.fiad-modal-close img {
+  width: 1.25rem;
+  height: 1.25rem;
+  opacity: 0.7;
+  transition: opacity 0.15s;
+}
+.fiad-modal-close:hover img {
+  opacity: 1;
+}
+
+/* Cuerpo del modal */
+.fiad-modal-body {
+  padding: 1.2rem 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+/* Nombre del cliente en modal */
+.fiad-modal-client-name {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #1E293B;
+  margin: 0;
+  padding: 0.6rem 0.9rem;
+  background: #F8FAFC;
+  border-radius: 0.65rem;
+  border-left: 3px solid #3B82F6;
+}
+
+/* Caja de deuda actual */
+.fiad-debt-display {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  background: #FFF7F7;
+  border: 1.5px solid rgba(239,68,68,0.2);
+  border-radius: 0.75rem;
+  padding: 0.7rem 1rem;
+}
+
+.fiad-debt-label {
+  font-size: 0.8rem;
+  color: #94A3B8;
+  font-weight: 500;
+}
+
+.fiad-debt-amount {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: #EF4444;
+  letter-spacing: -0.03em;
+}
+
+/* Campo del formulario */
+.fiad-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.fiad-field label {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #475569;
+}
+
+.fiad-field input {
+  width: 100%;
+  padding: 0.7rem 0.9rem;
+  font-size: 1rem;
+  font-family: inherit;
+  color: #1E293B;
+  background: #F8FAFC;
+  border: 1.5px solid #E2E8F0;
+  border-radius: 0.75rem;
+  outline: none;
+  box-sizing: border-box;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.fiad-field input::placeholder { color: #94A3B8; }
+.fiad-field input:focus {
+  border-color: #3B82F6;
+  box-shadow: 0 0 0 3px rgba(59,130,246,0.12);
+  background: #fff;
+}
+
+/* Input gigante para montos */
+.fiad-big-input {
+  font-size: 2rem !important;
+  font-weight: 800 !important;
+  text-align: center;
+  letter-spacing: -0.03em;
+  color: #1E293B !important;
+  padding: 1rem !important;
+}
+.fiad-big-input::placeholder {
+  font-size: 2rem;
+  font-weight: 800;
+  color: #CBD5E1 !important;
+}
+
+/* Label opcional */
+.fiad-optional {
+  font-weight: 400;
+  color: #94A3B8;
+  font-size: 0.78rem;
+}
+
+/* Previsualizacion del resultado */
+.fiad-preview {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #059669;
+  min-height: 1.2em;
+  margin: 0;
+  text-align: center;
+}
+
+.fiad-preview-danger { color: #DC2626; }
+
+/* Pie del modal */
+.fiad-modal-footer {
+  display: flex;
+  gap: 0.6rem;
+  padding: 0.9rem 1.25rem 1.1rem;
+  border-top: 1px solid #F1F5F9;
+}
+
+.btn-fiad-cancel {
+  flex: 1;
+  padding: 0.7rem 1rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  font-family: inherit;
+  background: #F1F5F9;
+  color: #475569;
+  border: none;
+  border-radius: 0.75rem;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.btn-fiad-cancel:hover { background: #E2E8F0; }
+
+/* Boton de confirmacion primario (azul) */
+.btn-fiad-primary {
+  flex: 2;
+  padding: 0.7rem 1rem;
+  font-size: 0.9rem;
+  font-weight: 700;
+  font-family: inherit;
+  background: #3B82F6;
+  color: #fff;
+  border: none;
+  border-radius: 0.75rem;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(59,130,246,0.3);
+  transition: background 0.15s, transform 0.12s;
+}
+.btn-fiad-primary:hover  { background: #1D4ED8; }
+.btn-fiad-primary:active { transform: scale(0.97); }
+
+/* Boton de exito (verde) — para abono */
+.btn-fiad-success {
+  flex: 2;
+  padding: 0.7rem 1rem;
+  font-size: 0.9rem;
+  font-weight: 700;
+  font-family: inherit;
+  background: #10B981;
+  color: #fff;
+  border: none;
+  border-radius: 0.75rem;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(16,185,129,0.3);
+  transition: background 0.15s, transform 0.12s;
+}
+.btn-fiad-success:hover  { background: #059669; }
+.btn-fiad-success:active { transform: scale(0.97); }
+
+.btn-fiad-danger {
+  flex: 2;
+  padding: 0.7rem 1rem;
+  font-size: 0.9rem;
+  font-weight: 700;
+  font-family: inherit;
+  background: #DC2626;
+  color: #fff;
+  border: none;
+  border-radius: 0.75rem;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(220,38,38,0.3);
+  transition: background 0.15s, transform 0.12s;
+}
+.btn-fiad-danger:hover  { background: #B91C1C; }
+.btn-fiad-danger:active { transform: scale(0.97); }
+
+/* ══════════════════════════════════════════════════════════
+   TOAST
+   ══════════════════════════════════════════════════════════ */
+/* ── Ordenamiento de tabla ───────────────────────────────── */
+.th-sortable {
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.1s;
+}
+.th-sortable:hover { background: #F1F5F9; }
+.sort-icon-wrap {
+  display: inline-flex;
+  align-items: center;
+  vertical-align: middle;
+}
+.sort-icon {
+  color: #94A3B8;
+  font-size: 0.75rem;
+  transition: color 0.15s;
+}
+.sort-img {
+  width: 0.8rem;
+  height: 0.8rem;
+  object-fit: contain;
+  display: inline-block;
+  pointer-events: none;
+}
+
+.fiad-toast {
+  position: fixed;
+  bottom: 80px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #1E293B;
+  color: #fff;
+  font-size: 0.88rem;
+  font-weight: 600;
+  padding: 0.65rem 1.2rem;
+  border-radius: 0.75rem;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+  z-index: 9999;
+  pointer-events: none;
+  white-space: nowrap;
+  animation: toastIn 0.22s ease;
+}
+.fiad-toast.hidden { display: none; }
+.fiad-toast.success { background: #059669; }
+.fiad-toast.error   { background: #DC2626; }
+
+@keyframes toastIn {
+  from { opacity: 0; transform: translateX(-50%) translateY(6px); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+@media (min-width: 768px) {
+  .fiad-toast { bottom: 2rem; }
+}

@@ -1,0 +1,318 @@
+﻿<!-- Ruta: templates/pos/gastos.html -->
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>jemPOS - Gastos</title>
+
+  <!-- Google Fonts: Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+
+  <!-- FontAwesome 6 -->
+  <link
+    rel="stylesheet"
+    href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
+  />
+
+  <!-- Layout compartido -->
+  <link rel="stylesheet" href="/static/css/caja.css" />
+  <!-- Estilos propios de gastos -->
+  <link rel="stylesheet" href="/static/css/gastos.css" />
+  <meta name="csrf-token" content="{{ csrf_token() }}" />
+</head>
+
+<body>
+
+<div class="app-shell">
+  <aside class="sidebar" role="navigation" aria-label="Menu principal">
+
+    <div class="sidebar-logo">
+      <div class="logo-text">
+        <span class="jem">jem</span><span class="pos">POS</span>
+      </div>
+      <div class="sub">Punto de Venta</div>
+    </div>
+
+    <nav class="sidebar-nav">
+      <a href="/turno" class="nav-link">
+        <i class="fa-solid fa-business-time"></i>
+        <span>Mi Turno</span>
+      </a>
+      <a href="/dashboard" class="nav-link">
+        <i class="fa-solid fa-gauge-high"></i>
+        <span>{% if session.get('rol') == 'Admin' %}Panel de Control{% else %}Inicio{% endif %}</span>
+      </a>
+      <a href="/caja" class="nav-link">
+        <i class="fa-solid fa-cash-register"></i>
+        <span>Caja</span>
+      </a>
+      <a href="/inventario" class="nav-link">
+        <i class="fa-solid fa-boxes-stacked"></i>
+        <span>Inventario</span>
+      </a>
+      <a href="/fiados" class="nav-link">
+        <i class="fa-solid fa-handshake-simple"></i>
+        <span>Fiados</span>
+      </a>
+      <a href="{{ url_for('ventas') }}" class="nav-link">
+        <i class="fa-solid fa-file-invoice-dollar"></i>
+        <span>Ventas</span>
+      </a>
+      <a href="/gastos" class="nav-link active" aria-current="page">
+        <i class="fa-solid fa-receipt"></i>
+        <span>Gastos</span>
+      </a>
+      <a href="/perfil" class="nav-link">
+        <i class="fa-solid fa-circle-user"></i>
+        <span>Mi Perfil</span>
+      </a>
+    </nav>
+
+    <a href="{{ url_for('logout') }}" class="sidebar-logout no-underline">
+      <img src="/static/img/leave.png" alt="" />
+      Cerrar sesion
+    </a>
+    <div class="sidebar-footer">
+      {% if foto_perfil %}
+      <img src="/static/uploads/perfiles/{{ foto_perfil }}" class="avatar avatar-img" alt="Foto" />
+      {% else %}
+      <div class="avatar">{{ avatar_iniciales }}</div>
+      {% endif %}
+      <div class="user-info">
+        <div class="user-name">{{ nombre_completo }}</div>
+        <div class="user-role">{{ rol }}</div>
+      </div>
+    </div>
+
+  </aside>
+  <div class="gast-main">
+    <header class="gast-topbar">
+
+      <div class="gast-title-row">
+        <!-- Logo solo en movil -->
+        <div class="gast-logo" aria-hidden="true">
+          <span class="jem">jem</span><span class="pos">POS</span>
+        </div>
+        <h1 class="gast-title">Gastos</h1>
+        <button class="btn-nuevo-gasto" id="btn-nuevo-gasto" type="button">
+          <i class="fa-solid fa-plus"></i>
+          Nuevo Gasto
+        </button>
+      </div>
+      <p class="text-sm text-slate-500">Mostrando solo tus gastos registrados.</p>
+
+      <!-- Tarjetas de resumen -->
+      <div class="gast-summary">
+        <div class="gast-summary-card gast-summary-hoy">
+          <div class="gast-summary-label">Gastos de Hoy</div>
+          <div class="gast-summary-amount" id="stat-hoy">$0</div>
+        </div>
+        <div class="gast-summary-card gast-summary-mes">
+          <div class="gast-summary-label">Gastos del Mes</div>
+          <div class="gast-summary-amount" id="stat-mes">$0</div>
+        </div>
+      </div>
+
+    </header>
+    <div class="gast-body">
+      <div class="gast-cards" id="gast-cards" aria-label="Lista de gastos">
+        <!-- Generado por JS -->
+      </div>
+      <div class="gast-table-wrap">
+        <table class="gast-table" aria-label="Historial de gastos">
+          <thead id="gast-thead">
+            <tr>
+              <th class="th-sortable" data-col="ts">Fecha&nbsp;<span class="sort-icon-wrap"><i class="fa-solid fa-sort sort-icon"></i></span></th>
+              <th class="th-sortable" data-col="category">Categoria&nbsp;<span class="sort-icon-wrap"><i class="fa-solid fa-sort sort-icon"></i></span></th>
+              <th class="th-sortable" data-col="desc">Descripcion&nbsp;<span class="sort-icon-wrap"><i class="fa-solid fa-sort sort-icon"></i></span></th>
+              <th class="th-sortable" data-col="origen">Origen&nbsp;<span class="sort-icon-wrap"><i class="fa-solid fa-sort sort-icon"></i></span></th>
+              <th class="th-sortable th-monto" data-col="amount">Monto&nbsp;<span class="sort-icon-wrap"><i class="fa-solid fa-sort sort-icon"></i></span></th>
+            </tr>
+          </thead>
+          <tbody id="gast-table-body">
+            <!-- Generado por JS -->
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Estado vacio -->
+      <div class="gast-empty hidden" id="gast-empty">
+        <i class="fa-solid fa-receipt"></i>
+        <p>Sin gastos registrados</p>
+        <span>Usa el boton "Nuevo Gasto" para registrar una salida.</span>
+      </div>
+
+    </div>
+    <!-- /gast-body -->
+
+  </div>
+  <!-- /gast-main -->
+  <nav class="bottom-bar" role="navigation" aria-label="Navegacion principal">
+
+    <a href="/turno" class="bottom-btn" aria-label="Mi Turno">
+      <i class="fa-solid fa-business-time"></i>
+      <span>Mi Turno</span>
+    </a>
+
+    <a href="/dashboard" class="bottom-btn" aria-label="Inicio">
+      <i class="fa-solid fa-gauge-high"></i>
+      <span>Inicio</span>
+    </a>
+
+    <a href="/caja" class="bottom-btn" aria-label="Caja">
+      <i class="fa-solid fa-cash-register"></i>
+      <span>Caja</span>
+    </a>
+
+    <a href="/inventario" class="bottom-btn" aria-label="Inventario">
+      <i class="fa-solid fa-boxes-stacked"></i>
+      <span>Inventario</span>
+    </a>
+
+    <a href="/fiados" class="bottom-btn" aria-label="Fiados">
+      <i class="fa-solid fa-handshake-simple"></i>
+      <span>Fiados</span>
+    </a>
+
+    <a href="{{ url_for('ventas') }}" class="bottom-btn" aria-label="Ventas">
+      <i class="fa-solid fa-file-invoice-dollar"></i>
+      <span>Ventas</span>
+    </a>
+    <a href="/gastos" class="bottom-btn active" aria-current="page" aria-label="Gastos">
+      <i class="fa-solid fa-receipt"></i>
+      <span>Gastos</span>
+    </a>
+
+    <a href="/perfil" class="bottom-btn" aria-label="Mi Perfil">
+      <i class="fa-solid fa-circle-user"></i>
+      <span>Mi Perfil</span>
+    </a>
+
+  </nav>
+
+</div>
+<!-- /app-shell -->
+     MODAL - REGISTRAR GASTO
+<div class="gast-backdrop hidden" id="modal-gasto" role="dialog" aria-modal="true" aria-labelledby="modal-gasto-title">
+  <div class="gast-modal-card">
+
+    <div class="gast-modal-header">
+      <span class="gast-modal-title" id="modal-gasto-title">Registrar Gasto</span>
+      <button class="gast-modal-close" data-close="modal-gasto" type="button" aria-label="Cerrar">
+        <img src="/static/img/equis.png" alt="Cerrar" />
+      </button>
+    </div>
+
+    <form id="gasto-form" method="POST" action="/api/gastos">
+    <div class="gast-modal-body">
+      <div id="alerta-error-modal" class="hidden mb-4 p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm flex items-center gap-2">
+        <i class="fa-solid fa-circle-exclamation"></i><span id="texto-alerta-modal"></span>
+      </div>
+
+      <!-- Monto - grande y centralizado, primero para foco inmediato -->
+      <div class="gast-field">
+        <label for="g-amount">Monto</label>
+        <input
+          type="text"
+          id="g-amount"
+          inputmode="numeric"
+          pattern="[0-9]*"
+          placeholder="0"
+          autocomplete="off"
+          class="gast-big-input"
+        />
+      </div>
+
+      <!-- Categoria -->
+      <div class="gast-field">
+        <label for="g-category">Categoria</label>
+        <div class="relative">
+          <input
+            type="text"
+            id="g-category"
+            class="gast-select"
+            placeholder="Selecciona o escribe una categoria..."
+            autocomplete="off"
+          />
+          <div id="g-category-dropdown" class="absolute z-50 w-full bg-white shadow-lg rounded-xl mt-1 border border-slate-200 hidden max-h-48 overflow-y-auto">
+            {% for cat in categorias_gastos %}
+            <div class="hover:bg-slate-50 cursor-pointer p-3 gast-category-option" data-value="{{ cat }}">{{ cat }}</div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+
+      <!-- Descripcion -->
+      <div class="gast-field">
+        <label for="g-desc">Descripcion <span class="gast-optional">(opcional)</span></label>
+        <input
+          type="text"
+          id="g-desc"
+          placeholder="Ej: Pago pacas de agua, servicio de luz..."
+          autocomplete="off"
+          maxlength="120"
+        />
+      </div>
+
+      <!-- Metodo de pago -->
+      <div class="gast-field">
+        <label for="g-metodo">Metodo de pago</label>
+        <select id="g-metodo" class="gast-select">
+          <option value="Efectivo" selected>Efectivo</option>
+          <option value="Bancos">Nequi / Transferencia</option>
+        </select>
+      </div>
+
+      <div class="gast-field" id="g-fuente-wrap">
+        <label for="g-fuente">Fuente del dinero</label>
+        <select id="g-fuente" class="gast-select">
+          <option value="Caja Menor" selected>Caja Menor</option>
+          <option value="Caja Fuerte">Caja Fuerte</option>
+        </select>
+      </div>
+
+      <!-- Badge de origen (aparece al seleccionar) -->
+      <div class="gast-origen-badge hidden" id="g-origen-badge"></div>
+
+    </div>
+
+    <div class="gast-modal-footer">
+      <button class="btn-gast-cancel" data-close="modal-gasto" type="button">Cancelar</button>
+      <button class="btn-gast-confirm bg-blue-600 hover:bg-blue-700" id="btn-gasto-confirm" type="submit">
+        <i class="fa-solid fa-circle-minus"></i>&nbsp; Confirmar Gasto
+      </button>
+    </div>
+    </form>
+
+  </div>
+</div>
+
+
+<!-- Toast -->
+<div class="gast-toast hidden" id="gast-toast" role="status" aria-live="polite"></div>
+
+<!-- Scripts -->
+<script src="/static/js/cop-format.js"></script>
+<script src="/static/js/gastos.js"></script>
+
+  <!-- RBAC + Suscripcion -->
+  <div id="app-context"
+       data-user-rol="{{ rol }}"
+       data-subs-alerta='{{ mostrar_alerta_suscripcion | tojson }}'
+       data-subs-dias="{{ dias_restantes }}"
+       hidden></div>
+  <script src="/static/js/subs-context.js"></script>
+  <script src="/static/js/nav-rbac.js"></script>
+  <script src="/static/js/subs-modal.js"></script>
+
+</body>
+</html>
+
+
+
+
+
+

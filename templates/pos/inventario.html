@@ -1,0 +1,412 @@
+﻿<!-- Ruta: templates/pos/inventario.html -->
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>jemPOS - Inventario</title>
+
+  <!-- Google Fonts: Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+
+  <!-- FontAwesome 6 -->
+  <link
+    rel="stylesheet"
+    href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
+    crossorigin="anonymous"
+    referrerpolicy="no-referrer"
+  />
+
+  <!-- Layout compartido (sidebar, bottom-bar, nav-link) -->
+  <link rel="stylesheet" href="/static/css/caja.css" />
+  <!-- Estilos propios del inventario -->
+  <link rel="stylesheet" href="/static/css/inventario.css" />
+  <meta name="csrf-token" content="{{ csrf_token() }}" />
+</head>
+
+<body>
+
+<div class="app-shell">
+  <aside class="sidebar" role="navigation" aria-label="Menu principal">
+
+    <div class="sidebar-logo">
+      <div class="logo-text">
+        <span class="jem">jem</span><span class="pos">POS</span>
+      </div>
+      <div class="sub">Punto de Venta</div>
+    </div>
+
+    <nav class="sidebar-nav">
+      <a href="/turno" class="nav-link">
+        <i class="fa-solid fa-business-time"></i>
+        <span>Mi Turno</span>
+      </a>
+      <a href="/dashboard" class="nav-link">
+        <i class="fa-solid fa-gauge-high"></i>
+        <span>{% if session.get('rol') == 'Admin' %}Panel de Control{% else %}Inicio{% endif %}</span>
+      </a>
+      <a href="/caja" class="nav-link">
+        <i class="fa-solid fa-cash-register"></i>
+        <span>Caja</span>
+      </a>
+      <a href="/inventario" class="nav-link active" aria-current="page">
+        <i class="fa-solid fa-boxes-stacked"></i>
+        <span>{% if session.get('es_restaurante') %}Menu y Platos{% else %}Inventario{% endif %}</span>
+      </a>
+      {% if session.get('es_restaurante') %}
+      <a href="/insumos" class="nav-link">
+        <i class="fa-solid fa-carrot"></i>
+        <span>Insumos</span>
+      </a>
+      {% endif %}
+      <a href="/fiados" class="nav-link">
+        <i class="fa-solid fa-handshake-simple"></i>
+        <span>Fiados</span>
+      </a>
+      <a href="{{ url_for('ventas') }}" class="nav-link">
+        <i class="fa-solid fa-file-invoice-dollar"></i>
+        <span>Ventas</span>
+      </a>
+      <a href="/gastos" class="nav-link">
+        <i class="fa-solid fa-receipt"></i>
+        <span>Gastos</span>
+      </a>
+      <a href="/perfil" class="nav-link">
+        <i class="fa-solid fa-circle-user"></i>
+        <span>Mi Perfil</span>
+      </a>
+    </nav>
+
+    <a href="{{ url_for('logout') }}" class="sidebar-logout no-underline">
+      <img src="/static/img/leave.png" alt="" />
+      Cerrar sesion
+    </a>
+    <div class="sidebar-footer">
+      {% if foto_perfil %}
+      <img src="/static/uploads/perfiles/{{ foto_perfil }}" class="avatar avatar-img" alt="Foto" />
+      {% else %}
+      <div class="avatar">{{ avatar_iniciales }}</div>
+      {% endif %}
+      <div class="user-info">
+        <div class="user-name">{{ nombre_completo }}</div>
+        <div class="user-role">{{ rol }}</div>
+      </div>
+    </div>
+
+  </aside>
+  <div class="inv-main">
+    <header class="inv-topbar">
+
+      <!-- Fila: logo movil + titulo + boton anadir -->
+      <div class="inv-title-row">
+        <!-- Logo solo en movil -->
+        <div class="inv-logo" aria-hidden="true">
+          <span class="jem">jem</span><span class="pos">POS</span>
+        </div>
+        <h1 class="inv-title">Inventario</h1>
+        <button class="btn-add" id="btn-add" type="button">
+          <i class="fa-solid fa-plus"></i>
+          Anadir producto
+        </button>
+      </div>
+
+      <!-- Buscador -->
+      <div class="inv-search-wrap">
+        <i class="fa-solid fa-magnifying-glass"></i>
+        <input
+          type="search"
+          id="inv-search"
+          class="inv-search"
+          placeholder="Buscar por nombre o categoria..."
+          autocomplete="off"
+          aria-label="Buscar productos"
+        />
+      </div>
+
+    </header>
+    <div class="inv-body">
+      <div class="cards-list" id="cards-list" aria-label="Lista de productos">
+        <!-- Generado por JS -->
+      </div>
+      <div class="table-wrap">
+        <table class="inv-table" aria-label="Inventario de productos">
+          <thead id="inv-thead">
+            <tr>
+              <th class="th-sortable" data-col="name">Producto&nbsp;<span class="sort-icon-wrap"><i class="fa-solid fa-sort sort-icon"></i></span></th>
+              <th class="th-sortable" data-col="category">Categoria&nbsp;<span class="sort-icon-wrap"><i class="fa-solid fa-sort sort-icon"></i></span></th>
+              <th class="th-sortable" data-col="cost">Precio costo&nbsp;<span class="sort-icon-wrap"><i class="fa-solid fa-sort sort-icon"></i></span></th>
+              <th class="th-sortable" data-col="sale">Precio venta&nbsp;<span class="sort-icon-wrap"><i class="fa-solid fa-sort sort-icon"></i></span></th>
+              <th class="th-sortable" data-col="stock">Stock&nbsp;<span class="sort-icon-wrap"><i class="fa-solid fa-sort sort-icon"></i></span></th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody id="table-body">
+            <!-- Generado por JS -->
+          </tbody>
+        </table>
+      </div>
+
+    </div>
+    <!-- /inv-body -->
+
+  </div>
+  <!-- /inv-main -->
+  <nav class="bottom-bar" role="navigation" aria-label="Navegacion principal">
+
+    <a href="/turno" class="bottom-btn" aria-label="Mi Turno">
+      <i class="fa-solid fa-business-time"></i>
+      <span>Mi Turno</span>
+    </a>
+
+    <a href="/dashboard" class="bottom-btn" aria-label="Inicio">
+      <i class="fa-solid fa-gauge-high"></i>
+      <span>Inicio</span>
+    </a>
+
+    <a href="/caja" class="bottom-btn" aria-label="Caja">
+      <i class="fa-solid fa-cash-register"></i>
+      <span>Caja</span>
+    </a>
+
+    <a href="/inventario" class="bottom-btn active" aria-current="page" aria-label="Inventario">
+      <i class="fa-solid fa-boxes-stacked"></i>
+      <span>{% if session.get('es_restaurante') %}Menu{% else %}Inventario{% endif %}</span>
+    </a>
+    {% if session.get('es_restaurante') %}
+    <a href="/insumos" class="bottom-btn" aria-label="Insumos">
+      <i class="fa-solid fa-carrot"></i>
+      <span>Insumos</span>
+    </a>
+    {% endif %}
+
+    <a href="/fiados" class="bottom-btn" aria-label="Fiados">
+      <i class="fa-solid fa-handshake-simple"></i>
+      <span>Fiados</span>
+    </a>
+
+    <a href="{{ url_for('ventas') }}" class="bottom-btn" aria-label="Ventas">
+      <i class="fa-solid fa-file-invoice-dollar"></i>
+      <span>Ventas</span>
+    </a>
+    <a href="/gastos" class="bottom-btn" aria-label="Gastos">
+      <i class="fa-solid fa-receipt"></i>
+      <span>Gastos</span>
+    </a>
+
+    <a href="/perfil" class="bottom-btn" aria-label="Mi Perfil">
+      <i class="fa-solid fa-circle-user"></i>
+      <span>Mi Perfil</span>
+    </a>
+
+  </nav>
+
+</div>
+<!-- /app-shell -->
+     MODAL - ANADIR / EDITAR PRODUCTO
+<div class="modal-backdrop" id="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+  <div class="modal-card">
+
+    <div class="modal-header">
+      <span class="modal-title" id="modal-title">Anadir Producto</span>
+      <button class="modal-close" id="modal-close" type="button" aria-label="Cerrar">
+        <img src="/static/img/equis.png" alt="Cerrar" />
+      </button>
+    </div>
+
+    <div id="alerta-error-modal" class="hidden mb-4 p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm flex items-center gap-2">
+      <i class="fa-solid fa-circle-exclamation"></i><span id="texto-alerta-modal"></span>
+    </div>
+
+    <!-- Nombre -->
+    <div class="modal-field">
+      <label for="f-name">Nombre del producto</label>
+      <input type="text" id="f-name" placeholder="Ej. Coca-Cola 350ml" autocomplete="off" maxlength="80" />
+    </div>
+
+    <!-- Categoria -->
+    <div class="modal-field">
+      <label for="f-category">Categoria</label>
+      <div class="relative">
+        <input
+          type="text"
+          id="f-category"
+          placeholder="Ej. Bebidas"
+          autocomplete="off"
+          maxlength="40"
+        />
+        <div id="f-category-dropdown" class="absolute z-50 w-full bg-white shadow-lg rounded-xl mt-1 border border-slate-200 hidden max-h-48 overflow-y-auto">
+          {% for cat in categorias %}
+          <div class="hover:bg-slate-50 cursor-pointer p-3 inv-category-option" data-value="{{ cat }}">{{ cat }}</div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-field">
+      <label for="f-provider">Proveedor <span class="gast-optional">(opcional)</span></label>
+      <select id="f-provider" class="gast-select">
+        <option value="">Sin proveedor</option>
+        {% for p in proveedores %}
+        <option value="{{ p.id }}">{{ p.empresa }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    {% if session.get('es_restaurante') %}
+    <div class="modal-field modal-switch-wrap">
+      <label class="modal-switch-label" for="f-prepared">¿Es un plato preparado (lleva receta)?</label>
+      <label class="modal-switch" for="f-prepared">
+        <input type="checkbox" id="f-prepared" name="es_preparado" />
+        <span class="modal-switch-slider"></span>
+      </label>
+    </div>
+    {% endif %}
+
+    <!-- Precios -->
+    <div class="modal-field-row">
+      <div class="modal-field" id="cost-field">
+        <label for="f-cost">Precio de costo</label>
+        <input type="tel" id="f-cost" inputmode="numeric" pattern="[0-9]*" placeholder="Ej. 1.800" autocomplete="off" />
+      </div>
+      <div class="modal-field">
+        <label for="f-sale">Precio de venta</label>
+        <input type="tel" id="f-sale" inputmode="numeric" pattern="[0-9]*" placeholder="Ej. 2.500" autocomplete="off" />
+      </div>
+    </div>
+
+    <!-- Ganancia dinamica -->
+    <div class="modal-field">
+      <p class="field-help field-help-compact">
+        Ganancia por unidad: <strong id="f-profit" class="f-profit-strong">-</strong>
+      </p>
+    </div>
+
+    <div class="modal-field modal-recipe-total" id="recipe-total-help"></div>
+
+    <!-- Stock -->
+    <div class="modal-field" id="stock-field">
+      <label for="f-stock">Stock inicial</label>
+      <input type="number" id="f-stock" inputmode="numeric" min="0" step="1" placeholder="Ej. 50" autocomplete="off" />
+    </div>
+
+    <div class="modal-field recipe-builder hidden" id="recipe-builder">
+      <div class="recipe-header-row">
+        <p class="recipe-title">Constructor de Receta</p>
+        <button type="button" class="recipe-add-btn" id="btn-add-ingredient">+ Anadir Ingrediente</button>
+      </div>
+      <div id="recipe-rows" class="recipe-rows"></div>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn-modal-cancel" id="btn-modal-cancel" type="button">Cancelar</button>
+      <button class="btn-modal-save"   id="btn-modal-save"   type="button">
+        <i class="fa-solid fa-floppy-disk"></i>&nbsp; Guardar
+      </button>
+    </div>
+
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="inv-toast" id="inv-toast" role="status" aria-live="polite"></div>
+     MODAL - ANADIR STOCK
+<div class="modal-backdrop" id="modal-stock" role="dialog" aria-modal="true" aria-labelledby="stock-modal-title">
+  <div class="modal-card">
+
+    <div class="modal-header">
+      <span class="modal-title" id="stock-modal-title">Anadir Unidades</span>
+      <button class="modal-close" id="stock-modal-close" type="button" aria-label="Cerrar">
+        <img src="/static/img/equis.png" alt="Cerrar" />
+      </button>
+    </div>
+
+    <!-- Producto afectado -->
+    <div class="modal-field">
+      <p class="stock-modal-product" id="s-product-name"></p>
+      <span class="stock-modal-current" id="s-current-stock"></span>
+    </div>
+
+    <!-- Input de unidades -->
+    <div class="modal-field">
+      <label for="s-units">Unidades a anadir</label>
+      <input
+        type="tel"
+        id="s-units"
+        inputmode="numeric"
+        pattern="[0-9]*"
+        placeholder="0"
+        autocomplete="off"
+        class="stock-big-input"
+      />
+    </div>
+
+    <!-- Previsualizacion -->
+    <div class="modal-field">
+      <p class="stock-preview" id="s-preview"></p>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn-modal-cancel" id="btn-stock-cancel" type="button">Cancelar</button>
+      <button class="btn-modal-add"    id="btn-stock-confirm" type="button">
+        <i class="fa-solid fa-circle-plus"></i>&nbsp; Confirmar
+      </button>
+    </div>
+
+  </div>
+</div>
+     MODAL - CONFIRMAR ELIMINACION
+<div class="modal-backdrop" id="modal-confirm" role="dialog" aria-modal="true" aria-labelledby="confirm-modal-title">
+  <div class="modal-card">
+
+    <div class="modal-header">
+      <span class="modal-title" id="confirm-modal-title">Eliminar Producto</span>
+      <button class="modal-close" id="confirm-modal-close" type="button" aria-label="Cerrar">
+        <img src="/static/img/equis.png" alt="Cerrar" />
+      </button>
+    </div>
+
+    <div class="confirm-body">
+      <div class="confirm-icon-wrap">
+        <i class="fa-solid fa-triangle-exclamation"></i>
+      </div>
+      <p class="confirm-title">¿Eliminar este producto?</p>
+      <p class="confirm-subtitle">Esta accion no se puede deshacer. Se eliminara permanentemente:</p>
+      <span class="confirm-product-name" id="confirm-product-name"></span>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn-modal-cancel" id="btn-confirm-cancel" type="button">Cancelar</button>
+      <button class="btn-modal-delete" id="btn-confirm-delete" type="button">
+        <i class="fa-solid fa-trash"></i>&nbsp; Si, eliminar
+      </button>
+    </div>
+
+  </div>
+</div>
+
+<!-- Scripts -->
+<script src="/static/js/cop-format.js"></script>
+<script id="insumos-json" type="application/json">{{ insumos | tojson }}</script>
+<script src="/static/js/inventario.js"></script>
+
+  <!-- RBAC + Suscripcion -->
+  <div id="app-context"
+       data-user-rol="{{ rol }}"
+       data-subs-alerta='{{ mostrar_alerta_suscripcion | tojson }}'
+       data-subs-dias="{{ dias_restantes }}"
+       hidden></div>
+  <script src="/static/js/subs-context.js"></script>
+  <script src="/static/js/nav-rbac.js"></script>
+  <script src="/static/js/subs-modal.js"></script>
+
+</body>
+</html>
+
+
+
+
+
+
+

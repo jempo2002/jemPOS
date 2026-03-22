@@ -1,0 +1,63 @@
+/* ============================================================
+   Ruta: static/css/toast.css
+   Sistema Global de Toasts (estilo iOS)
+   ============================================================ */
+
+.jem-toast-host {
+  position: fixed;
+  left: 50%;
+  bottom: calc(84px + env(safe-area-inset-bottom, 0px));
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  z-index: 9999;
+  pointer-events: none;
+  width: min(92vw, 26rem);
+}
+
+@media (min-width: 768px) {
+  .jem-toast-host {
+    top: 1.2rem;
+    bottom: auto;
+  }
+}
+
+.jem-toast {
+  border-radius: var(--radius-lg);
+  padding: 0.72rem 1rem;
+  font-size: 0.9rem;
+  font-weight: 700;
+  line-height: 1.3;
+  box-shadow: var(--shadow-md);
+  border: 1px solid rgba(255, 255, 255, 0.26);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  background: rgba(30, 41, 59, 0.82);
+  color: #ffffff;
+  opacity: 0;
+  transform: translateY(10px) scale(0.98);
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+
+.jem-toast.show {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+.jem-toast.hide {
+  opacity: 0;
+  transform: translateY(10px) scale(0.98);
+}
+
+.jem-toast.success {
+  background: rgba(5, 150, 105, 0.9);
+}
+
+.jem-toast.error {
+  background: rgba(220, 38, 38, 0.9);
+}
+
+.jem-toast.info {
+  background: rgba(30, 41, 59, 0.82);
+}

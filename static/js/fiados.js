@@ -33,7 +33,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const res = await fetch('/pos/api/fiados');
     if (res.status === 401) { window.location.href = '/login'; return; }
     const data = await res.json();
-    if (!data.ok) { showToast('Error al cargar fiados.', 'error'); return; }
+    if (!data.ok) { notify('Error al cargar fiados.', 'error'); return; }
     clients = data.clientes;
     renderAll();
   }
@@ -46,12 +46,14 @@ document.addEventListener('DOMContentLoaded', () => {
   const emptyEl    = document.getElementById('fiad-empty');
   const statTotal  = document.getElementById('stat-total');
   const statCount  = document.getElementById('stat-count');
-  const toast      = document.getElementById('fiad-toast');
+  const btnNewAbono = document.getElementById('btn-new-abono');
 
   /* Modales */
   const modalAdd   = document.getElementById('modal-add');
   const modalAbono = document.getElementById('modal-abono');
   const modalSumar = document.getElementById('modal-sumar');
+  const modalAbonoPicker = document.getElementById('modal-abono-picker');
+  const fiadAbonoPickList = document.getElementById('fiad-abono-pick-list');
 
   /* Campos modal Nuevo Cliente */
   const addName    = document.getElementById('add-name');
@@ -272,6 +274,18 @@ document.addEventListener('DOMContentLoaded', () => {
     addName.focus();
   });
 
+  if (btnNewAbono) {
+    btnNewAbono.addEventListener('click', () => {
+      const debtors = clients.filter(c => Number(c.debt || 0) > 0);
+      if (!debtors.length) {
+        notify('No hay clientes con deuda pendiente para abonar.', 'info');
+        return;
+      }
+      renderAbonoPicker(debtors);
+      openModal(modalAbonoPicker);
+    });
+  }
+
   addPhone.addEventListener('input', () => {
     addPhone.value = addPhone.value.replace(/\D/g, '').slice(0, 10);
   });
@@ -293,13 +307,13 @@ document.addEventListener('DOMContentLoaded', () => {
     btnAddConfirm.disabled = false;
     if (res.status === 401) { window.location.href = '/login'; return; }
     const data = await res.json();
-    if (!data.ok) { showToast(data.msg || 'Error al agregar cliente.', 'error'); return; }
+    if (!data.ok) { notify(data.msg || 'Error al agregar cliente.', 'error'); return; }
     await loadClients();
     closeModal(modalAdd);
     if (deudaInicial > 0) {
-      showToast(`Cliente agregado con deuda inicial de ${formatoMoneda(deudaInicial)}`, 'success');
+      notify(`Cliente agregado con deuda inicial de ${formatoMoneda(deudaInicial)}`, 'success');
     } else {
-      showToast('Cliente agregado', 'success');
+      notify('Cliente agregado', 'success');
     }
   });
 
@@ -320,6 +334,36 @@ document.addEventListener('DOMContentLoaded', () => {
     setTimeout(() => abonoAmount.focus(), 80);
   }
 
+  function renderAbonoPicker(debtors) {
+    if (!fiadAbonoPickList) return;
+    if (!debtors.length) {
+      fiadAbonoPickList.innerHTML = '<p class="fiad-picker-empty">No hay deudas pendientes.</p>';
+      return;
+    }
+
+    fiadAbonoPickList.innerHTML = debtors
+      .sort((a, b) => Number(b.debt || 0) - Number(a.debt || 0))
+      .map(client => `
+        <button class="fiad-picker-item" type="button" data-client-id="${client.id}">
+          <span class="fiad-picker-item-name">${esc(client.name)}</span>
+          <span class="fiad-picker-item-debt">${formatoMoneda(client.debt)}</span>
+        </button>
+      `)
+      .join('');
+  }
+
+  if (fiadAbonoPickList) {
+    fiadAbonoPickList.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-client-id]');
+      if (!btn) return;
+      const id = Number(btn.dataset.clientId);
+      const client = clients.find(c => c.id === id);
+      if (!client) return;
+      closeModal(modalAbonoPicker);
+      openModalAbono(client);
+    });
+  }
+
   function validarAbonoVisual(client, abono) {
     const excedeDeuda = abono > client.debt;
     if (alertaExcesoDeuda) alertaExcesoDeuda.classList.toggle('hidden', !excedeDeuda);
@@ -332,7 +376,7 @@ document.addEventListener('DOMContentLoaded', () => {
   abonoAmount.addEventListener('input', () => {
     const client = clients.find(c => c.id === activeId);
     if (!client) return;
-    const abono = Number(abonoAmount.value || 0);
+    const abono = COP.parse(abonoAmount.value);
     validarAbonoVisual(client, abono);
     if (abono <= 0) { abonoPreview.textContent = ''; return; }
     const remaining = Math.max(0, client.debt - abono);
@@ -346,7 +390,7 @@ document.addEventListener('DOMContentLoaded', () => {
   btnAbonoConfirm.addEventListener('click', async () => {
     const client = clients.find(c => c.id === activeId);
     if (!client) return;
-    const abono = Number(abonoAmount.value || 0);
+    const abono = COP.parse(abonoAmount.value);
     if (abono <= 0 || abono > client.debt) {
       showModalError('El monto debe ser mayor a 0 y no puede superar la deuda actual.');
       shake(abonoAmount);
@@ -369,7 +413,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     await loadClients();
     closeModal(modalAbono);
-    showToast(`Abono de ${formatoMoneda(abono)} registrado`, 'success');
+    notify(`Abono de ${formatoMoneda(abono)} registrado`, 'success');
   });
 
   /* ══════════════════════════════════════════════════════════
@@ -414,14 +458,14 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
       data = await res.json();
     } catch (_) {
-      showToast('No se pudo procesar la respuesta del servidor.', 'error');
+      notify('No se pudo procesar la respuesta del servidor.', 'error');
       return;
     }
-    if (!data.ok) { showToast(data.msg || 'Error al registrar deuda.', 'error'); return; }
+    if (!data.ok) { notify(data.msg || 'Error al registrar deuda.', 'error'); return; }
     await loadClients();
     closeModal(modalSumar);
     const detail = sumarDetail.value.trim();
-    showToast(detail ? `+${formatoMoneda(suma)} — "${detail}"` : `+${formatoMoneda(suma)} sumado a la deuda`, 'error');
+    notify(detail ? `+${formatoMoneda(suma)} - "${detail}"` : `+${formatoMoneda(suma)} sumado a la deuda`, 'info');
   });
 
   /* ══════════════════════════════════════════════════════════
@@ -436,7 +480,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   /* Clic fuera del card cierra el modal */
-  [modalAdd, modalAbono, modalSumar].forEach(m => {
+  [modalAdd, modalAbono, modalSumar, modalAbonoPicker].forEach(m => {
     m.addEventListener('click', e => {
       if (e.target === m) closeModal(m);
     });
@@ -445,7 +489,7 @@ document.addEventListener('DOMContentLoaded', () => {
   /* Escape cierra el modal visible */
   document.addEventListener('keydown', e => {
     if (e.key !== 'Escape') return;
-    [modalAdd, modalAbono, modalSumar].forEach(m => {
+    [modalAdd, modalAbono, modalSumar, modalAbonoPicker].forEach(m => {
       if (!m.classList.contains('hidden')) closeModal(m);
     });
   });
@@ -478,15 +522,12 @@ document.addEventListener('DOMContentLoaded', () => {
     modalErrorBox.classList.add('hidden');
   }
 
-  /* ── Toast ───────────────────────────────────────────────── */
-  let toastTimer = null;
-  function showToast(msg, type = '') {
-    toast.textContent = msg;
-    toast.className   = `fiad-toast ${type}`;
-    if (toastTimer) clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => {
-      toast.className = 'fiad-toast hidden';
-    }, 3000);
+  function notify(msg, type) {
+    if (window.JemToast && typeof window.JemToast.show === 'function') {
+      window.JemToast.show(msg, type || 'info', { duration: 3000 });
+      return;
+    }
+    console[type === 'error' ? 'error' : 'log'](msg);
   }
 
   /* ── Shake (campo requerido vacio) ───────────────────────── */

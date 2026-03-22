@@ -1,10 +1,10 @@
-<!-- Ruta: templates/auth/registro.html -->
+﻿<!-- Ruta: templates/auth/registro.html -->
 <!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>jemPOS — Registra tu negocio</title>
+  <title>jemPOS - Registra tu negocio</title>
 
   <!-- Google Fonts: Inter -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -25,11 +25,12 @@
 
   <!-- Estilos propios -->
   <link rel="stylesheet" href="/static/css/registro.css" />
+  <link rel="stylesheet" href="/static/css/global.css" />
 </head>
 
 <body class="min-h-screen flex items-center justify-center px-4 py-6">
 
-  <!-- ── TARJETA PRINCIPAL ────────────────────── -->
+  <!-- â”€â”€ TARJETA PRINCIPAL â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
   <div class="w-full max-w-md animate-fade-up">
 
     <!-- LOGO TIPOGRAFICO -->
@@ -52,7 +53,7 @@
       <!-- FORMULARIO -->
       <form id="formRegistro" method="POST" action="/registro" novalidate class="space-y-3">
 
-        <!-- ── Nombre del Dueno ── -->
+        <!-- â”€â”€ Nombre del Dueno â”€â”€ -->
         <div>
           <label class="block text-xs font-semibold text-ink mb-1" for="nombre_dueno">
             Nombre del Dueno
@@ -73,7 +74,7 @@
           <span id="err_nombre_dueno" class="field-error-msg"></span>
         </div>
 
-        <!-- ── Nombre del Negocio ── -->
+        <!-- â”€â”€ Nombre del Negocio â”€â”€ -->
         <div>
           <label class="block text-xs font-semibold text-ink mb-1" for="nombre_negocio">
             Nombre del Negocio
@@ -93,7 +94,7 @@
           <span id="err_nombre_negocio" class="field-error-msg"></span>
         </div>
 
-        <!-- ── NIT / Cedula ── -->
+        <!-- â”€â”€ NIT / Cedula â”€â”€ -->
         <div>
           <label class="block text-xs font-semibold text-ink mb-1" for="nit">
             NIT / Cedula
@@ -114,7 +115,7 @@
           <span id="err_nit" class="field-error-msg"></span>
         </div>
 
-        <!-- ── Telefono ── -->
+        <!-- â”€â”€ Telefono â”€â”€ -->
         <div>
           <label class="block text-xs font-semibold text-ink mb-1" for="telefono">
             Telefono / WhatsApp
@@ -135,7 +136,7 @@
           <span id="err_telefono" class="field-error-msg"></span>
         </div>
 
-        <!-- ── Correo ── -->
+        <!-- â”€â”€ Correo â”€â”€ -->
         <div>
           <label class="block text-xs font-semibold text-ink mb-1" for="correo">
             Correo electronico
@@ -157,7 +158,7 @@
           <span id="err_correo" class="field-error-msg"></span>
         </div>
 
-        <!-- ── Contrasena ── -->
+        <!-- â”€â”€ Contrasena â”€â”€ -->
         <div>
           <label class="block text-xs font-semibold text-ink mb-1" for="contrasena">
             Contrasena
@@ -190,10 +191,10 @@
           </p>
         </div>
 
-        <!-- ── Divisor ── -->
+        <!-- â”€â”€ Divisor â”€â”€ -->
         <div class="border-t border-border !mt-4"></div>
 
-        <!-- ── Terminos ── -->
+        <!-- â”€â”€ Terminos â”€â”€ -->
         <label class="flex items-start gap-3 cursor-pointer !mt-3">
           <input
             id="acepta_terminos"
@@ -214,7 +215,7 @@
           </span>
         </label>
 
-        <!-- ── BOTON PRINCIPAL ── -->
+        <!-- â”€â”€ BOTON PRINCIPAL â”€â”€ -->
         <button
           type="submit"
           class="btn-primary w-full flex items-center justify-center gap-2.5 rounded-2xl py-3.5 text-white font-bold text-base tracking-wide shadow-md !mt-4"
@@ -241,4 +242,7 @@
 
 </body>
 </html>
+
+
+
 

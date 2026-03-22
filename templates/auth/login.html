@@ -1,10 +1,10 @@
-<!-- Ruta: templates/auth/login.html -->
+﻿<!-- Ruta: templates/auth/login.html -->
 <!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>jemPOS — Iniciar sesion</title>
+  <title>jemPOS - Iniciar sesion</title>
 
   <!-- Google Fonts: Inter -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -26,11 +26,12 @@
   <!-- Estilos propios -->
   <link rel="stylesheet" href="/static/css/login.css" />
   <meta name="csrf-token" content="{{ csrf_token() }}" />
+  <link rel="stylesheet" href="/static/css/global.css" />
 </head>
 
 <body class="min-h-screen flex items-center justify-center px-4 py-8">
 
-  <!-- ── TARJETA PRINCIPAL ────────────────────── -->
+  <!-- â”€â”€ TARJETA PRINCIPAL â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
   <div class="w-full max-w-sm animate-fade-up">
 
     <!-- LOGO TIPOGRAFICO -->
@@ -66,7 +67,7 @@
       <form id="formLogin" method="POST" action="/login" novalidate class="space-y-5">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
 
-        <!-- ── Correo electronico ── -->
+        <!-- â”€â”€ Correo electronico â”€â”€ -->
         <div>
           <label class="block text-base font-semibold text-slate-800 mb-2" for="correo">
             Correo electronico
@@ -89,7 +90,7 @@
           <span id="err_correo" class="field-error-msg"></span>
         </div>
 
-        <!-- ── Contrasena ── -->
+        <!-- â”€â”€ Contrasena â”€â”€ -->
         <div>
           <div class="flex items-center justify-between mb-2">
             <label class="block text-base font-semibold text-slate-800" for="contrasena">
@@ -122,7 +123,7 @@
           <span id="err_contrasena" class="field-error-msg"></span>
         </div>
 
-        <!-- ── BOTON PRINCIPAL ── -->
+        <!-- â”€â”€ BOTON PRINCIPAL â”€â”€ -->
         <button
           type="submit"
           class="btn-primary w-full flex items-center justify-center gap-3 rounded-2xl py-4 text-white font-bold text-base tracking-wide shadow-md"
@@ -146,4 +147,7 @@
 
 </body>
 </html>
+
+
+
 

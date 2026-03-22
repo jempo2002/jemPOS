@@ -19,6 +19,7 @@
   <link rel="stylesheet" href="/static/css/caja.css" />
   <link rel="stylesheet" href="/static/css/fiados.css" />
   <meta name="csrf-token" content="{{ csrf_token() }}" />
+  <link rel="stylesheet" href="/static/css/global.css" />
 </head>
 
 <body>
@@ -132,7 +133,7 @@
       </div>
     </header>
 
-    <div class="fiad-body">
+    <div class="fiad-body" data-fab-scroll-container>
       <div class="fiad-cards block md:hidden" id="fiad-cards" aria-label="Lista de clientes con fiado">
         {% for c in fiados_clientes %}
         <div class="fiad-card" data-id="{{ c.id }}">
@@ -185,52 +186,62 @@
     </div>
   </div>
 
-  <nav class="bottom-bar" role="navigation" aria-label="Navegacion principal">
-    <a href="{{ url_for('sales_bp.turno') }}" class="bottom-btn" aria-label="Mi Turno">
-      <i class="fa-solid fa-business-time"></i>
-      <span>Mi Turno</span>
-    </a>
-    <a href="/dashboard" class="bottom-btn" aria-label="Inicio">
-      <i class="fa-solid fa-gauge-high"></i>
-      <span>Inicio</span>
-    </a>
-    <a href="{{ url_for('sales_bp.caja') }}" class="bottom-btn" aria-label="Caja">
-      <i class="fa-solid fa-cash-register"></i>
-      <span>Caja</span>
-    </a>
-    {% if session.get('es_restaurante') %}
-    <a href="/inventario" class="bottom-btn" aria-label="Menu y Platos">
-      <i class="fa-solid fa-utensils"></i>
-      <span>Menu</span>
-    </a>
-    <a href="/inventario/insumos" class="bottom-btn" aria-label="Insumos">
-      <i class="fa-solid fa-boxes-stacked"></i>
-      <span>Insumos</span>
-    </a>
-    {% else %}
-    <a href="/inventario" class="bottom-btn" aria-label="Inventario">
-      <i class="fa-solid fa-boxes-stacked"></i>
-      <span>Inventario</span>
-    </a>
-    {% endif %}
-    <a href="{{ url_for('sales_bp.fiados') }}" class="bottom-btn active" aria-current="page" aria-label="Fiados">
-      <i class="fa-solid fa-handshake-simple"></i>
-      <span>Fiados</span>
-    </a>
-    <a href="{{ url_for('sales_bp.ventas') }}" class="bottom-btn" aria-label="Ventas">
-      <i class="fa-solid fa-file-invoice-dollar"></i>
-      <span>Ventas</span>
-    </a>
-    <a href="{{ url_for('sales_bp.gastos') }}" class="bottom-btn" aria-label="Gastos">
-      <i class="fa-solid fa-receipt"></i>
-      <span>Gastos</span>
-    </a>
-    <a href="/perfil" class="bottom-btn" aria-label="Mi Perfil">
-      <i class="fa-solid fa-circle-user"></i>
-      <span>Mi Perfil</span>
-    </a>
-  </nav>
+  <button class="fiad-fab" id="btn-new-abono" type="button" data-fab-smart aria-label="Nuevo abono">
+    <i class="fa-solid fa-circle-minus"></i>
+    <span class="fab-label">+ Nuevo</span>
+  </button>
 
+  <nav class="bottom-bar" role="navigation" aria-label="Navegacion principal">
+      <a href="{{ url_for('sales_bp.ventas') }}" class="bottom-btn{% if request.path.startswith('/pos/ventas') %} active{% endif %}"{% if request.path.startswith('/pos/ventas') %} aria-current="page"{% endif %} aria-label="Ventas">
+        <i class="fa-solid fa-file-invoice-dollar"></i>
+        <span>Ventas</span>
+      </a>
+
+      <a href="{{ url_for('sales_bp.caja') }}" class="bottom-btn{% if request.path.startswith('/pos/caja') %} active{% endif %}"{% if request.path.startswith('/pos/caja') %} aria-current="page"{% endif %} aria-label="Caja">
+        <i class="fa-solid fa-cash-register"></i>
+        <span>Caja</span>
+      </a>
+
+      <a href="/inventario" class="bottom-btn{% if request.path.startswith('/inventario') %} active{% endif %}"{% if request.path.startswith('/inventario') %} aria-current="page"{% endif %} aria-label="Inventario">
+        <i class="fa-solid fa-boxes-stacked"></i>
+        <span>Inventario</span>
+      </a>
+
+      <button type="button" class="bottom-btn bottom-more-toggle{% if request.path.startswith('/pos/turno') or request.path == '/perfil' %} active{% endif %}" aria-label="Mas opciones" aria-controls="bottom-more-panel" aria-expanded="false">
+        <i class="fa-solid fa-ellipsis"></i>
+        <span>Mas</span>
+      </button>
+    </nav>
+
+    <div id="bottom-more-panel" class="bottom-more-panel" hidden>
+      <a href="{{ url_for('sales_bp.turno') }}" class="bottom-more-link{% if request.path.startswith('/pos/turno') %} active{% endif %}">
+        <i class="fa-solid fa-business-time"></i>
+        <span>Mi Turno</span>
+      </a>
+      <a href="/perfil" class="bottom-more-link{% if request.path == '/perfil' %} active{% endif %}">
+        <i class="fa-solid fa-circle-user"></i>
+        <span>Mi Perfil</span>
+      </a>
+    </div>
+
+</div>
+
+<div class="fiad-backdrop hidden" id="modal-abono-picker" role="dialog" aria-modal="true" aria-labelledby="modal-abono-picker-title">
+  <div class="fiad-modal-card fiad-picker-card">
+    <div class="fiad-modal-header">
+      <span class="fiad-modal-title" id="modal-abono-picker-title">Nuevo Abono</span>
+      <button class="fiad-modal-close" data-close="modal-abono-picker" type="button" aria-label="Cerrar">
+        <img src="/static/img/equis.png" alt="Cerrar" />
+      </button>
+    </div>
+    <div class="fiad-modal-body">
+      <p class="fiad-picker-help">Selecciona un cliente con deuda para registrar el abono.</p>
+      <div id="fiad-abono-pick-list" class="fiad-picker-list"></div>
+    </div>
+    <div class="fiad-modal-footer">
+      <button class="btn-fiad-cancel" data-close="modal-abono-picker" type="button">Cancelar</button>
+    </div>
+  </div>
 </div>
 
 <div class="fiad-backdrop hidden" id="modal-add" role="dialog" aria-modal="true" aria-labelledby="modal-add-title">
@@ -332,10 +343,10 @@
   </div>
 </div>
 
-<div class="fiad-toast hidden" id="fiad-toast" role="status" aria-live="polite"></div>
-
 <script src="/static/js/logout.js"></script>
 <script src="/static/js/cop-format.js"></script>
+<script src="/static/js/toast.js"></script>
+<script src="/static/js/fab-scroll.js"></script>
 <script src="/static/js/fiados.js"></script>
 <div id="app-context"
   data-user-rol="{{ rol }}"
@@ -348,6 +359,9 @@
 
 </body>
 </html>
+
+
+
 
 
 

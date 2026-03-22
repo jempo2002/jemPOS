@@ -81,6 +81,37 @@
 .btn-new-client:active { transform: scale(0.97); }
 .btn-new-client i      { font-size: 0.8rem; }
 
+.fiad-fab {
+  position: fixed;
+  right: 20px;
+  bottom: calc(80px + env(safe-area-inset-bottom, 0px));
+  z-index: 46;
+  border: none;
+  border-radius: 999px;
+  min-height: var(--touch-target-min);
+  min-width: var(--touch-target-min);
+  padding: 0.82rem 1rem;
+  background: #10B981;
+  color: #ffffff;
+  font-size: 0.88rem;
+  font-weight: 700;
+  box-shadow: var(--shadow-md);
+  cursor: pointer;
+}
+
+.fiad-fab i {
+  font-size: 0.82rem;
+}
+
+@media (max-width: 767.98px) {
+  .btn-new-client { display: none; }
+}
+
+@media (min-width: 768px) {
+  .fiad-fab { display: none; }
+  .btn-new-client { display: inline-flex; }
+}
+
 /* ── Stats rapidos ─────────────────────────────────────────── */
 .fiad-stats {
   display: flex;
@@ -621,6 +652,57 @@
 
 .fiad-preview-danger { color: #DC2626; }
 
+.fiad-picker-card {
+  max-width: 460px;
+}
+
+.fiad-picker-help {
+  margin: 0;
+  font-size: 0.88rem;
+  color: #64748B;
+}
+
+.fiad-picker-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.fiad-picker-item {
+  width: 100%;
+  border: 1px solid #E2E8F0;
+  border-radius: 0.8rem;
+  background: #FFFFFF;
+  padding: 0.7rem 0.85rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.7rem;
+  cursor: pointer;
+}
+
+.fiad-picker-item-name {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #1E293B;
+  text-align: left;
+}
+
+.fiad-picker-item-debt {
+  font-size: 0.86rem;
+  font-weight: 700;
+  color: #DC2626;
+}
+
+.fiad-picker-empty {
+  text-align: center;
+  color: #64748B;
+  font-size: 0.88rem;
+  padding: 0.75rem 0.5rem;
+  background: #F8FAFC;
+  border-radius: 0.75rem;
+}
+
 /* Pie del modal */
 .fiad-modal-footer {
   display: flex;
@@ -723,34 +805,4 @@
   object-fit: contain;
   display: inline-block;
   pointer-events: none;
-}
-
-.fiad-toast {
-  position: fixed;
-  bottom: 80px;
-  left: 50%;
-  transform: translateX(-50%);
-  background: #1E293B;
-  color: #fff;
-  font-size: 0.88rem;
-  font-weight: 600;
-  padding: 0.65rem 1.2rem;
-  border-radius: 0.75rem;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.2);
-  z-index: 9999;
-  pointer-events: none;
-  white-space: nowrap;
-  animation: toastIn 0.22s ease;
-}
-.fiad-toast.hidden { display: none; }
-.fiad-toast.success { background: #059669; }
-.fiad-toast.error   { background: #DC2626; }
-
-@keyframes toastIn {
-  from { opacity: 0; transform: translateX(-50%) translateY(6px); }
-  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
-}
-
-@media (min-width: 768px) {
-  .fiad-toast { bottom: 2rem; }
 }

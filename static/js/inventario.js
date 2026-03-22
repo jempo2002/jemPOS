@@ -281,9 +281,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (list.length === 0) {
       cardsList.innerHTML = `
-        <div style="text-align:center;padding:2.5rem;color:#94A3B8;">
-          <i class="fa-solid fa-box-open" style="font-size:2.5rem;opacity:.35;"></i>
-          <p style="margin-top:.75rem;font-size:.9rem;">Sin resultados</p>
+        <div class="inv-empty-state">
+          <i class="fa-solid fa-box-open"></i>
+          <p>Sin resultados</p>
         </div>`;
       return;
     }
@@ -355,9 +355,9 @@ document.addEventListener('DOMContentLoaded', () => {
           <span class="card-price-label">Precio venta</span>
           <span class="card-price-value">$${COP.format(p.sale)}</span>
         </div>
-        <div class="card-prices" style="text-align:right;">
+        <div class="card-prices card-prices-right">
           <span class="card-price-label">Costo</span>
-          <span class="card-price-value" style="color:#475569;">$${COP.format(p.cost)}</span>
+          <span class="card-price-value card-price-cost">$${COP.format(p.cost)}</span>
         </div>
         ${stockAction}
       </div>`;
@@ -385,7 +385,7 @@ document.addEventListener('DOMContentLoaded', () => {
       <td class="td-price">$${COP.format(p.sale)}</td>
       <td>${stockAction}</td>
       <td>
-        <div style="display:flex;gap:.4rem;">
+        <div class="td-actions">
           <button class="action-btn edit" data-action="edit" aria-label="Editar">
             <img src="/static/img/editar.png" alt="Editar" />
           </button>

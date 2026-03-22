@@ -121,6 +121,12 @@ document.addEventListener('DOMContentLoaded', () => {
   btnClose.addEventListener('click', closeModal);
   btnCancel.addEventListener('click', closeModal);
 
+  if (fCelular) {
+    fCelular.addEventListener('input', () => {
+      fCelular.value = (fCelular.value || '').replace(/[^0-9]/g, '').slice(0, 10);
+    });
+  }
+
   deleteClose.addEventListener('click', closeDeleteModal);
   deleteCancel.addEventListener('click', closeDeleteModal);
 

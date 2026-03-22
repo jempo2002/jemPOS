@@ -6,6 +6,9 @@
   background: #f8fafc;
 }
 
+.ventas-mobile-only { display: block; }
+.ventas-desktop-only { display: none; }
+
 .ventas-topbar {
   padding: 1rem 1rem 0.75rem;
   border-bottom: 1px solid #e2e8f0;
@@ -291,6 +294,9 @@
 }
 
 @media (min-width: 768px) {
+  .ventas-mobile-only { display: none; }
+  .ventas-desktop-only { display: block; }
+
   .ventas-logo {
     display: none;
   }

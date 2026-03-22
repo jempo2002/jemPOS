@@ -30,6 +30,14 @@ function shake(el) {
   el.addEventListener('animationend', () => el.classList.remove('perf-shake'), { once: true });
 }
 
+function notify(msg, type) {
+  if (window.JemToast && typeof window.JemToast.show === 'function') {
+    window.JemToast.show(msg, type || 'info', { duration: 3000 });
+    return;
+  }
+  console[type === 'error' ? 'error' : 'log'](msg);
+}
+
 /* ── Actualizar nombre en la cabecera en tiempo real ────── */
 inpNombre.addEventListener('input', () => {
   const trimmed = inpNombre.value.trim();
@@ -72,12 +80,12 @@ if (cameraBtnEl && inpFoto) {
 
     const allowed = ['image/jpeg', 'image/jpg', 'image/png'];
     if (!allowed.includes(file.type)) {
-      alert('Solo se permiten imagenes JPG o PNG.');
+      notify('Solo se permiten imagenes JPG o PNG.', 'error');
       inpFoto.value = '';
       return;
     }
     if (file.size > 5 * 1024 * 1024) {
-      alert('El archivo supera los 5 MB permitidos.');
+      notify('El archivo supera los 5 MB permitidos.', 'error');
       inpFoto.value = '';
       return;
     }
@@ -97,8 +105,9 @@ if (cameraBtnEl && inpFoto) {
     const data = await res.json();
     if (data.ok) {
       setProfilePhoto(data.url);
+      notify('Foto de perfil actualizada.', 'success');
     } else {
-      alert(data.msg || 'Error al subir la foto.');
+      notify(data.msg || 'Error al subir la foto.', 'error');
     }
     inpFoto.value = '';
   });
@@ -155,8 +164,9 @@ if (btnEliminarFoto && modalDeletePhoto) {
       if (data.ok) {
         clearProfilePhoto();
         closeDeleteModal();
+        notify('Foto de perfil eliminada.', 'success');
       } else {
-        alert(data.msg || 'Error al eliminar la foto.');
+        notify(data.msg || 'Error al eliminar la foto.', 'error');
       }
 
       btnConfirmDelete.disabled = false;
@@ -241,9 +251,11 @@ form.addEventListener('submit', async (e) => {
 
   if (!data.ok) {
     btnGuardar.disabled = false;
-    alert(data.msg || 'Error al guardar.');
+    notify(data.msg || 'Error al guardar.', 'error');
     return;
   }
+
+  notify('Cambios guardados correctamente.', 'success');
 
   /* Feedback visual: boton verde */
   btnGuardar.classList.add('saved');

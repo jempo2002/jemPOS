@@ -1,4 +1,4 @@
-<!-- Ruta: templates/pos/caja.html -->
+﻿<!-- Ruta: templates/pos/caja.html -->
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -23,9 +23,10 @@
   <link rel="stylesheet" href="/static/css/caja.css" />
   <link rel="stylesheet" href="/static/css/flash.css" />
   <meta name="csrf-token" content="{{ csrf_token() }}" />
+  <link rel="stylesheet" href="/static/css/global.css" />
 </head>
 
-<body>
+<body class="page-caja">
 
 <!-- Flash de permisos (RBAC redirect) -->
 {% with messages = get_flashed_messages(with_categories=true) %}
@@ -119,10 +120,12 @@
       <div class="search-wrap">
         <i class="fa-solid fa-barcode" aria-hidden="true"></i>
         <input
-          type="search"
+          type="number"
           id="search-input"
           class="search-input"
           placeholder="Buscar producto o escanear..."
+          inputmode="numeric"
+          pattern="[0-9]*"
           autocomplete="off"
           autocorrect="off"
           spellcheck="false"
@@ -261,47 +264,37 @@
   </div>
   <!-- /main-area -->
   <nav class="bottom-bar" role="navigation" aria-label="Navegacion principal">
-
-    <a href="{{ url_for('sales_bp.turno') }}" class="bottom-btn" aria-label="Mi Turno">
-      <i class="fa-solid fa-business-time"></i>
-      <span>Mi Turno</span>
+    <a href="{{ url_for('sales_bp.ventas') }}" class="bottom-btn{% if request.path.startswith('/pos/ventas') %} active{% endif %}"{% if request.path.startswith('/pos/ventas') %} aria-current="page"{% endif %} aria-label="Ventas">
+      <i class="fa-solid fa-file-invoice-dollar"></i>
+      <span>Ventas</span>
     </a>
 
-    <a href="/dashboard" class="bottom-btn" aria-label="Inicio">
-      <i class="fa-solid fa-gauge-high"></i>
-      <span>Inicio</span>
-    </a>
-
-    <a href="{{ url_for('sales_bp.caja') }}" class="bottom-btn active" aria-current="page" aria-label="Caja">
+    <a href="{{ url_for('sales_bp.caja') }}" class="bottom-btn{% if request.path.startswith('/pos/caja') %} active{% endif %}"{% if request.path.startswith('/pos/caja') %} aria-current="page"{% endif %} aria-label="Caja">
       <i class="fa-solid fa-cash-register"></i>
       <span>Caja</span>
     </a>
 
-    <a href="/inventario" class="bottom-btn" aria-label="Inventario">
+    <a href="/inventario" class="bottom-btn{% if request.path.startswith('/inventario') %} active{% endif %}"{% if request.path.startswith('/inventario') %} aria-current="page"{% endif %} aria-label="Inventario">
       <i class="fa-solid fa-boxes-stacked"></i>
       <span>Inventario</span>
     </a>
 
-    <a href="{{ url_for('sales_bp.fiados') }}" class="bottom-btn" aria-label="Fiados">
-      <i class="fa-solid fa-handshake-simple"></i>
-      <span>Fiados</span>
-    </a>
+    <button type="button" class="bottom-btn bottom-more-toggle{% if request.path.startswith('/pos/turno') or request.path == '/perfil' %} active{% endif %}" aria-label="Mas opciones" aria-controls="bottom-more-panel" aria-expanded="false">
+      <i class="fa-solid fa-ellipsis"></i>
+      <span>Mas</span>
+    </button>
+  </nav>
 
-    <a href="{{ url_for('sales_bp.ventas') }}" class="bottom-btn" aria-label="Ventas">
-      <i class="fa-solid fa-file-invoice-dollar"></i>
-      <span>Ventas</span>
+  <div id="bottom-more-panel" class="bottom-more-panel" hidden>
+    <a href="{{ url_for('sales_bp.turno') }}" class="bottom-more-link{% if request.path.startswith('/pos/turno') %} active{% endif %}">
+      <i class="fa-solid fa-business-time"></i>
+      <span>Mi Turno</span>
     </a>
-    <a href="{{ url_for('sales_bp.gastos') }}" class="bottom-btn" aria-label="Gastos">
-      <i class="fa-solid fa-receipt"></i>
-      <span>Gastos</span>
-    </a>
-
-    <a href="/perfil" class="bottom-btn" aria-label="Mi Perfil">
+    <a href="/perfil" class="bottom-more-link{% if request.path == '/perfil' %} active{% endif %}">
       <i class="fa-solid fa-circle-user"></i>
       <span>Mi Perfil</span>
     </a>
-
-  </nav>
+  </div>
   <!-- /bottom-bar -->
 
 </div>
@@ -326,3 +319,6 @@
 
 </body>
 </html>
+
+
+

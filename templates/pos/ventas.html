@@ -18,15 +18,9 @@
 
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="/static/css/caja.css" />
+  <link rel="stylesheet" href="/static/css/ventas.css" />
   <meta name="csrf-token" content="{{ csrf_token() }}" />
-  <style>
-    .ventas-mobile-only { display: block; }
-    .ventas-desktop-only { display: none; }
-    @media (min-width: 768px) {
-      .ventas-mobile-only { display: none; }
-      .ventas-desktop-only { display: block; }
-    }
-  </style>
+  <link rel="stylesheet" href="/static/css/global.css" />
 </head>
 
 <body>
@@ -245,58 +239,38 @@
     </div>
   </main>
 
-  <nav class="bottom-bar" aria-label="Navegacion principal">
-    <a href="{{ url_for('sales_bp.turno') }}" class="bottom-btn" aria-label="Mi Turno">
-      <i class="fa-solid fa-business-time"></i>
-      <span>Mi Turno</span>
-    </a>
-
-    <a href="/dashboard" class="bottom-btn" aria-label="Inicio">
-      <i class="fa-solid fa-gauge-high"></i>
-      <span>Inicio</span>
-    </a>
-
-    <a href="{{ url_for('sales_bp.caja') }}" class="bottom-btn" aria-label="Caja">
-      <i class="fa-solid fa-cash-register"></i>
-      <span>Caja</span>
-    </a>
-
-    {% if session.get('es_restaurante') %}
-    <a href="/inventario" class="bottom-btn" aria-label="Menu y Platos">
-      <i class="fa-solid fa-utensils"></i>
-      <span>Menu</span>
-    </a>
-    <a href="/inventario/insumos" class="bottom-btn" aria-label="Insumos">
-      <i class="fa-solid fa-boxes-stacked"></i>
-      <span>Insumos</span>
-    </a>
-    {% else %}
-    <a href="/inventario" class="bottom-btn" aria-label="Inventario">
-      <i class="fa-solid fa-boxes-stacked"></i>
-      <span>Inventario</span>
-    </a>
-    {% endif %}
-
-    <a href="{{ url_for('sales_bp.fiados') }}" class="bottom-btn" aria-label="Fiados">
-      <i class="fa-solid fa-handshake-simple"></i>
-      <span>Fiados</span>
-    </a>
-
-    <a href="{{ url_for('sales_bp.ventas') }}" class="bottom-btn active" aria-current="page" aria-label="Ventas">
+  <nav class="bottom-bar" role="navigation" aria-label="Navegacion principal">
+    <a href="{{ url_for('sales_bp.ventas') }}" class="bottom-btn{% if request.path.startswith('/pos/ventas') %} active{% endif %}"{% if request.path.startswith('/pos/ventas') %} aria-current="page"{% endif %} aria-label="Ventas">
       <i class="fa-solid fa-file-invoice-dollar"></i>
       <span>Ventas</span>
     </a>
 
-    <a href="{{ url_for('sales_bp.gastos') }}" class="bottom-btn" aria-label="Gastos">
-      <i class="fa-solid fa-receipt"></i>
-      <span>Gastos</span>
+    <a href="{{ url_for('sales_bp.caja') }}" class="bottom-btn{% if request.path.startswith('/pos/caja') %} active{% endif %}"{% if request.path.startswith('/pos/caja') %} aria-current="page"{% endif %} aria-label="Caja">
+      <i class="fa-solid fa-cash-register"></i>
+      <span>Caja</span>
     </a>
 
-    <a href="/perfil" class="bottom-btn" aria-label="Mi Perfil">
+    <a href="/inventario" class="bottom-btn{% if request.path.startswith('/inventario') %} active{% endif %}"{% if request.path.startswith('/inventario') %} aria-current="page"{% endif %} aria-label="Inventario">
+      <i class="fa-solid fa-boxes-stacked"></i>
+      <span>Inventario</span>
+    </a>
+
+    <button type="button" class="bottom-btn bottom-more-toggle{% if request.path.startswith('/pos/turno') or request.path == '/perfil' %} active{% endif %}" aria-label="Mas opciones" aria-controls="bottom-more-panel" aria-expanded="false">
+      <i class="fa-solid fa-ellipsis"></i>
+      <span>Mas</span>
+    </button>
+  </nav>
+
+  <div id="bottom-more-panel" class="bottom-more-panel" hidden>
+    <a href="{{ url_for('sales_bp.turno') }}" class="bottom-more-link{% if request.path.startswith('/pos/turno') %} active{% endif %}">
+      <i class="fa-solid fa-business-time"></i>
+      <span>Mi Turno</span>
+    </a>
+    <a href="/perfil" class="bottom-more-link{% if request.path == '/perfil' %} active{% endif %}">
       <i class="fa-solid fa-circle-user"></i>
       <span>Mi Perfil</span>
     </a>
-  </nav>
+  </div>
 </div>
 
 <script src="/static/js/logout.js"></script>
@@ -313,4 +287,7 @@
 
 </body>
 </html>
+
+
+
 

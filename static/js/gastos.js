@@ -17,7 +17,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const res = await fetch('/pos/api/gastos');
     if (res.status === 401) { window.location.href = '/login'; return; }
     const data = await res.json();
-    if (!data.ok) { showToast('Error al cargar gastos.', 'error'); return; }
+    if (!data.ok) { notify('Error al cargar gastos.', 'error'); return; }
     gastos = data.gastos;
     renderAll();
   }
@@ -29,7 +29,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const emptyEl     = document.getElementById('gast-empty');
   const statHoy     = document.getElementById('stat-hoy');
   const statMes     = document.getElementById('stat-mes');
-  const toast       = document.getElementById('gast-toast');
 
   /* Modal */
   const modalGasto  = document.getElementById('modal-gasto');
@@ -42,6 +41,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const gFuente     = document.getElementById('g-fuente');
   const gOrigenBadge = document.getElementById('g-origen-badge');
   const btnConfirm  = document.getElementById('btn-gasto-confirm');
+  const btnNuevoGasto = document.getElementById('btn-nuevo-gasto');
+  const btnGastoFab = document.getElementById('btn-gasto-fab');
   const gastoForm   = document.getElementById('gasto-form');
   const modalErrorBox = document.getElementById('alerta-error-modal');
   const modalErrorText = document.getElementById('texto-alerta-modal');
@@ -59,7 +60,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const q = filterValue.trim().toLowerCase();
     const filtered = gastoCategoryOptions.filter(opt => opt.toLowerCase().includes(q));
     if (!filtered.length) {
-      gCategoryDropdown.innerHTML = '<div class="p-3" style="color:#94A3B8;">Sin coincidencias</div>';
+      gCategoryDropdown.innerHTML = '<div class="p-3 gast-muted-text">Sin coincidencias</div>';
       gCategoryDropdown.classList.remove('hidden');
       return;
     }
@@ -184,11 +185,11 @@ document.addEventListener('DOMContentLoaded', () => {
       <div class="gast-card-icon"><i class="fa-solid ${icon}"></i></div>
       <div class="gast-card-info">
         <div class="gast-card-cat">${esc(g.category)}</div>
-        <div class="gast-card-desc">${g.desc ? esc(g.desc) : '<span style="color:#94A3B8">Sin descripcion</span>'}</div>
+        <div class="gast-card-desc">${g.desc ? esc(g.desc) : '<span class="gast-muted-text">Sin descripcion</span>'}</div>
         <div class="gast-card-meta">
           <span>${fecha}</span>
           <span class="gast-origen-pill ${origenClass}">
-            <i class="fa-solid ${origenIcon}" style="font-size:.65rem;"></i>
+            <i class="fa-solid ${origenIcon} gast-pill-icon"></i>
             ${esc(origenText)}
           </span>
         </div>
@@ -206,7 +207,7 @@ document.addEventListener('DOMContentLoaded', () => {
     <tr>
       <td class="gast-td-fecha">${fecha}</td>
       <td class="gast-td-cat">${esc(g.category)}</td>
-      <td class="gast-td-desc">${g.desc ? esc(g.desc) : '<span style="color:#94A3B8">—</span>'}</td>
+      <td class="gast-td-desc">${g.desc ? esc(g.desc) : '<span class="gast-empty-dash">—</span>'}</td>
       <td>
         <span class="gast-origen-pill ${origenClass}">${esc(origenText)}</span>
       </td>
@@ -240,7 +241,7 @@ document.addEventListener('DOMContentLoaded', () => {
   /* ══════════════════════════════════════════════════════════
      MODAL — ABRIR / CERRAR
      ══════════════════════════════════════════════════════════ */
-  document.getElementById('btn-nuevo-gasto').addEventListener('click', () => {
+  function openNuevoGastoModal() {
     /* Limpiar campos */
     gAmount.value   = '';
     gCategory.value = '';
@@ -254,7 +255,10 @@ document.addEventListener('DOMContentLoaded', () => {
     renderFuenteEstado();
     openModal(modalGasto);
     setTimeout(() => gAmount.focus(), 80);
-  });
+  }
+
+  if (btnNuevoGasto) btnNuevoGasto.addEventListener('click', openNuevoGastoModal);
+  if (btnGastoFab) btnGastoFab.addEventListener('click', openNuevoGastoModal);
 
   function renderFuenteEstado() {
     const metodo = gMetodo.value;
@@ -311,7 +315,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     closeModal(modalGasto);
     await loadGastos();
-    showToast(`Gasto de $${COP.format(amount)} registrado`, 'error');
+    notify(`Gasto de $${COP.format(amount)} registrado`, 'success');
   });
 
   /* Cierre generico por data-close */
@@ -361,15 +365,12 @@ document.addEventListener('DOMContentLoaded', () => {
     modalErrorBox.classList.add('hidden');
   }
 
-  /* ── Toast ───────────────────────────────────────────────── */
-  let toastTimer = null;
-  function showToast(msg, type = '') {
-    toast.textContent = msg;
-    toast.className   = `gast-toast ${type}`;
-    if (toastTimer) clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => {
-      toast.className = 'gast-toast hidden';
-    }, 3200);
+  function notify(msg, type) {
+    if (window.JemToast && typeof window.JemToast.show === 'function') {
+      window.JemToast.show(msg, type || 'info', { duration: 3000 });
+      return;
+    }
+    console[type === 'error' ? 'error' : 'log'](msg);
   }
 
   /* ── Shake (validacion) ──────────────────────────────────── */

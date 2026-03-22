@@ -19,6 +19,7 @@
   <link rel="stylesheet" href="/static/css/caja.css" />
   <link rel="stylesheet" href="/static/css/proveedores.css" />
   <meta name="csrf-token" content="{{ csrf_token() }}" />
+  <link rel="stylesheet" href="/static/css/global.css" />
 </head>
 <body>
 <div class="app-shell">
@@ -89,9 +90,9 @@
       <div class="prov-logo" aria-hidden="true"><span class="jem">jem</span><span class="pos">POS</span></div>
       <div class="prov-head-row">
         <h1>Proveedores</h1>
-        <button id="btn-prov-new" class="prov-btn-new" type="button">
+        <button id="btn-prov-new" class="prov-btn-new" type="button" data-fab-smart>
           <i class="fa-solid fa-plus"></i>
-          Nuevo Proveedor
+          <span class="fab-label">Nuevo Proveedor</span>
         </button>
       </div>
 
@@ -101,7 +102,7 @@
       </div>
     </header>
 
-    <section class="prov-content">
+    <section class="prov-content" data-fab-scroll-container>
       {% if proveedores %}
       <div class="prov-cards" id="prov-cards">
         {% for proveedor in proveedores %}
@@ -199,44 +200,38 @@
     </section>
   </main>
 
-  <nav class="bottom-bar" aria-label="Navegacion principal">
-    <a href="{{ url_for('sales_bp.turno') }}" class="bottom-btn" aria-label="Mi Turno">
-      <i class="fa-solid fa-business-time"></i>
-      <span>Mi Turno</span>
-    </a>
-    <a href="{{ url_for('core_bp.dashboard_page') }}" class="bottom-btn" aria-label="Inicio">
-      <i class="fa-solid fa-gauge-high"></i>
-      <span>Inicio</span>
-    </a>
-    <a href="{{ url_for('sales_bp.caja') }}" class="bottom-btn" aria-label="Caja">
-      <i class="fa-solid fa-cash-register"></i>
-      <span>Caja</span>
-    </a>
-    <a href="{{ url_for('inventory_bp.inventario_page') }}" class="bottom-btn" aria-label="Inventario">
-      <i class="fa-solid fa-boxes-stacked"></i>
-      <span>Inventario</span>
-    </a>
-    <a href="{{ url_for('inventory_bp.proveedores_page') }}" class="bottom-btn active" aria-current="page" aria-label="Proveedores">
-      <i class="fa-solid fa-truck-field"></i>
-      <span>Prov.</span>
-    </a>
-    <a href="{{ url_for('sales_bp.fiados') }}" class="bottom-btn" aria-label="Fiados">
-      <i class="fa-solid fa-handshake-simple"></i>
-      <span>Fiados</span>
-    </a>
-    <a href="{{ url_for('sales_bp.ventas') }}" class="bottom-btn" aria-label="Ventas">
+  <nav class="bottom-bar" role="navigation" aria-label="Navegacion principal">
+    <a href="{{ url_for('sales_bp.ventas') }}" class="bottom-btn{% if request.path.startswith('/pos/ventas') %} active{% endif %}"{% if request.path.startswith('/pos/ventas') %} aria-current="page"{% endif %} aria-label="Ventas">
       <i class="fa-solid fa-file-invoice-dollar"></i>
       <span>Ventas</span>
     </a>
-    <a href="{{ url_for('sales_bp.gastos') }}" class="bottom-btn" aria-label="Gastos">
-      <i class="fa-solid fa-receipt"></i>
-      <span>Gastos</span>
+
+    <a href="{{ url_for('sales_bp.caja') }}" class="bottom-btn{% if request.path.startswith('/pos/caja') %} active{% endif %}"{% if request.path.startswith('/pos/caja') %} aria-current="page"{% endif %} aria-label="Caja">
+      <i class="fa-solid fa-cash-register"></i>
+      <span>Caja</span>
     </a>
-    <a href="/perfil" class="bottom-btn" aria-label="Mi Perfil">
+
+    <a href="/inventario" class="bottom-btn{% if request.path.startswith('/inventario') %} active{% endif %}"{% if request.path.startswith('/inventario') %} aria-current="page"{% endif %} aria-label="Inventario">
+      <i class="fa-solid fa-boxes-stacked"></i>
+      <span>Inventario</span>
+    </a>
+
+    <button type="button" class="bottom-btn bottom-more-toggle{% if request.path.startswith('/pos/turno') or request.path == '/perfil' %} active{% endif %}" aria-label="Mas opciones" aria-controls="bottom-more-panel" aria-expanded="false">
+      <i class="fa-solid fa-ellipsis"></i>
+      <span>Mas</span>
+    </button>
+  </nav>
+
+  <div id="bottom-more-panel" class="bottom-more-panel" hidden>
+    <a href="{{ url_for('sales_bp.turno') }}" class="bottom-more-link{% if request.path.startswith('/pos/turno') %} active{% endif %}">
+      <i class="fa-solid fa-business-time"></i>
+      <span>Mi Turno</span>
+    </a>
+    <a href="/perfil" class="bottom-more-link{% if request.path == '/perfil' %} active{% endif %}">
       <i class="fa-solid fa-circle-user"></i>
       <span>Mi Perfil</span>
     </a>
-  </nav>
+  </div>
 </div>
 
 <div id="prov-modal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="prov-modal-title">
@@ -262,7 +257,7 @@
 
       <div class="modal-field prov-field">
         <label for="prov-celular">Celular</label>
-        <input id="prov-celular" name="celular" type="text" inputmode="numeric" pattern="[0-9]{1,10}" maxlength="10" oninput="this.value = this.value.replace(/[^0-9]/g, '')" class="w-full rounded-xl border border-slate-300 px-3 py-2" required />
+        <input id="prov-celular" name="celular" type="text" inputmode="numeric" pattern="[0-9]{1,10}" maxlength="10" class="w-full rounded-xl border border-slate-300 px-3 py-2" required />
       </div>
 
       <div class="modal-field prov-field">
@@ -312,6 +307,8 @@
   </div>
 </div>
 
+<script src="/static/js/toast.js"></script>
+<script src="/static/js/fab-scroll.js"></script>
 <script src="/static/js/proveedores.js"></script>
 
 <div id="app-context"
@@ -325,6 +322,9 @@
 <script src="/static/js/logout.js"></script>
 </body>
 </html>
+
+
+
 
 
 

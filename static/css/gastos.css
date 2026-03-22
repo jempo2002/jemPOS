@@ -20,9 +20,11 @@
   .gast-logo { display: none; }
   .gast-topbar { padding: 1.25rem 1.75rem 1rem; }
   .btn-nuevo-gasto {
+    display: inline-flex;
     padding: 0.7rem 1.4rem;
     font-size: 0.9rem;
   }
+  .gast-fab { display: none; }
 }
 
 /* ── Cabecera ─────────────────────────────────────────────── */
@@ -67,7 +69,7 @@
 
 /* Boton Nuevo Gasto */
 .btn-nuevo-gasto {
-  display: inline-flex;
+  display: none;
   align-items: center;
   gap: 0.4rem;
   padding: 0.6rem 1rem;
@@ -87,6 +89,28 @@
 .btn-nuevo-gasto:hover  { background: #1D4ED8; }
 .btn-nuevo-gasto:active { transform: scale(0.97); }
 .btn-nuevo-gasto i      { font-size: 0.8rem; }
+
+.gast-fab {
+  position: fixed;
+  right: 20px;
+  bottom: calc(80px + env(safe-area-inset-bottom, 0px));
+  z-index: 46;
+  border: none;
+  border-radius: 999px;
+  min-height: var(--touch-target-min);
+  min-width: var(--touch-target-min);
+  padding: 0.82rem 1rem;
+  background: var(--color-primary);
+  color: #ffffff;
+  font-size: 0.88rem;
+  font-weight: 700;
+  box-shadow: var(--shadow-md);
+  cursor: pointer;
+}
+
+.gast-fab i {
+  font-size: 0.8rem;
+}
 
 /* ── Tarjetas de resumen ──────────────────────────────────── */
 .gast-summary {
@@ -246,6 +270,18 @@
 .gast-origen-pill.banco {
   background: #BFDBFE;
   color: #1D4ED8;
+}
+
+.gast-pill-icon {
+  font-size: 0.65rem;
+}
+
+.gast-muted-text {
+  color: #94A3B8;
+}
+
+.gast-empty-dash {
+  color: #94A3B8;
 }
 
 .gast-card-amount {
@@ -603,9 +639,6 @@
 .btn-gast-confirm:hover  { background: #DC2626; }
 .btn-gast-confirm:active { transform: scale(0.97); }
 
-/* ══════════════════════════════════════════════════════════
-   TOAST
-   ══════════════════════════════════════════════════════════ */
 /* ── Ordenamiento de tabla ───────────────────────────────── */
 .th-sortable {
   cursor: pointer;
@@ -629,34 +662,4 @@
   object-fit: contain;
   display: inline-block;
   pointer-events: none;
-}
-
-.gast-toast {
-  position: fixed;
-  bottom: 80px;
-  left: 50%;
-  transform: translateX(-50%);
-  background: #1E293B;
-  color: #fff;
-  font-size: 0.88rem;
-  font-weight: 600;
-  padding: 0.65rem 1.2rem;
-  border-radius: 0.75rem;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.2);
-  z-index: 9999;
-  pointer-events: none;
-  white-space: nowrap;
-  animation: gToastIn 0.22s ease;
-}
-.gast-toast.hidden { display: none; }
-.gast-toast.success { background: #059669; }
-.gast-toast.error   { background: #DC2626; }
-
-@keyframes gToastIn {
-  from { opacity: 0; transform: translateX(-50%) translateY(6px); }
-  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
-}
-
-@media (min-width: 768px) {
-  .gast-toast { bottom: 2rem; }
 }

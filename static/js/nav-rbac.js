@@ -11,7 +11,7 @@
 
   // Perfil disponible solo para Admin.
   if (rol !== 'Admin') {
-    document.querySelectorAll('.nav-link[href="/perfil"], .bottom-btn[href="/perfil"]').forEach((el) => {
+    document.querySelectorAll('.nav-link[href="/perfil"], .bottom-btn[href="/perfil"], .bottom-more-link[href="/perfil"]').forEach((el) => {
       el.style.display = 'none';
     });
   }
@@ -41,7 +41,32 @@
 
   if (rol === 'Admin' || rol === 'Master') {
     ensureProveedoresLink('.sidebar-nav', 'nav-link');
-    ensureProveedoresLink('.bottom-bar', 'bottom-btn');
+  }
+
+  const bottomMoreToggle = document.querySelector('.bottom-more-toggle');
+  const bottomMorePanel = document.getElementById('bottom-more-panel');
+
+  if (bottomMoreToggle && bottomMorePanel) {
+    function closeBottomMore() {
+      bottomMorePanel.hidden = true;
+      bottomMoreToggle.setAttribute('aria-expanded', 'false');
+    }
+
+    bottomMoreToggle.addEventListener('click', function () {
+      const shouldHide = !bottomMorePanel.hidden;
+      bottomMorePanel.hidden = shouldHide;
+      bottomMoreToggle.setAttribute('aria-expanded', String(!shouldHide));
+    });
+
+    document.addEventListener('click', function (event) {
+      if (bottomMorePanel.hidden) return;
+      if (bottomMorePanel.contains(event.target) || bottomMoreToggle.contains(event.target)) return;
+      closeBottomMore();
+    });
+
+    document.addEventListener('keydown', function (event) {
+      if (event.key === 'Escape') closeBottomMore();
+    });
   }
 
   // Solo aplicar restricciones al rol Cajero
@@ -64,4 +89,5 @@
       el.style.display = 'none';
     }
   });
+
 }());

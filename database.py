@@ -49,6 +49,17 @@ def init_pool(
     )
 
 
+def init_pool_from_app(app) -> None:
+    """Inicializa el pool usando app.config (patron application factory)."""
+    init_pool(
+        host=app.config["DB_HOST"],
+        port=app.config["DB_PORT"],
+        user=app.config["DB_USER"],
+        password=app.config["DB_PASSWORD"],
+        database=app.config["DB_NAME"],
+    )
+
+
 def get_db() -> mysql.connector.MySQLConnection:
     """Obtiene una conexion del pool. Siempre cierrala en un bloque finally."""
     if _pool is None:

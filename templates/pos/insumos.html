@@ -30,24 +30,24 @@
     </div>
 
     <nav class="sidebar-nav">
-      <a href="/turno" class="nav-link">
+      <a href="{{ url_for('turno_page') }}" class="nav-link">
         <i class="fa-solid fa-business-time"></i>
         <span>Mi Turno</span>
       </a>
-      <a href="/dashboard" class="nav-link">
+      <a href="{{ url_for('dashboard_page') }}" class="nav-link">
         <i class="fa-solid fa-gauge-high"></i>
         <span>{% if session.get('rol') == 'Admin' %}Panel de Control{% else %}Inicio{% endif %}</span>
       </a>
-      <a href="/caja" class="nav-link">
+      <a href="{{ url_for('caja_page') }}" class="nav-link">
         <i class="fa-solid fa-cash-register"></i>
         <span>Caja</span>
       </a>
-      <a href="/inventario" class="nav-link">
+      <a href="{{ url_for('inventory_bp.inventario_page') }}" class="nav-link">
         <i class="fa-solid fa-boxes-stacked"></i>
         <span>{% if session.get('es_restaurante') %}Menu y Platos{% else %}Inventario{% endif %}</span>
       </a>
       {% if session.get('es_restaurante') %}
-      <a href="/insumos" class="nav-link active" aria-current="page">
+      <a href="{{ url_for('inventory_bp.insumos_page') }}" class="nav-link active" aria-current="page">
         <i class="fa-solid fa-carrot"></i>
         <span>Insumos</span>
       </a>
@@ -70,7 +70,7 @@
       </a>
     </nav>
 
-    <a href="{{ url_for('logout') }}" class="sidebar-logout no-underline hover:no-underline">
+    <a href="{{ url_for('auth.logout') }}" class="sidebar-logout no-underline hover:no-underline">
       <img src="/static/img/leave.png" alt="" />
       Cerrar sesion
     </a>
@@ -211,24 +211,24 @@
   </main>
 
   <nav class="bottom-bar" aria-label="Navegacion principal">
-    <a href="/turno" class="bottom-btn" aria-label="Mi Turno">
+    <a href="{{ url_for('turno_page') }}" class="bottom-btn" aria-label="Mi Turno">
       <i class="fa-solid fa-business-time"></i>
       <span>Mi Turno</span>
     </a>
-    <a href="/dashboard" class="bottom-btn" aria-label="Inicio">
+    <a href="{{ url_for('dashboard_page') }}" class="bottom-btn" aria-label="Inicio">
       <i class="fa-solid fa-gauge-high"></i>
       <span>Inicio</span>
     </a>
-    <a href="/caja" class="bottom-btn" aria-label="Caja">
+    <a href="{{ url_for('caja_page') }}" class="bottom-btn" aria-label="Caja">
       <i class="fa-solid fa-cash-register"></i>
       <span>Caja</span>
     </a>
-    <a href="/inventario" class="bottom-btn" aria-label="Inventario">
+    <a href="{{ url_for('inventory_bp.inventario_page') }}" class="bottom-btn" aria-label="Inventario">
       <i class="fa-solid fa-boxes-stacked"></i>
       <span>{% if session.get('es_restaurante') %}Menu{% else %}Inventario{% endif %}</span>
     </a>
     {% if session.get('es_restaurante') %}
-    <a href="/insumos" class="bottom-btn active" aria-current="page" aria-label="Insumos">
+    <a href="{{ url_for('inventory_bp.insumos_page') }}" class="bottom-btn active" aria-current="page" aria-label="Insumos">
       <i class="fa-solid fa-carrot"></i>
       <span>Insumos</span>
     </a>

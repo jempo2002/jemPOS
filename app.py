@@ -10,26 +10,40 @@ from __future__ import annotations
 
 import os
 import re
-import smtplib
 import uuid
 import calendar
 from datetime import date, datetime, timedelta
-from email.mime.text import MIMEText
-from functools import wraps
 from io import BytesIO
 
 from dotenv import load_dotenv
-from flask_limiter import Limiter
-from flask_limiter.util import get_remote_address
 from flask import (
     Flask, flash, jsonify, redirect, render_template,
     request, session, url_for,
 )
 from flask_wtf.csrf import CSRFProtect
 from PIL import Image
-from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
-from werkzeug.security import check_password_hash, generate_password_hash
+from werkzeug.security import generate_password_hash
 
+from app.services.auth_service import (
+    first_password_policy_error,
+    get_profile_for_user,
+    is_valid_email,
+    update_profile_basic,
+)
+from app.routes.inventory import (
+    _get_categorias_inventario,
+    _get_insumos,
+    _get_productos_inventario,
+    _get_proveedores,
+)
+from app.utils.decorators import login_required, roles_required
+from app.utils.helpers import (
+    avatar_iniciales as _avatar_iniciales,
+    fmt_money as _fmt_money,
+    normalize_payment_method as _normalize_payment_method,
+    normalize_phone,
+    only_digits,
+)
 from database import get_db, init_pool
 
 # ─────────────────────────────────────────────────────────────
@@ -53,16 +67,6 @@ app.config.update(
 )
 
 csrf = CSRFProtect(app)
-limiter = Limiter(
-    key_func=get_remote_address,
-    app=app,
-    default_limits=[],
-)
-
-EMAIL_SENDER = os.environ.get("EMAIL_SENDER", "")
-EMAIL_PASSWORD = os.environ.get("EMAIL_PASSWORD", "")
-EMAIL_SMTP_HOST = os.environ.get("EMAIL_SMTP_HOST", "smtp.gmail.com")
-EMAIL_SMTP_PORT = int(os.environ.get("EMAIL_SMTP_PORT", 587))
 
 # Inicializar pool al arrancar
 with app.app_context():
@@ -79,47 +83,6 @@ with app.app_context():
 # Directorio de fotos de perfil
 # ─────────────────────────────────────────────────────────────
 _UPLOAD_DIR = os.path.join(os.path.dirname(__file__), 'static', 'uploads', 'perfiles')
-
-
-def _avatar_iniciales(nombre: str) -> str:
-    """Devuelve las iniciales del usuario para mostrar en el avatar."""
-    partes = nombre.strip().split()
-    if len(partes) >= 2:
-        return (partes[0][0] + partes[1][0]).upper()
-    if partes:
-        return partes[0][:2].upper()
-    return "??"
-
-
-def _reset_serializer() -> URLSafeTimedSerializer:
-    return URLSafeTimedSerializer(app.secret_key)
-
-
-def enviar_correo_recuperacion(destinatario: str, enlace: str) -> bool:
-    """Envia correo de recuperacion de contrasena via SMTP STARTTLS."""
-    if not EMAIL_SENDER or not EMAIL_PASSWORD:
-        return False
-
-    cuerpo = (
-        "Hola,\n\n"
-        "Recibimos una solicitud para restablecer tu contrasena en jemPOS.\n"
-        "Haz clic en el siguiente enlace (valido por 15 minutos):\n\n"
-        f"{enlace}\n\n"
-        "Si no solicitaste este cambio, ignora este correo.\n"
-    )
-    msg = MIMEText(cuerpo, "plain", "utf-8")
-    msg["Subject"] = "Recuperacion de contrasena - jemPOS"
-    msg["From"] = EMAIL_SENDER
-    msg["To"] = destinatario
-
-    try:
-        with smtplib.SMTP(EMAIL_SMTP_HOST, EMAIL_SMTP_PORT, timeout=20) as smtp:
-            smtp.starttls()
-            smtp.login(EMAIL_SENDER, EMAIL_PASSWORD)
-            smtp.sendmail(EMAIL_SENDER, [destinatario], msg.as_string())
-        return True
-    except Exception:
-        return False
 
 
 # ─────────────────────────────────────────────────────────────
@@ -164,19 +127,6 @@ def _render_protected(template: str, **kwargs):
     return render_template(template, **kwargs)
 
 
-def _get_categorias_inventario(id_tienda: int) -> list:
-    conn = get_db()
-    try:
-        cur = conn.cursor()
-        cur.execute(
-            "SELECT DISTINCT nombre FROM categorias WHERE id_tienda = %s ORDER BY nombre",
-            (id_tienda,),
-        )
-        return [r[0] for r in cur.fetchall() if r and r[0]]
-    finally:
-        conn.close()
-
-
 def _get_categorias_gastos(id_tienda: int) -> list:
     conn = get_db()
     try:
@@ -188,111 +138,6 @@ def _get_categorias_gastos(id_tienda: int) -> list:
         return [r[0] for r in cur.fetchall() if r and r[0]]
     finally:
         conn.close()
-
-
-def _get_proveedores(id_tienda: int) -> list:
-    conn = get_db()
-    try:
-        cur = conn.cursor(dictionary=True)
-        cur.execute(
-            "SELECT id_proveedor, nombre_empresa, nombre_contacto, celular, correo, detalles "
-            "FROM proveedores "
-            "WHERE id_tienda = %s "
-            "ORDER BY nombre_empresa",
-            (id_tienda,),
-        )
-        rows = cur.fetchall()
-    finally:
-        conn.close()
-
-    return [
-        {
-            "id": r["id_proveedor"],
-            "empresa": r.get("nombre_empresa") or "",
-            "contacto": r.get("nombre_contacto") or "",
-            "celular": r.get("celular") or "",
-            "correo": r.get("correo") or "",
-            "detalles": r.get("detalles") or "",
-        }
-        for r in rows
-    ]
-
-
-def _get_insumos(id_tienda: int) -> list:
-    conn = get_db()
-    try:
-        cur = conn.cursor(dictionary=True)
-        cur.execute(
-            "SELECT i.id_insumo, i.nombre, i.stock_actual, i.unidad_medida, i.costo_unitario, "
-            "i.id_proveedor, p.nombre_empresa AS proveedor_nombre "
-            "FROM insumos i "
-            "LEFT JOIN proveedores p ON p.id_proveedor = i.id_proveedor "
-            "WHERE i.id_tienda = %s "
-            "ORDER BY i.nombre",
-            (id_tienda,),
-        )
-        rows = cur.fetchall() or []
-    except Exception:
-        # Compatibilidad: si la tabla no existe aun, la UI puede abrir sin romper.
-        rows = []
-    finally:
-        conn.close()
-
-    return [
-        {
-            "id_insumo": r.get("id_insumo"),
-            "nombre": r.get("nombre") or "",
-            "stock_actual": float(r.get("stock_actual") or 0),
-            "unidad_medida": (r.get("unidad_medida") or "Un").strip() or "Un",
-            "costo_unitario": float(r.get("costo_unitario") or 0),
-            "id_proveedor": r.get("id_proveedor"),
-            "proveedor_nombre": r.get("proveedor_nombre") or "Sin proveedor",
-        }
-        for r in rows
-    ]
-
-
-def _get_productos_inventario(id_tienda: int) -> list:
-    conn = get_db()
-    try:
-        cur = conn.cursor(dictionary=True)
-        try:
-            cur.execute(
-                "SELECT p.id_producto, p.nombre, c.nombre AS categoria, p.precio_costo, p.precio_venta, "
-                "p.stock_actual, p.id_proveedor, COALESCE(p.es_preparado, 0) AS es_preparado "
-                "FROM productos p "
-                "LEFT JOIN categorias c ON c.id_categoria = p.id_categoria "
-                "WHERE p.id_tienda=%s AND p.estado_activo=1 "
-                "ORDER BY p.nombre",
-                (id_tienda,),
-            )
-        except Exception:
-            cur.execute(
-                "SELECT p.id_producto, p.nombre, c.nombre AS categoria, p.precio_costo, p.precio_venta, "
-                "p.stock_actual, p.id_proveedor "
-                "FROM productos p "
-                "LEFT JOIN categorias c ON c.id_categoria = p.id_categoria "
-                "WHERE p.id_tienda=%s AND p.estado_activo=1 "
-                "ORDER BY p.nombre",
-                (id_tienda,),
-            )
-        rows = cur.fetchall() or []
-    finally:
-        conn.close()
-
-    return [
-        {
-            "id": r.get("id_producto"),
-            "nombre": r.get("nombre") or "",
-            "categoria": r.get("categoria") or "",
-            "precio_costo": float(r.get("precio_costo") or 0),
-            "precio_venta": float(r.get("precio_venta") or 0),
-            "stock_actual": float(r.get("stock_actual") or 0),
-            "id_proveedor": r.get("id_proveedor"),
-            "es_preparado": bool(r.get("es_preparado") or 0),
-        }
-        for r in rows
-    ]
 
 
 def _get_fiados_clientes(id_tienda: int) -> list:
@@ -449,27 +294,6 @@ def registrar_auditoria(id_tienda, id_usuario, accion, detalles):
                 conn.close()
         except Exception:
             pass
-
-
-def _fmt_money(value: float) -> str:
-    """Formato COP simple para UI."""
-    return f"${int(round(value)):,}".replace(",", ".")
-
-
-def _normalize_payment_method(raw_method: str | None, allow_fiado: bool = False) -> str | None:
-    """Normaliza metodos de pago de UI/API al formato de BD."""
-    key = str(raw_method or "").strip().lower()
-    mapping = {
-        "efectivo": "Efectivo",
-        "nequi": "Nequi/Daviplata",
-        "nequi/daviplata": "Nequi/Daviplata",
-        "tarjeta": "Tarjeta",
-        "fiado": "fiado",
-    }
-    value = mapping.get(key)
-    if value == "fiado" and not allow_fiado:
-        return None
-    return value
 
 
 def _dashboard_period_bounds(raw_filter: str):
@@ -757,216 +581,13 @@ def _build_dashboard_data(id_tienda: int, raw_filter: str) -> dict:
 
 
 # ─────────────────────────────────────────────────────────────
-# Decoradores de seguridad
-# ─────────────────────────────────────────────────────────────
-def login_required(f):
-    @wraps(f)
-    def _inner(*args, **kwargs):
-        if "id_usuario" not in session:
-            # Las llamadas JSON reciben 401; las paginas redirigen al login
-            if request.is_json or request.path.startswith("/api/"):
-                return jsonify({"ok": False, "msg": "Sesion expirada."}), 401
-            return redirect(url_for("login_page"))
-        return f(*args, **kwargs)
-    return _inner
-
-
-def roles_required(*roles: str):
-    """Permite el acceso solo a los roles indicados.
-
-    Si el usuario no tiene el rol, redirige a /caja con un mensaje flash de error.
-    """
-    def decorator(f):
-        @wraps(f)
-        def _inner(*args, **kwargs):
-            if session.get("rol") not in roles:
-                flash("No tienes permisos para ver esta pantalla.", "error")
-                return redirect(url_for("caja_page"))
-            return f(*args, **kwargs)
-        return _inner
-    return decorator
-
-
-# ─────────────────────────────────────────────────────────────
 # Rutas de paginas HTML
 # ─────────────────────────────────────────────────────────────
 @app.route("/")
 def index():
     if "id_usuario" in session:
         return redirect(url_for("turno_page"))
-    return redirect(url_for("login_page"))
-
-
-@app.route("/login", methods=["GET", "POST"])
-@limiter.limit("5 per minute", methods=["POST"])
-def login_page():
-    if request.method == "GET":
-        if "id_usuario" in session:
-            return redirect(url_for("turno_page"))
-        return render_template("auth/login.html")
-
-    data = request.get_json(silent=True) if request.is_json else request.form
-    correo = str((data or {}).get("correo", "")).strip().lower()
-    contrasena = str((data or {}).get("contrasena", ""))
-
-    if not correo or not contrasena:
-        if request.is_json:
-            return jsonify({"ok": False, "msg": "Correo y contrasena son requeridos."}), 400
-        flash("Correo y contrasena son requeridos.", "error")
-        return redirect(url_for("login_page"))
-
-    conn = get_db()
-    try:
-        cur = conn.cursor(dictionary=True)
-        try:
-            cur.execute(
-                "SELECT u.id_usuario, u.id_tienda, u.nombre_completo, u.clave_hash, u.rol, "
-                "u.estado_activo, u.foto_perfil, COALESCE(t.es_restaurante, 0) AS es_restaurante "
-                "FROM usuarios u "
-                "LEFT JOIN tiendas t ON t.id_tienda = u.id_tienda "
-                "WHERE u.correo = %s LIMIT 1",
-                (correo,),
-            )
-        except Exception as e:
-            # Compatibilidad temporal si la columna es_restaurante aun no existe en algun entorno.
-            if "es_restaurante" in str(e):
-                cur.execute(
-                    "SELECT id_usuario, id_tienda, nombre_completo, clave_hash, rol, estado_activo, foto_perfil "
-                    "FROM usuarios WHERE correo = %s LIMIT 1",
-                    (correo,),
-                )
-            else:
-                raise
-        user = cur.fetchone()
-    finally:
-        conn.close()
-
-    if not user:
-        if request.is_json:
-            return jsonify({"ok": False, "field": "correo", "msg": "Usuario no encontrado."}), 401
-        flash("Usuario no encontrado.", "error")
-        return redirect(url_for("login_page"))
-
-    if not check_password_hash(user["clave_hash"], contrasena):
-        if request.is_json:
-            return jsonify({"ok": False, "field": "contrasena", "msg": "Contrasena incorrecta."}), 401
-        flash("Contrasena incorrecta.", "error")
-        return redirect(url_for("login_page"))
-
-    if not user["estado_activo"]:
-        if request.is_json:
-            return jsonify({"ok": False, "msg": "Cuenta desactivada. Contacta al administrador."}), 403
-        flash("Cuenta desactivada. Contacta al administrador.", "error")
-        return redirect(url_for("login_page"))
-
-    session.clear()
-    session.permanent = True
-    session["id_usuario"] = user["id_usuario"]
-    session["id_tienda"] = user["id_tienda"]
-    session["nombre_completo"] = user["nombre_completo"]
-    session["rol"] = user["rol"]
-    session["foto_perfil"] = user.get("foto_perfil") or None
-    session["es_restaurante"] = bool(user.get("es_restaurante"))
-
-    rol = user["rol"]
-    if rol == "Master":
-        redirect_url = "/panel-master"
-    elif rol == "Admin":
-        conn2 = get_db()
-        try:
-            cur2 = conn2.cursor()
-            cur2.execute(
-                "SELECT COUNT(*) FROM categorias WHERE id_tienda = %s",
-                (user["id_tienda"],),
-            )
-            cat_count = cur2.fetchone()[0]
-        finally:
-            conn2.close()
-        redirect_url = "/dashboard" if cat_count > 0 else "/onboarding"
-    else:
-        redirect_url = "/turno"
-
-    if request.is_json:
-        return jsonify({"ok": True, "redirect": redirect_url})
-    return redirect(redirect_url)
-
-
-@app.route("/logout")
-def logout():
-    session.clear()
-    return redirect(url_for("login_page"))
-
-
-@app.route("/olvide_password", methods=["GET", "POST"])
-def olvide_password():
-    if request.method == "POST":
-        correo = str(request.form.get("correo", "")).strip().lower()
-        if correo:
-            conn = get_db()
-            try:
-                cur = conn.cursor(dictionary=True)
-                cur.execute(
-                    "SELECT correo FROM usuarios WHERE correo = %s LIMIT 1",
-                    (correo,),
-                )
-                user = cur.fetchone()
-            finally:
-                conn.close()
-
-            if user:
-                token = _reset_serializer().dumps(correo, salt="password-reset-salt")
-                enlace = url_for("reset_password", token=token, _external=True)
-                enviar_correo_recuperacion(correo, enlace)
-
-        flash("Si el correo existe, recibiras un enlace de recuperacion.", "success")
-        return redirect(url_for("olvide_password"))
-
-    return render_template("auth/olvide_password.html")
-
-
-@app.route("/reset_password/<token>", methods=["GET", "POST"])
-def reset_password(token):
-    try:
-        correo = _reset_serializer().loads(token, salt="password-reset-salt", max_age=900)
-    except (SignatureExpired, BadSignature):
-        flash("El enlace de recuperacion es invalido o ha expirado.", "error")
-        return redirect(url_for("login_page"))
-
-    if request.method == "POST":
-        password = str(request.form.get("password", ""))
-        confirm = str(request.form.get("confirm_password", ""))
-
-        if password != confirm:
-            flash("Las contrasenas no coinciden.", "error")
-            return redirect(url_for("reset_password", token=token))
-        if len(password) < 8:
-            flash("La contrasena debe tener al menos 8 caracteres.", "error")
-            return redirect(url_for("reset_password", token=token))
-        if not _PWD_RE["upper"].search(password):
-            flash("La contrasena debe incluir al menos una letra mayuscula.", "error")
-            return redirect(url_for("reset_password", token=token))
-        if not _PWD_RE["lower"].search(password):
-            flash("La contrasena debe incluir al menos una letra minuscula.", "error")
-            return redirect(url_for("reset_password", token=token))
-        if not _PWD_RE["number"].search(password):
-            flash("La contrasena debe incluir al menos un numero.", "error")
-            return redirect(url_for("reset_password", token=token))
-
-        conn = get_db()
-        try:
-            cur = conn.cursor()
-            cur.execute(
-                "UPDATE usuarios SET clave_hash = %s WHERE correo = %s",
-                (generate_password_hash(password), correo),
-            )
-            conn.commit()
-        finally:
-            conn.close()
-
-        flash("Tu contrasena fue actualizada correctamente.", "success")
-        return redirect(url_for("login_page"))
-
-    return render_template("auth/reset_password.html", token=token)
+    return redirect(url_for("auth.login"))
 
 
 @app.route("/servicio-suspendido")
@@ -1046,30 +667,6 @@ def caja_page():
     return _render_protected("pos/caja.html")
 
 
-@app.route("/inventario")
-@login_required
-@roles_required("Admin", "Master", "Cajero")
-def inventario_page():
-    return _render_protected(
-        "pos/inventario.html",
-        productos=_get_productos_inventario(session["id_tienda"]),
-        insumos=_get_insumos(session["id_tienda"]),
-        categorias=_get_categorias_inventario(session["id_tienda"]),
-        proveedores=_get_proveedores(session["id_tienda"]),
-    )
-
-
-@app.route("/insumos")
-@login_required
-@roles_required("Admin", "Master")
-def insumos_page():
-    return _render_protected(
-        "pos/insumos.html",
-        insumos=_get_insumos(session["id_tienda"]),
-        proveedores=_get_proveedores(session["id_tienda"]),
-    )
-
-
 @app.route("/insumos/crear", methods=["POST"])
 @login_required
 @roles_required("Admin", "Master")
@@ -1083,25 +680,25 @@ def insumos_crear_page():
         costo = float(request.form.get("costo_unitario", 0) or 0)
     except (TypeError, ValueError):
         flash("Stock y costo deben ser numericos.", "error")
-        return redirect(url_for("insumos_page"))
+        return redirect(url_for("inventory_bp.insumos_page"))
 
     if not nombre:
         flash("El nombre del insumo es requerido.", "error")
-        return redirect(url_for("insumos_page"))
+        return redirect(url_for("inventory_bp.insumos_page"))
 
     if unidad not in {"Gr", "Ml", "Un"}:
         flash("Unidad invalida. Usa Gr, Ml o Un.", "error")
-        return redirect(url_for("insumos_page"))
+        return redirect(url_for("inventory_bp.insumos_page"))
 
     if stock < 0 or costo < 0:
         flash("Stock y costo no pueden ser negativos.", "error")
-        return redirect(url_for("insumos_page"))
+        return redirect(url_for("inventory_bp.insumos_page"))
 
     try:
         proveedor_id = int(proveedor_raw) if proveedor_raw not in (None, "", "0", 0) else None
     except (TypeError, ValueError):
         flash("Proveedor invalido.", "error")
-        return redirect(url_for("insumos_page"))
+        return redirect(url_for("inventory_bp.insumos_page"))
 
     conn = get_db()
     try:
@@ -1113,7 +710,7 @@ def insumos_crear_page():
             )
             if not cur.fetchone():
                 flash("Proveedor no encontrado para esta tienda.", "error")
-                return redirect(url_for("insumos_page"))
+                return redirect(url_for("inventory_bp.insumos_page"))
 
         cur.execute(
             "INSERT INTO insumos "
@@ -1125,7 +722,7 @@ def insumos_crear_page():
         new_id = cur.lastrowid
     except Exception:
         flash("No fue posible crear el insumo. Verifica migraciones de base de datos.", "error")
-        return redirect(url_for("insumos_page"))
+        return redirect(url_for("inventory_bp.insumos_page"))
     finally:
         conn.close()
 
@@ -1136,7 +733,7 @@ def insumos_crear_page():
         f"Insumo creado id={new_id}, nombre={nombre}",
     )
     flash("Insumo creado correctamente.", "success")
-    return redirect(url_for("insumos_page"))
+    return redirect(url_for("inventory_bp.insumos_page"))
 
 
 @app.route("/insumos/editar/<int:id_insumo>", methods=["POST"])
@@ -1152,25 +749,25 @@ def insumos_editar_page(id_insumo):
         costo = float(request.form.get("costo_unitario", 0) or 0)
     except (TypeError, ValueError):
         flash("Stock y costo deben ser numericos.", "error")
-        return redirect(url_for("insumos_page"))
+        return redirect(url_for("inventory_bp.insumos_page"))
 
     if not nombre:
         flash("El nombre del insumo es requerido.", "error")
-        return redirect(url_for("insumos_page"))
+        return redirect(url_for("inventory_bp.insumos_page"))
 
     if unidad not in {"Gr", "Ml", "Un"}:
         flash("Unidad invalida. Usa Gr, Ml o Un.", "error")
-        return redirect(url_for("insumos_page"))
+        return redirect(url_for("inventory_bp.insumos_page"))
 
     if stock < 0 or costo < 0:
         flash("Stock y costo no pueden ser negativos.", "error")
-        return redirect(url_for("insumos_page"))
+        return redirect(url_for("inventory_bp.insumos_page"))
 
     try:
         proveedor_id = int(proveedor_raw) if proveedor_raw not in (None, "", "0", 0) else None
     except (TypeError, ValueError):
         flash("Proveedor invalido.", "error")
-        return redirect(url_for("insumos_page"))
+        return redirect(url_for("inventory_bp.insumos_page"))
 
     conn = get_db()
     try:
@@ -1182,7 +779,7 @@ def insumos_editar_page(id_insumo):
             )
             if not cur.fetchone():
                 flash("Proveedor no encontrado para esta tienda.", "error")
-                return redirect(url_for("insumos_page"))
+                return redirect(url_for("inventory_bp.insumos_page"))
 
         cur.execute(
             "UPDATE insumos "
@@ -1194,13 +791,13 @@ def insumos_editar_page(id_insumo):
         updated = cur.rowcount > 0
     except Exception:
         flash("No fue posible actualizar el insumo.", "error")
-        return redirect(url_for("insumos_page"))
+        return redirect(url_for("inventory_bp.insumos_page"))
     finally:
         conn.close()
 
     if not updated:
         flash("Insumo no encontrado para esta tienda.", "error")
-        return redirect(url_for("insumos_page"))
+        return redirect(url_for("inventory_bp.insumos_page"))
 
     registrar_auditoria(
         session.get("id_tienda"),
@@ -1209,7 +806,7 @@ def insumos_editar_page(id_insumo):
         f"Insumo editado id={id_insumo}, nombre={nombre}",
     )
     flash("Insumo actualizado correctamente.", "success")
-    return redirect(url_for("insumos_page"))
+    return redirect(url_for("inventory_bp.insumos_page"))
 
 
 @app.route("/insumos/eliminar/<int:id_insumo>", methods=["POST"])
@@ -1227,13 +824,13 @@ def insumos_eliminar_page(id_insumo):
         deleted = cur.rowcount > 0
     except Exception:
         flash("No fue posible eliminar el insumo.", "error")
-        return redirect(url_for("insumos_page"))
+        return redirect(url_for("inventory_bp.insumos_page"))
     finally:
         conn.close()
 
     if not deleted:
         flash("Insumo no encontrado para esta tienda.", "error")
-        return redirect(url_for("insumos_page"))
+        return redirect(url_for("inventory_bp.insumos_page"))
 
     registrar_auditoria(
         session.get("id_tienda"),
@@ -1242,7 +839,7 @@ def insumos_eliminar_page(id_insumo):
         f"Insumo eliminado id={id_insumo}",
     )
     flash("Insumo eliminado correctamente.", "success")
-    return redirect(url_for("insumos_page"))
+    return redirect(url_for("inventory_bp.insumos_page"))
 
 
 @app.route("/fiados")
@@ -1264,41 +861,23 @@ def gastos_page():
     )
 
 
-@app.route("/proveedores")
-@login_required
-@roles_required("Admin", "Master")
-def proveedores_page():
-    conn = get_db()
-    try:
-        cur = conn.cursor(dictionary=True)
-        cur.execute(
-            "SELECT * FROM proveedores WHERE id_tienda = %s ORDER BY nombre_empresa",
-            (session["id_tienda"],),
-        )
-        proveedores = cur.fetchall()
-    finally:
-        conn.close()
-
-    return _render_protected("pos/proveedores.html", proveedores=proveedores)
-
-
 @app.route("/proveedores/crear", methods=["POST"])
 @login_required
 @roles_required("Admin", "Master")
 def proveedores_crear_page():
     empresa = str(request.form.get("empresa", "")).strip()
     nombre_contacto = str(request.form.get("nombre_contacto", "")).strip()
-    celular = re.sub(r"\D", "", str(request.form.get("celular", "")).strip())
+    celular = only_digits(request.form.get("celular"))
     correo = str(request.form.get("correo", "")).strip()
     detalles = str(request.form.get("detalles", "")).strip()
 
     if not empresa:
         flash("La empresa es requerida.", "error")
-        return redirect(url_for("proveedores_page"))
+        return redirect(url_for("inventory_bp.proveedores_page"))
 
     if celular and len(celular) > 10:
         flash("El celular debe tener maximo 10 digitos.", "error")
-        return redirect(url_for("proveedores_page"))
+        return redirect(url_for("inventory_bp.proveedores_page"))
 
     conn = get_db()
     try:
@@ -1327,7 +906,7 @@ def proveedores_crear_page():
         f"Proveedor creado id={new_id}, empresa={empresa}",
     )
     flash("Proveedor creado correctamente.", "success")
-    return redirect(url_for("proveedores_page"))
+    return redirect(url_for("inventory_bp.proveedores_page"))
 
 
 @app.route("/proveedores/editar/<int:id_proveedor>", methods=["POST"])
@@ -1336,17 +915,17 @@ def proveedores_crear_page():
 def proveedores_editar_page(id_proveedor):
     empresa = str(request.form.get("empresa", "")).strip()
     nombre_contacto = str(request.form.get("nombre_contacto", "")).strip()
-    celular = re.sub(r"\D", "", str(request.form.get("celular", "")).strip())
+    celular = only_digits(request.form.get("celular"))
     correo = str(request.form.get("correo", "")).strip()
     detalles = str(request.form.get("detalles", "")).strip()
 
     if not empresa:
         flash("La empresa es requerida.", "error")
-        return redirect(url_for("proveedores_page"))
+        return redirect(url_for("inventory_bp.proveedores_page"))
 
     if celular and len(celular) > 10:
         flash("El celular debe tener maximo 10 digitos.", "error")
-        return redirect(url_for("proveedores_page"))
+        return redirect(url_for("inventory_bp.proveedores_page"))
 
     conn = get_db()
     try:
@@ -1372,7 +951,7 @@ def proveedores_editar_page(id_proveedor):
 
     if not updated:
         flash("Proveedor no encontrado para esta tienda.", "error")
-        return redirect(url_for("proveedores_page"))
+        return redirect(url_for("inventory_bp.proveedores_page"))
 
     registrar_auditoria(
         session.get("id_tienda"),
@@ -1381,7 +960,7 @@ def proveedores_editar_page(id_proveedor):
         f"Proveedor editado id={id_proveedor}, empresa={empresa}",
     )
     flash("Proveedor actualizado correctamente.", "success")
-    return redirect(url_for("proveedores_page"))
+    return redirect(url_for("inventory_bp.proveedores_page"))
 
 
 @app.route("/proveedores/eliminar/<int:id_proveedor>", methods=["POST"])
@@ -1402,7 +981,7 @@ def proveedores_eliminar_page(id_proveedor):
 
     if not deleted:
         flash("Proveedor no encontrado para esta tienda.", "error")
-        return redirect(url_for("proveedores_page"))
+        return redirect(url_for("inventory_bp.proveedores_page"))
 
     registrar_auditoria(
         session.get("id_tienda"),
@@ -1411,14 +990,14 @@ def proveedores_eliminar_page(id_proveedor):
         f"Proveedor eliminado id={id_proveedor}",
     )
     flash("Proveedor eliminado correctamente.", "success")
-    return redirect(url_for("proveedores_page"))
+    return redirect(url_for("inventory_bp.proveedores_page"))
 
 
 @app.route("/ventas")
 @login_required
 def ventas():
     if not session.get("id_usuario"):
-        return redirect(url_for("login_page"))
+        return redirect(url_for("auth.login"))
 
     id_tienda = session.get("id_tienda")
     rol = (session.get("rol") or "").strip()
@@ -1513,20 +1092,6 @@ def panel_master_page():
         proximos_vencer=_get_master_proximos_vencer(),
         hoy=date.today(),
     )
-
-
-# ─────────────────────────────────────────────────────────────
-# API — Autenticacion
-# ─────────────────────────────────────────────────────────────
-@app.route("/api/auth/login", methods=["POST"])
-def api_login():
-    return login_page()
-
-
-@app.route("/api/auth/logout", methods=["POST"])
-def api_logout():
-    session.clear()
-    return jsonify({"ok": True, "redirect": "/login"})
 
 
 # ─────────────────────────────────────────────────────────────
@@ -1689,17 +1254,6 @@ def api_onboarding():
     return jsonify({"ok": True, "redirect": "/dashboard"})
 
 
-# ─────────────────────────────────────────────────────────────
-# API — Crear Usuario
-# ─────────────────────────────────────────────────────────────
-_PWD_RE = {
-    "upper":  re.compile(r"[A-Z]"),
-    "lower":  re.compile(r"[a-z]"),
-    "number": re.compile(r"\d"),
-    "email":  re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$"),
-}
-
-
 @app.route("/api/tiendas", methods=["GET"])
 @login_required
 @roles_required("Admin", "Master")
@@ -1762,8 +1316,7 @@ def api_master_tiendas_create():
     data = request.get_json(silent=True) or {}
     nombre = str(data.get("nombre_negocio", "")).strip()
     nit = str(data.get("nit", "")).strip() or None
-    telefono_raw = str(data.get("telefono", "")).strip()
-    telefono = re.sub(r"\D", "", telefono_raw)[:10] or None
+    telefono = normalize_phone(data.get("telefono"), max_len=10)
     owner_id = data.get("owner_id")
     es_restaurante = bool(data.get("es_restaurante"))
 
@@ -1818,8 +1371,7 @@ def api_master_tiendas_update(id_tienda):
     data = request.get_json(silent=True) or {}
     nombre = str(data.get("nombre_negocio", "")).strip()
     nit = str(data.get("nit", "")).strip() or None
-    telefono_raw = str(data.get("telefono", "")).strip()
-    telefono = re.sub(r"\D", "", telefono_raw)[:10] or None
+    telefono = normalize_phone(data.get("telefono"), max_len=10)
     owner_id = data.get("owner_id")
 
     if not nombre:
@@ -1972,20 +1524,13 @@ def api_crear_usuario():
     # ── Validacion de campos ──────────────────────────────────
     if not nombre:
         return jsonify({"ok": False, "msg": "El nombre completo es requerido."}), 400
-    if not correo or not _PWD_RE["email"].match(correo):
+    if not correo or not is_valid_email(correo):
         return jsonify({"ok": False, "msg": "El correo no es valido."}), 400
-    if not password:
-        return jsonify({"ok": False, "msg": "La contrasena es requerida."}), 400
     if password != confirm:
         return jsonify({"ok": False, "msg": "Las contrasenas no coinciden."}), 400
-    if len(password) < 8:
-        return jsonify({"ok": False, "msg": "La contrasena debe tener al menos 8 caracteres."}), 400
-    if not _PWD_RE["upper"].search(password):
-        return jsonify({"ok": False, "msg": "La contrasena debe incluir al menos una letra mayuscula."}), 400
-    if not _PWD_RE["lower"].search(password):
-        return jsonify({"ok": False, "msg": "La contrasena debe incluir al menos una letra minuscula."}), 400
-    if not _PWD_RE["number"].search(password):
-        return jsonify({"ok": False, "msg": "La contrasena debe incluir al menos un numero."}), 400
+    pwd_error = first_password_policy_error(password)
+    if pwd_error:
+        return jsonify({"ok": False, "msg": pwd_error}), 400
 
     conn = get_db()
     try:
@@ -2042,590 +1587,6 @@ def _turno_abierto(id_tienda: int, cur) -> int | None:
     )
     row = cur.fetchone()
     return row["id_turno"] if row else None
-
-
-@app.route("/api/inventario", methods=["GET"])
-@login_required
-@roles_required("Admin", "Master", "Cajero")
-def api_inventario_list():
-    conn = get_db()
-    try:
-        cur = conn.cursor(dictionary=True)
-        try:
-            cur.execute(
-                "SELECT p.id_producto, p.nombre, c.nombre AS categoria, "
-                "p.precio_costo, p.precio_venta, p.stock_actual, p.stock_minimo_alerta, "
-                "p.id_proveedor, pr.nombre_empresa AS proveedor_nombre, COALESCE(p.es_preparado, 0) AS es_preparado "
-                "FROM productos p "
-                "LEFT JOIN categorias c ON c.id_categoria = p.id_categoria "
-                "LEFT JOIN proveedores pr ON pr.id_proveedor = p.id_proveedor "
-                "WHERE p.id_tienda = %s AND p.estado_activo = 1 "
-                "ORDER BY p.nombre",
-                (session["id_tienda"],),
-            )
-        except Exception:
-            cur.execute(
-                "SELECT p.id_producto, p.nombre, c.nombre AS categoria, "
-                "p.precio_costo, p.precio_venta, p.stock_actual, p.stock_minimo_alerta, "
-                "p.id_proveedor, pr.nombre_empresa AS proveedor_nombre "
-                "FROM productos p "
-                "LEFT JOIN categorias c ON c.id_categoria = p.id_categoria "
-                "LEFT JOIN proveedores pr ON pr.id_proveedor = p.id_proveedor "
-                "WHERE p.id_tienda = %s AND p.estado_activo = 1 "
-                "ORDER BY p.nombre",
-                (session["id_tienda"],),
-            )
-        rows = cur.fetchall()
-    finally:
-        conn.close()
-    return jsonify({"ok": True, "productos": [
-        {
-            "id":        r["id_producto"],
-            "name":      r["nombre"],
-            "category":  r["categoria"] or "",
-            "cost":      float(r["precio_costo"]),
-            "sale":      float(r["precio_venta"]),
-            "stock":     r["stock_actual"],
-            "stock_min": r["stock_minimo_alerta"] or 0,
-            "proveedor_id": r.get("id_proveedor"),
-            "proveedor_nombre": r.get("proveedor_nombre") or "",
-            "es_preparado": bool(r.get("es_preparado") or 0),
-        }
-        for r in rows
-    ]})
-
-
-@app.route("/api/proveedores", methods=["GET"])
-@login_required
-@roles_required("Admin", "Master")
-def api_proveedores_list():
-    return jsonify({"ok": True, "proveedores": _get_proveedores(session["id_tienda"])})
-
-
-@app.route("/api/proveedores", methods=["POST"])
-@login_required
-@roles_required("Admin", "Master")
-def api_proveedores_create():
-    data = request.get_json(silent=True) or {}
-    empresa = str(data.get("empresa", "")).strip()
-    contacto = str(data.get("contacto", "")).strip()
-    celular = str(data.get("celular", "")).strip()
-    correo = str(data.get("correo", "")).strip()
-    detalles = str(data.get("detalles", "")).strip()
-
-    if not empresa:
-        return jsonify({"ok": False, "msg": "La empresa es requerida."}), 400
-
-    conn = get_db()
-    try:
-        cur = conn.cursor()
-        cur.execute(
-            "INSERT INTO proveedores "
-            "(id_tienda, nombre_empresa, nombre_contacto, celular, correo, detalles) "
-            "VALUES (%s,%s,%s,%s,%s,%s)",
-            (
-                session["id_tienda"],
-                empresa,
-                contacto or None,
-                celular or None,
-                correo or None,
-                detalles or None,
-            ),
-        )
-        conn.commit()
-        new_id = cur.lastrowid
-    finally:
-        conn.close()
-
-    registrar_auditoria(
-        session.get("id_tienda"),
-        session.get("id_usuario"),
-        "crear_proveedor",
-        f"Proveedor creado id={new_id}, empresa={empresa}",
-    )
-    return jsonify({"ok": True, "id": new_id})
-
-
-@app.route("/api/proveedores/<int:id_proveedor>", methods=["PUT"])
-@login_required
-@roles_required("Admin", "Master")
-def api_proveedores_update(id_proveedor):
-    data = request.get_json(silent=True) or {}
-    empresa = str(data.get("empresa", "")).strip()
-    contacto = str(data.get("contacto", "")).strip()
-    celular = str(data.get("celular", "")).strip()
-    correo = str(data.get("correo", "")).strip()
-    detalles = str(data.get("detalles", "")).strip()
-
-    if not empresa:
-        return jsonify({"ok": False, "msg": "La empresa es requerida."}), 400
-
-    conn = get_db()
-    try:
-        cur = conn.cursor(dictionary=True)
-        cur.execute(
-            "SELECT id_proveedor FROM proveedores WHERE id_proveedor=%s AND id_tienda=%s LIMIT 1",
-            (id_proveedor, session["id_tienda"]),
-        )
-        if not cur.fetchone():
-            return jsonify({"ok": False, "msg": "Proveedor no encontrado."}), 404
-
-        cur.execute(
-            "UPDATE proveedores "
-            "SET nombre_empresa=%s, nombre_contacto=%s, celular=%s, correo=%s, detalles=%s "
-            "WHERE id_proveedor=%s AND id_tienda=%s",
-            (
-                empresa,
-                contacto or None,
-                celular or None,
-                correo or None,
-                detalles or None,
-                id_proveedor,
-                session["id_tienda"],
-            ),
-        )
-        conn.commit()
-    finally:
-        conn.close()
-
-    registrar_auditoria(
-        session.get("id_tienda"),
-        session.get("id_usuario"),
-        "editar_proveedor",
-        f"Proveedor editado id={id_proveedor}, empresa={empresa}",
-    )
-    return jsonify({"ok": True})
-
-
-@app.route("/api/proveedores/<int:id_proveedor>", methods=["DELETE"])
-@login_required
-@roles_required("Admin", "Master")
-def api_proveedores_delete(id_proveedor):
-    conn = get_db()
-    try:
-        cur = conn.cursor(dictionary=True)
-        cur.execute(
-            "SELECT id_proveedor FROM proveedores WHERE id_proveedor=%s AND id_tienda=%s LIMIT 1",
-            (id_proveedor, session["id_tienda"]),
-        )
-        if not cur.fetchone():
-            return jsonify({"ok": False, "msg": "Proveedor no encontrado."}), 404
-
-        cur.execute(
-            "UPDATE productos SET id_proveedor = NULL WHERE id_proveedor=%s AND id_tienda=%s",
-            (id_proveedor, session["id_tienda"]),
-        )
-        cur.execute(
-            "DELETE FROM proveedores WHERE id_proveedor=%s AND id_tienda=%s",
-            (id_proveedor, session["id_tienda"]),
-        )
-        conn.commit()
-    finally:
-        conn.close()
-
-    registrar_auditoria(
-        session.get("id_tienda"),
-        session.get("id_usuario"),
-        "eliminar_proveedor",
-        f"Proveedor eliminado id={id_proveedor}",
-    )
-    return jsonify({"ok": True})
-
-
-@app.route("/api/proveedores/<int:id_proveedor>/productos", methods=["GET"])
-@login_required
-@roles_required("Admin", "Master")
-def api_proveedor_productos(id_proveedor):
-    conn = get_db()
-    try:
-        cur = conn.cursor(dictionary=True)
-        cur.execute(
-            "SELECT id_proveedor, nombre_empresa "
-            "FROM proveedores "
-            "WHERE id_proveedor=%s AND id_tienda=%s LIMIT 1",
-            (id_proveedor, session["id_tienda"]),
-        )
-        prov = cur.fetchone()
-        if not prov:
-            return jsonify({"ok": False, "msg": "Proveedor no encontrado."}), 404
-
-        cur.execute(
-            "SELECT id_producto, nombre, precio_venta, stock_actual "
-            "FROM productos "
-            "WHERE id_tienda=%s AND id_proveedor=%s AND estado_activo=1 "
-            "ORDER BY nombre",
-            (session["id_tienda"], id_proveedor),
-        )
-        rows = cur.fetchall()
-    finally:
-        conn.close()
-
-    return jsonify({
-        "ok": True,
-        "proveedor": {
-            "id": prov["id_proveedor"],
-            "empresa": prov.get("nombre_empresa") or "",
-        },
-        "productos": [
-            {
-                "id": r["id_producto"],
-                "nombre": r["nombre"],
-                "precio_venta": float(r.get("precio_venta") or 0),
-                "stock_actual": int(r.get("stock_actual") or 0),
-            }
-            for r in rows
-        ],
-    })
-
-
-@app.route("/api/inventario/categorias", methods=["GET"])
-@login_required
-def api_inventario_categorias():
-    conn = get_db()
-    try:
-        cur = conn.cursor(dictionary=True)
-        cur.execute(
-            "SELECT nombre FROM categorias "
-            "WHERE id_tienda = %s AND estado_activo = 1 ORDER BY nombre",
-            (session["id_tienda"],),
-        )
-        cats = cur.fetchall()
-    finally:
-        conn.close()
-    return jsonify({"ok": True, "categorias": [r["nombre"] for r in cats]})
-
-
-@app.route("/api/inventario", methods=["POST"])
-@login_required
-@roles_required("Admin", "Master", "Cajero")
-def api_inventario_create():
-    data = request.get_json(silent=True)
-    is_json = data is not None
-    data = data or {}
-
-    fuente = data if is_json else request.form
-    nombre = str(fuente.get("nombre", "")).strip()
-    categoria = str(fuente.get("categoria", "")).strip()
-
-    try:
-        costo = float(fuente.get("costo", 0) or 0)
-        venta = float(fuente.get("venta", 0) or 0)
-        stock = float(fuente.get("stock", 0) or 0)
-    except (TypeError, ValueError):
-        return jsonify({"ok": False, "msg": "Valores numericos invalidos."}), 400
-
-    es_preparado = bool(data.get("es_preparado")) if is_json else (request.form.get("es_preparado") == "on")
-    if es_preparado:
-        stock = 0
-
-    if is_json:
-        ingredientes_raw = data.get("ingredientes") or []
-    else:
-        ids = request.form.getlist("id_insumo[]")
-        cants = request.form.getlist("cantidad_insumo[]")
-        ingredientes_raw = [{"id_insumo": i, "cantidad": c} for i, c in zip(ids, cants)]
-
-    ingredientes = []
-    for item in ingredientes_raw:
-        try:
-            id_insumo = int(item.get("id_insumo"))
-            cantidad = float(item.get("cantidad"))
-            if id_insumo <= 0 or cantidad <= 0:
-                continue
-            ingredientes.append({"id_insumo": id_insumo, "cantidad": cantidad})
-        except (TypeError, ValueError, AttributeError):
-            continue
-
-    if es_preparado and not ingredientes:
-        return jsonify({"ok": False, "msg": "Agrega al menos un ingrediente para la receta."}), 400
-
-    proveedor_id = fuente.get("id_proveedor")
-    try:
-        proveedor_id = int(proveedor_id) if proveedor_id not in (None, "", 0, "0") else None
-    except (TypeError, ValueError):
-        return jsonify({"ok": False, "msg": "Proveedor invalido."}), 400
-
-    if not nombre or not categoria:
-        return jsonify({"ok": False, "msg": "Nombre y categoria son requeridos."}), 400
-    if costo < 0 or venta < 0 or stock < 0:
-        return jsonify({"ok": False, "msg": "Los valores no pueden ser negativos."}), 400
-
-    conn = get_db()
-    try:
-        cur = conn.cursor(dictionary=True)
-        cur.execute(
-            "SELECT id_categoria FROM categorias "
-            "WHERE nombre = %s AND id_tienda = %s LIMIT 1",
-            (categoria, session["id_tienda"]),
-        )
-        cat_row = cur.fetchone()
-        if cat_row:
-            id_cat = cat_row["id_categoria"]
-        else:
-            cur.execute(
-                "INSERT INTO categorias (id_tienda, nombre) VALUES (%s, %s)",
-                (session["id_tienda"], categoria),
-            )
-            id_cat = cur.lastrowid
-
-        if proveedor_id is not None:
-            cur.execute(
-                "SELECT id_proveedor FROM proveedores WHERE id_proveedor=%s AND id_tienda=%s LIMIT 1",
-                (proveedor_id, session["id_tienda"]),
-            )
-            if not cur.fetchone():
-                return jsonify({"ok": False, "msg": "Proveedor no encontrado."}), 404
-
-        try:
-            cur.execute(
-                "INSERT INTO productos "
-                "(id_tienda, id_categoria, nombre, precio_costo, precio_venta, stock_actual, id_proveedor, es_preparado) "
-                "VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
-                (session["id_tienda"], id_cat, nombre, costo, venta, stock, proveedor_id, 1 if es_preparado else 0),
-            )
-        except Exception:
-            cur.execute(
-                "INSERT INTO productos "
-                "(id_tienda, id_categoria, nombre, precio_costo, precio_venta, stock_actual, id_proveedor) "
-                "VALUES (%s, %s, %s, %s, %s, %s, %s)",
-                (session["id_tienda"], id_cat, nombre, costo, venta, stock, proveedor_id),
-            )
-        new_id = cur.lastrowid
-
-        if es_preparado:
-            for ing in ingredientes:
-                cur.execute(
-                    "INSERT INTO recetas_productos (id_producto, id_insumo, cantidad_requerida) "
-                    "VALUES (%s, %s, %s)",
-                    (new_id, ing["id_insumo"], ing["cantidad"]),
-                )
-
-        conn.commit()
-    finally:
-        conn.close()
-    registrar_auditoria(
-        session.get("id_tienda"),
-        session.get("id_usuario"),
-        "crear_producto",
-        f"Producto creado id={new_id}, nombre={nombre}",
-    )
-    return jsonify({"ok": True, "id": new_id})
-
-
-@app.route("/api/inventario/<int:id_producto>", methods=["PUT"])
-@login_required
-@roles_required("Admin", "Master", "Cajero")
-def api_inventario_update(id_producto):
-    data = request.get_json(silent=True)
-    is_json = data is not None
-    data = data or {}
-
-    fuente = data if is_json else request.form
-    nombre = str(fuente.get("nombre", "")).strip()
-    categoria = str(fuente.get("categoria", "")).strip()
-
-    try:
-        costo = float(fuente.get("costo", 0) or 0)
-        venta = float(fuente.get("venta", 0) or 0)
-        stock = float(fuente.get("stock", 0) or 0)
-    except (TypeError, ValueError):
-        return jsonify({"ok": False, "msg": "Valores numericos invalidos."}), 400
-
-    es_preparado = bool(data.get("es_preparado")) if is_json else (request.form.get("es_preparado") == "on")
-    if es_preparado:
-        stock = 0
-
-    if is_json:
-        ingredientes_raw = data.get("ingredientes") or []
-    else:
-        ids = request.form.getlist("id_insumo[]")
-        cants = request.form.getlist("cantidad_insumo[]")
-        ingredientes_raw = [{"id_insumo": i, "cantidad": c} for i, c in zip(ids, cants)]
-
-    ingredientes = []
-    for item in ingredientes_raw:
-        try:
-            id_insumo = int(item.get("id_insumo"))
-            cantidad = float(item.get("cantidad"))
-            if id_insumo <= 0 or cantidad <= 0:
-                continue
-            ingredientes.append({"id_insumo": id_insumo, "cantidad": cantidad})
-        except (TypeError, ValueError, AttributeError):
-            continue
-
-    if es_preparado and not ingredientes:
-        return jsonify({"ok": False, "msg": "Agrega al menos un ingrediente para la receta."}), 400
-
-    proveedor_id = fuente.get("id_proveedor")
-    try:
-        proveedor_id = int(proveedor_id) if proveedor_id not in (None, "", 0, "0") else None
-    except (TypeError, ValueError):
-        return jsonify({"ok": False, "msg": "Proveedor invalido."}), 400
-    if not nombre or not categoria:
-        return jsonify({"ok": False, "msg": "Nombre y categoria son requeridos."}), 400
-
-    conn = get_db()
-    try:
-        cur = conn.cursor(dictionary=True)
-        cur.execute(
-            "SELECT id_producto FROM productos "
-            "WHERE id_producto = %s AND id_tienda = %s LIMIT 1",
-            (id_producto, session["id_tienda"]),
-        )
-        if not cur.fetchone():
-            return jsonify({"ok": False, "msg": "Producto no encontrado."}), 404
-
-        cur.execute(
-            "SELECT id_categoria FROM categorias "
-            "WHERE nombre = %s AND id_tienda = %s LIMIT 1",
-            (categoria, session["id_tienda"]),
-        )
-        cat_row = cur.fetchone()
-        if cat_row:
-            id_cat = cat_row["id_categoria"]
-        else:
-            cur.execute(
-                "INSERT INTO categorias (id_tienda, nombre) VALUES (%s, %s)",
-                (session["id_tienda"], categoria),
-            )
-            id_cat = cur.lastrowid
-
-        if proveedor_id is not None:
-            cur.execute(
-                "SELECT id_proveedor FROM proveedores WHERE id_proveedor=%s AND id_tienda=%s LIMIT 1",
-                (proveedor_id, session["id_tienda"]),
-            )
-            if not cur.fetchone():
-                return jsonify({"ok": False, "msg": "Proveedor no encontrado."}), 404
-
-        try:
-            cur.execute(
-                "UPDATE productos "
-                "SET nombre=%s, id_categoria=%s, precio_costo=%s, precio_venta=%s, stock_actual=%s, id_proveedor=%s, es_preparado=%s "
-                "WHERE id_producto=%s AND id_tienda=%s",
-                (
-                    nombre,
-                    id_cat,
-                    costo,
-                    venta,
-                    stock,
-                    proveedor_id,
-                    1 if es_preparado else 0,
-                    id_producto,
-                    session["id_tienda"],
-                ),
-            )
-        except Exception:
-            cur.execute(
-                "UPDATE productos "
-                "SET nombre=%s, id_categoria=%s, precio_costo=%s, precio_venta=%s, stock_actual=%s, id_proveedor=%s "
-                "WHERE id_producto=%s AND id_tienda=%s",
-                (
-                    nombre,
-                    id_cat,
-                    costo,
-                    venta,
-                    stock,
-                    proveedor_id,
-                    id_producto,
-                    session["id_tienda"],
-                ),
-            )
-
-        cur.execute("DELETE FROM recetas_productos WHERE id_producto=%s", (id_producto,))
-        if es_preparado:
-            for ing in ingredientes:
-                cur.execute(
-                    "INSERT INTO recetas_productos (id_producto, id_insumo, cantidad_requerida) "
-                    "VALUES (%s, %s, %s)",
-                    (id_producto, ing["id_insumo"], ing["cantidad"]),
-                )
-
-        conn.commit()
-    finally:
-        conn.close()
-    registrar_auditoria(
-        session.get("id_tienda"),
-        session.get("id_usuario"),
-        "editar_producto",
-        f"Producto editado id={id_producto}, nombre={nombre}",
-    )
-    return jsonify({"ok": True})
-
-
-@app.route("/api/inventario/<int:id_producto>", methods=["DELETE"])
-@login_required
-@roles_required("Admin", "Master", "Cajero")
-def api_inventario_delete(id_producto):
-    conn = get_db()
-    try:
-        cur = conn.cursor()
-        cur.execute(
-            "UPDATE productos SET estado_activo = 0 "
-            "WHERE id_producto = %s AND id_tienda = %s",
-            (id_producto, session["id_tienda"]),
-        )
-        conn.commit()
-    finally:
-        conn.close()
-    registrar_auditoria(
-        session.get("id_tienda"),
-        session.get("id_usuario"),
-        "eliminar_producto",
-        f"Producto desactivado id={id_producto}",
-    )
-    return jsonify({"ok": True})
-
-
-@app.route("/api/inventario/<int:id_producto>/stock", methods=["POST"])
-@login_required
-def api_inventario_stock(id_producto):
-    data = request.get_json(silent=True) or {}
-    try:
-        cantidad = int(data.get("cantidad", 0))
-    except (TypeError, ValueError):
-        return jsonify({"ok": False, "msg": "Cantidad invalida."}), 400
-    if cantidad <= 0:
-        return jsonify({"ok": False, "msg": "La cantidad debe ser mayor a cero."}), 400
-
-    conn = get_db()
-    try:
-        cur = conn.cursor(dictionary=True)
-        try:
-            cur.execute(
-                "SELECT id_producto, stock_actual, COALESCE(es_preparado, 0) AS es_preparado FROM productos "
-                "WHERE id_producto = %s AND id_tienda = %s AND estado_activo = 1 LIMIT 1",
-                (id_producto, session["id_tienda"]),
-            )
-        except Exception:
-            cur.execute(
-                "SELECT id_producto, stock_actual FROM productos "
-                "WHERE id_producto = %s AND id_tienda = %s AND estado_activo = 1 LIMIT 1",
-                (id_producto, session["id_tienda"]),
-            )
-        p = cur.fetchone()
-        if not p:
-            return jsonify({"ok": False, "msg": "Producto no encontrado."}), 404
-        if bool(p.get("es_preparado") or 0):
-            return jsonify({"ok": False, "msg": "El stock de platos preparados se calcula desde sus insumos."}), 400
-
-        nuevo_stock = p["stock_actual"] + cantidad
-        cur.execute(
-            "UPDATE productos SET stock_actual = %s WHERE id_producto = %s",
-            (nuevo_stock, id_producto),
-        )
-        cur.execute(
-            "INSERT INTO movimientos_inventario "
-            "(id_tienda, id_producto, id_usuario, tipo_movimiento, "
-            " cantidad, stock_anterior, stock_posterior) "
-            "VALUES (%s, %s, %s, 'Entrada', %s, %s, %s)",
-            (session["id_tienda"], id_producto, session["id_usuario"],
-             cantidad, p["stock_actual"], nuevo_stock),
-        )
-        conn.commit()
-    finally:
-        conn.close()
-    return jsonify({"ok": True, "nuevo_stock": nuevo_stock})
 
 
 # ─────────────────────────────────────────────────────────────
@@ -2926,8 +1887,7 @@ def api_fiados_list():
 def api_fiados_crear_cliente():
     data    = request.get_json(silent=True) or {}
     nombre  = str(data.get("nombre",   "")).strip()
-    telefono_raw = str(data.get("telefono", "")).strip()
-    telefono = re.sub(r"\D", "", telefono_raw)
+    telefono = only_digits(data.get("telefono"))
     try:
         deuda_inicial = float(data.get("deuda_inicial", 0) or 0)
     except (TypeError, ValueError):
@@ -3244,43 +2204,10 @@ def api_dashboard():
 @login_required
 @roles_required("Admin")
 def api_perfil_get():
-    conn = get_db()
-    try:
-        cur = conn.cursor(dictionary=True)
-        try:
-            cur.execute(
-                "SELECT u.nombre_completo, u.correo, u.rol, u.foto_perfil, u.telefono, "
-                "t.nombre_negocio "
-                "FROM usuarios u "
-                "LEFT JOIN tiendas t ON t.id_tienda = u.id_tienda "
-                "WHERE u.id_usuario = %s LIMIT 1",
-                (session["id_usuario"],),
-            )
-        except Exception:
-            cur.execute(
-                "SELECT u.nombre_completo, u.correo, u.rol, u.foto_perfil, "
-                "t.nombre_negocio "
-                "FROM usuarios u "
-                "LEFT JOIN tiendas t ON t.id_tienda = u.id_tienda "
-                "WHERE u.id_usuario = %s LIMIT 1",
-                (session["id_usuario"],),
-            )
-        row = cur.fetchone()
-    finally:
-        conn.close()
-    if not row:
+    perfil = get_profile_for_user(int(session["id_usuario"]))
+    if not perfil:
         return jsonify({"ok": False, "msg": "Usuario no encontrado."}), 404
-    foto_url = None
-    if row.get("foto_perfil"):
-        foto_url = f'/static/uploads/perfiles/{row["foto_perfil"]}'
-    return jsonify({"ok": True, "perfil": {
-        "nombre_completo": row["nombre_completo"],
-        "correo":          row["correo"],
-        "rol":             row["rol"],
-        "nombre_negocio":  row["nombre_negocio"] or "",
-        "telefono":        (row.get("telefono") or ""),
-        "foto_url":        foto_url,
-    }})
+    return jsonify({"ok": True, "perfil": perfil})
 
 
 @app.route("/api/perfil", methods=["PUT"])
@@ -3290,33 +2217,17 @@ def api_perfil_update():
     data    = request.get_json(silent=True) or {}
     nombre  = str(data.get("nombre_completo", "")).strip()
     negocio = str(data.get("nombre_negocio",  "")).strip()
-    telefono_raw = str(data.get("telefono", "")).strip()
-    telefono = re.sub(r"\D", "", telefono_raw)[:10] or None
+    telefono = normalize_phone(data.get("telefono"), max_len=10)
     if not nombre:
         return jsonify({"ok": False, "msg": "El nombre no puede estar vacio."}), 400
     if telefono and len(telefono) < 7:
         return jsonify({"ok": False, "msg": "Telefono invalido."}), 400
-    conn = get_db()
-    try:
-        cur = conn.cursor()
-        try:
-            cur.execute(
-                "UPDATE usuarios SET nombre_completo = %s, telefono = %s WHERE id_usuario = %s",
-                (nombre, telefono, session["id_usuario"]),
-            )
-        except Exception:
-            cur.execute(
-                "UPDATE usuarios SET nombre_completo = %s WHERE id_usuario = %s",
-                (nombre, session["id_usuario"]),
-            )
-        if negocio:
-            cur.execute(
-                "UPDATE tiendas SET nombre_negocio = %s WHERE id_tienda = %s",
-                (negocio, session["id_tienda"]),
-            )
-        conn.commit()
-    finally:
-        conn.close()
+    update_profile_basic(
+        id_usuario=int(session["id_usuario"]),
+        id_tienda=int(session["id_tienda"]),
+        nombre=nombre,
+        negocio=negocio,
+    )
     session["nombre_completo"] = nombre
     return jsonify({"ok": True, "msg": "Perfil actualizado."})
 

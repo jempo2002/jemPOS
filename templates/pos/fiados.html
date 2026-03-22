@@ -50,7 +50,7 @@
         <i class="fa-solid fa-utensils"></i>
         <span>Menu y Platos</span>
       </a>
-      <a href="/insumos" class="nav-link{% if request.path == '/insumos' %} active{% endif %}">
+      <a href="/inventario/insumos" class="nav-link{% if request.path == '/inventario/insumos' %} active{% endif %}">
         <i class="fa-solid fa-boxes-stacked"></i>
         <span>Insumos (Despensa)</span>
       </a>
@@ -78,7 +78,7 @@
       </a>
     </nav>
 
-    <a href="{{ url_for('logout') }}" class="sidebar-logout no-underline hover:no-underline">
+    <a href="{{ url_for('auth.logout') }}" class="sidebar-logout no-underline hover:no-underline">
       <img src="/static/img/leave.png" alt="" />
       Cerrar sesion
     </a>
@@ -203,7 +203,7 @@
       <i class="fa-solid fa-utensils"></i>
       <span>Menu</span>
     </a>
-    <a href="/insumos" class="bottom-btn" aria-label="Insumos">
+    <a href="/inventario/insumos" class="bottom-btn" aria-label="Insumos">
       <i class="fa-solid fa-boxes-stacked"></i>
       <span>Insumos</span>
     </a>

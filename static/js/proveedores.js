@@ -86,7 +86,7 @@ document.addEventListener('DOMContentLoaded', () => {
     productsModal.classList.remove('hidden');
 
     try {
-      const res = await fetch(`/api/proveedores/${encodeURIComponent(id)}/productos`);
+      const res = await fetch(`/inventario/api/proveedores/${encodeURIComponent(id)}/productos`);
       const data = await res.json();
       if (!res.ok || !data.ok) {
         productsBody.innerHTML = `<p>${esc(data.msg || 'No se pudo cargar el listado')}</p>`;

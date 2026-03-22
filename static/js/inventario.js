@@ -83,7 +83,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   /* ── Carga inicial desde API ─────────────────────────────── */
   async function loadProducts() {
-    const res = await fetch('/api/inventario');
+    const res = await fetch('/inventario/api/productos');
     if (res.status === 401) { window.location.href = '/login'; return; }
     const data = await res.json();
     if (!data.ok) { showToast('Error al cargar productos.', true); return; }
@@ -94,7 +94,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   async function loadProveedores() {
     if (!fProvider) return;
-    const res = await fetch('/api/proveedores');
+    const res = await fetch('/inventario/api/proveedores');
     if (res.status === 401) { window.location.href = '/login'; return; }
     const data = await res.json();
     if (!data.ok || !Array.isArray(data.proveedores)) return;
@@ -199,7 +199,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const qty = parseInt(String(stockUnits.value).replace(/\D/g, ''), 10);
     if (isNaN(qty) || qty <= 0) { shake(stockUnits); return; }
     btnStockConfirm.disabled = true;
-    const res  = await fetch(`/api/inventario/${stockTargetId}/stock`, {
+    const res  = await fetch(`/inventario/api/productos/${stockTargetId}/stock`, {
       method: 'POST',
       headers: jsonHeaders(),
       body: JSON.stringify({ cantidad: qty }),
@@ -517,7 +517,7 @@ document.addEventListener('DOMContentLoaded', () => {
     hideModalError();
 
     btnModalSave.disabled = true;
-    const url    = editingId !== null ? `/api/inventario/${editingId}` : '/api/inventario';
+    const url    = editingId !== null ? `/inventario/api/productos/${editingId}` : '/inventario/api/productos';
     const method = editingId !== null ? 'PUT' : 'POST';
     const res = await fetch(url, {
       method,
@@ -563,7 +563,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const id = deleteTargetId;
     const p  = products.find(x => x.id === id);
     closeModalConfirm();
-    const res = await fetch(`/api/inventario/${id}`, {
+    const res = await fetch(`/inventario/api/productos/${id}`, {
       method: 'DELETE',
       headers: csrfToken ? { 'X-CSRFToken': csrfToken } : {},
     });

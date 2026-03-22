@@ -10,6 +10,7 @@ const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribut
 const jsonHeaders = csrfToken
   ? { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken }
   : { 'Content-Type': 'application/json' };
+const turnoApiBase = '/pos/api/turno';
 
 /* ── Referencias DOM ─────────────────────────────────────── */
 const stateApertura   = document.getElementById('state-apertura');
@@ -79,7 +80,7 @@ function showCierreState(turno) {
 /* ── Cargar estado desde el servidor ────────────────────── */
 async function initTurno() {
   try {
-    const res = await fetch('/api/turno/estado');
+    const res = await fetch(`${turnoApiBase}/estado`);
     if (res.status === 401) { window.location.href = '/login'; return; }
     const data = await res.json();
     if (data.ok && data.turno) {
@@ -107,7 +108,7 @@ btnAbrir.addEventListener('click', async () => {
 
   setLoading(btnAbrir, true);
   try {
-    const res  = await fetch('/api/turno/abrir', {
+    const res  = await fetch(`${turnoApiBase}/abrir`, {
       method:  'POST',
       headers: jsonHeaders,
       body:    JSON.stringify({ monto_inicial: raw }),
@@ -117,7 +118,7 @@ btnAbrir.addEventListener('click', async () => {
 
     if (data.ok) {
       // Refrescar para obtener hora_apertura del servidor
-      const estado = await fetch('/api/turno/estado').then(r => r.json());
+      const estado = await fetch(`${turnoApiBase}/estado`).then(r => r.json());
       if (estado.ok && estado.turno) showCierreState(estado.turno);
     } else {
       setMsg(msgApertura, data.msg || 'No se pudo abrir el turno.');
@@ -144,7 +145,7 @@ btnCerrar.addEventListener('click', async () => {
 
   setLoading(btnCerrar, true);
   try {
-    const res  = await fetch('/api/turno/cerrar', {
+    const res  = await fetch(`${turnoApiBase}/cerrar`, {
       method:  'POST',
       headers: jsonHeaders,
       body:    JSON.stringify({ monto_final: raw }),

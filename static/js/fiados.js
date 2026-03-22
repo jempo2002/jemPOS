@@ -30,7 +30,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   /* ── Carga inicial desde API ─────────────────────────────── */
   async function loadClients() {
-    const res = await fetch('/api/fiados');
+    const res = await fetch('/pos/api/fiados');
     if (res.status === 401) { window.location.href = '/login'; return; }
     const data = await res.json();
     if (!data.ok) { showToast('Error al cargar fiados.', 'error'); return; }
@@ -285,7 +285,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (deudaInicial < 0) { shake(addInitialDebt); return; }
 
     btnAddConfirm.disabled = true;
-    const res = await fetch('/api/fiados', {
+    const res = await fetch('/pos/api/fiados', {
       method: 'POST',
       headers: jsonHeaders,
       body: JSON.stringify({ nombre: name, telefono: phone, deuda_inicial: deudaInicial }),
@@ -355,7 +355,7 @@ document.addEventListener('DOMContentLoaded', () => {
     hideModalError();
 
     btnAbonoConfirm.disabled = true;
-    const res = await fetch(`/api/fiados/${activeId}/abonar`, {
+    const res = await fetch(`/pos/api/fiados/${activeId}/abonar`, {
       method: 'POST',
       headers: jsonHeaders,
       body: JSON.stringify({ monto: abono }),
@@ -403,7 +403,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (suma <= 0) { shake(sumarAmount); return; }
 
     btnSumarConfirm.disabled = true;
-    const res = await fetch(`/api/fiados/${activeId}/sumar`, {
+    const res = await fetch(`/pos/api/fiados/${activeId}/sumar`, {
       method: 'POST',
       headers: jsonHeaders,
       body: JSON.stringify({ monto: suma, concepto: sumarDetail.value.trim() || 'Fiado' }),

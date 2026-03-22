@@ -9,6 +9,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const jsonHeaders = csrfToken
     ? { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken }
     : { 'Content-Type': 'application/json' };
+  const cajaApiBase = '/pos/api/caja';
+  const ventasApi = '/pos/api/ventas';
 
   /* ── Estado del carrito ────────────────────────────────────
      items: Map<productId, { qty, ... }>
@@ -74,7 +76,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     searchTimeout = setTimeout(async () => {
       try {
-        const res = await fetch('/api/caja/productos?q=' + encodeURIComponent(query));
+        const res = await fetch(`${cajaApiBase}/productos?q=` + encodeURIComponent(query));
         if (res.status === 401) { window.location.href = '/login'; return; }
         const data = await res.json();
         if (!data.ok) {
@@ -169,7 +171,7 @@ document.addEventListener('DOMContentLoaded', () => {
     btnCobrar.disabled = true;
     const total = calcTotal();
     try {
-      const res = await fetch('/api/ventas', {
+      const res = await fetch(ventasApi, {
         method: 'POST',
         headers: jsonHeaders,
         body: JSON.stringify({

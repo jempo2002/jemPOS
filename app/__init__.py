@@ -55,11 +55,16 @@ def create_app() -> Flask:
     init_pool_from_app(app)
 
     from app.routes.auth import auth
+    from app.routes.core import core_bp
     from app.routes.inventory import inventory_api_bp, inventory_bp
+    from app.routes.sales import sales_api_bp, sales_bp
 
     app.register_blueprint(auth)
+    app.register_blueprint(core_bp)
     app.register_blueprint(inventory_bp)
     app.register_blueprint(inventory_api_bp)
+    app.register_blueprint(sales_bp)
+    app.register_blueprint(sales_api_bp)
 
     @app.get("/")
     def index():
@@ -68,63 +73,5 @@ def create_app() -> Flask:
     @app.get("/health")
     def health() -> tuple[dict, int]:
         return {"ok": True, "app": "jemPOS", "mode": "factory-ready"}, 200
-
-    def _render_protected_template(template_path: str):
-        nombre = session.get("nombre_completo", "")
-        return render_template(
-            template_path,
-            rol=session.get("rol", ""),
-            nombre_completo=nombre,
-            foto_perfil=session.get("foto_perfil"),
-            avatar_iniciales=avatar_iniciales(nombre),
-        )
-
-    @app.get("/turno")
-    @login_required
-    def turno_page():
-        return _render_protected_template("pos/turno.html")
-
-    @app.get("/dashboard")
-    @login_required
-    @roles_required("Admin")
-    def dashboard_page():
-        return _render_protected_template("pos/dashboard.html")
-
-    @app.get("/onboarding")
-    @login_required
-    @roles_required("Admin")
-    def onboarding_page():
-        return _render_protected_template("pos/onboarding.html")
-
-    @app.get("/caja")
-    @login_required
-    @roles_required("Admin", "Cajero")
-    def caja_page():
-        return _render_protected_template("pos/caja.html")
-
-    @app.get("/ventas")
-    @login_required
-    @roles_required("Admin", "Cajero")
-    def ventas():
-        filtro = str(request.args.get("filtro", "hoy")).strip().lower()
-        if filtro not in {"hoy", "semana", "mes", "todas"}:
-            filtro = "hoy"
-        return _render_protected_template(
-            "pos/ventas.html",
-            ventas=[],
-            filtro_activo=filtro,
-        )
-
-    @app.get("/ventas/detalle/<int:id_venta>")
-    @login_required
-    @roles_required("Admin", "Cajero")
-    def ventas_detalle(id_venta: int):
-        return jsonify({"ok": False, "msg": "Detalle de venta en migracion.", "id_venta": id_venta}), 404
-
-    @app.get("/panel-master")
-    @login_required
-    @roles_required("Master")
-    def panel_master_page():
-        return _render_protected_template("admin/panel_master.html")
 
     return app

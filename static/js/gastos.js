@@ -14,7 +14,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   /* ── Carga inicial desde API ─────────────────────────────── */
   async function loadGastos() {
-    const res = await fetch('/api/gastos');
+    const res = await fetch('/pos/api/gastos');
     if (res.status === 401) { window.location.href = '/login'; return; }
     const data = await res.json();
     if (!data.ok) { showToast('Error al cargar gastos.', 'error'); return; }
@@ -287,7 +287,7 @@ document.addEventListener('DOMContentLoaded', () => {
     hideModalError();
 
     btnConfirm.disabled = true;
-    const res = await fetch('/api/gastos', {
+    const res = await fetch('/pos/api/gastos', {
       method: 'POST',
       headers: jsonHeaders,
       body: JSON.stringify({

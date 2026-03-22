@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
@@ -42,7 +42,7 @@
       </div>
 
       <nav class="flex-1 px-4 space-y-1" role="navigation" aria-label="Menu principal">
-        <a href="/turno" class="group flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold text-slate-600 hover:bg-gray-50 hover:text-slate-900">
+        <a href="{{ url_for('sales_bp.turno') }}" class="group flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold text-slate-600 hover:bg-gray-50 hover:text-slate-900">
           <i class="fa-solid fa-business-time text-slate-400 group-hover:text-blue-500"></i>
           <span>Mi Turno</span>
         </a>
@@ -50,7 +50,7 @@
           <i class="fa-solid fa-gauge-high text-slate-400 group-hover:text-blue-500"></i>
           <span>{% if session.get('rol') == 'Admin' %}Panel de Control{% else %}Inicio{% endif %}</span>
         </a>
-        <a href="/caja" class="group flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold text-slate-600 hover:bg-gray-50 hover:text-slate-900">
+        <a href="{{ url_for('sales_bp.caja') }}" class="group flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold text-slate-600 hover:bg-gray-50 hover:text-slate-900">
           <i class="fa-solid fa-cash-register text-slate-400 group-hover:text-blue-500"></i>
           <span>Caja</span>
         </a>
@@ -58,15 +58,15 @@
           <i class="fa-solid fa-boxes-stacked text-slate-400 group-hover:text-blue-500"></i>
           <span>Inventario</span>
         </a>
-        <a href="/fiados" class="group flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold text-slate-600 hover:bg-gray-50 hover:text-slate-900">
+        <a href="{{ url_for('sales_bp.fiados') }}" class="group flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold text-slate-600 hover:bg-gray-50 hover:text-slate-900">
           <i class="fa-solid fa-handshake-simple text-slate-400 group-hover:text-blue-500"></i>
           <span>Fiados</span>
         </a>
-        <a href="{{ url_for('ventas') }}" class="group flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold text-slate-600 hover:bg-gray-50 hover:text-slate-900">
+        <a href="{{ url_for('sales_bp.ventas') }}" class="group flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold text-slate-600 hover:bg-gray-50 hover:text-slate-900">
           <i class="fa-solid fa-file-invoice-dollar text-slate-400 group-hover:text-blue-500"></i>
           <span>Ventas</span>
         </a>
-        <a href="/gastos" class="group flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold text-slate-600 hover:bg-gray-50 hover:text-slate-900">
+        <a href="{{ url_for('sales_bp.gastos') }}" class="group flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold text-slate-600 hover:bg-gray-50 hover:text-slate-900">
           <i class="fa-solid fa-receipt text-slate-400 group-hover:text-blue-500"></i>
           <span>Gastos</span>
         </a>
@@ -298,3 +298,4 @@
   <script src="/static/js/subs-modal.js"></script>
 </body>
 </html>
+

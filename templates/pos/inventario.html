@@ -39,15 +39,15 @@
     </div>
 
     <nav class="sidebar-nav">
-      <a href="{{ url_for('turno_page') }}" class="nav-link">
+      <a href="{{ url_for('sales_bp.turno') }}" class="nav-link">
         <i class="fa-solid fa-business-time"></i>
         <span>Mi Turno</span>
       </a>
-      <a href="{{ url_for('dashboard_page') }}" class="nav-link">
+      <a href="{{ url_for('core_bp.dashboard_page') }}" class="nav-link">
         <i class="fa-solid fa-gauge-high"></i>
         <span>{% if session.get('rol') == 'Admin' %}Panel de Control{% else %}Inicio{% endif %}</span>
       </a>
-      <a href="{{ url_for('caja_page') }}" class="nav-link">
+      <a href="{{ url_for('sales_bp.caja') }}" class="nav-link">
         <i class="fa-solid fa-cash-register"></i>
         <span>Caja</span>
       </a>
@@ -61,15 +61,15 @@
         <span>Insumos</span>
       </a>
       {% endif %}
-      <a href="/fiados" class="nav-link">
+      <a href="{{ url_for('sales_bp.fiados') }}" class="nav-link">
         <i class="fa-solid fa-handshake-simple"></i>
         <span>Fiados</span>
       </a>
-      <a href="{{ url_for('ventas') }}" class="nav-link">
+      <a href="{{ url_for('sales_bp.ventas') }}" class="nav-link">
         <i class="fa-solid fa-file-invoice-dollar"></i>
         <span>Ventas</span>
       </a>
-      <a href="/gastos" class="nav-link">
+      <a href="{{ url_for('sales_bp.gastos') }}" class="nav-link">
         <i class="fa-solid fa-receipt"></i>
         <span>Gastos</span>
       </a>
@@ -155,17 +155,17 @@
   <!-- /inv-main -->
   <nav class="bottom-bar" role="navigation" aria-label="Navegacion principal">
 
-    <a href="{{ url_for('turno_page') }}" class="bottom-btn" aria-label="Mi Turno">
+    <a href="{{ url_for('sales_bp.turno') }}" class="bottom-btn" aria-label="Mi Turno">
       <i class="fa-solid fa-business-time"></i>
       <span>Mi Turno</span>
     </a>
 
-    <a href="{{ url_for('dashboard_page') }}" class="bottom-btn" aria-label="Inicio">
+    <a href="{{ url_for('core_bp.dashboard_page') }}" class="bottom-btn" aria-label="Inicio">
       <i class="fa-solid fa-gauge-high"></i>
       <span>Inicio</span>
     </a>
 
-    <a href="{{ url_for('caja_page') }}" class="bottom-btn" aria-label="Caja">
+    <a href="{{ url_for('sales_bp.caja') }}" class="bottom-btn" aria-label="Caja">
       <i class="fa-solid fa-cash-register"></i>
       <span>Caja</span>
     </a>
@@ -181,16 +181,16 @@
     </a>
     {% endif %}
 
-    <a href="/fiados" class="bottom-btn" aria-label="Fiados">
+    <a href="{{ url_for('sales_bp.fiados') }}" class="bottom-btn" aria-label="Fiados">
       <i class="fa-solid fa-handshake-simple"></i>
       <span>Fiados</span>
     </a>
 
-    <a href="{{ url_for('ventas') }}" class="bottom-btn" aria-label="Ventas">
+    <a href="{{ url_for('sales_bp.ventas') }}" class="bottom-btn" aria-label="Ventas">
       <i class="fa-solid fa-file-invoice-dollar"></i>
       <span>Ventas</span>
     </a>
-    <a href="/gastos" class="bottom-btn" aria-label="Gastos">
+    <a href="{{ url_for('sales_bp.gastos') }}" class="bottom-btn" aria-label="Gastos">
       <i class="fa-solid fa-receipt"></i>
       <span>Gastos</span>
     </a>
@@ -403,6 +403,7 @@
 
 </body>
 </html>
+
 
 
 

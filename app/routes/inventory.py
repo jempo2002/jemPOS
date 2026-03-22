@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from flask import Blueprint, jsonify, render_template, request, session
+from flask import Blueprint, flash, jsonify, redirect, render_template, request, session, url_for
 
 from app.utils.decorators import login_required, roles_required
-from app.utils.helpers import avatar_iniciales
+from app.utils.helpers import avatar_iniciales, only_digits
 from database import get_db
 
 inventory_bp = Blueprint("inventory_bp", __name__, url_prefix="/inventario")
@@ -234,6 +234,313 @@ def proveedores_page():
     ctx = _base_context()
     ctx.update({"proveedores": proveedores})
     return render_template("pos/proveedores.html", **ctx)
+
+
+@inventory_api_bp.route("/insumos/crear", methods=["POST"])
+@login_required
+@roles_required("Admin", "Master")
+def insumos_crear_page():
+    nombre = str(request.form.get("nombre", "")).strip()
+    unidad = str(request.form.get("unidad_medida", "Un")).strip() or "Un"
+    proveedor_raw = request.form.get("id_proveedor")
+
+    try:
+        stock = float(request.form.get("stock_actual", 0) or 0)
+        costo = float(request.form.get("costo_unitario", 0) or 0)
+    except (TypeError, ValueError):
+        flash("Stock y costo deben ser numericos.", "error")
+        return redirect(url_for("inventory_bp.insumos_page"))
+
+    if not nombre:
+        flash("El nombre del insumo es requerido.", "error")
+        return redirect(url_for("inventory_bp.insumos_page"))
+
+    if unidad not in {"Gr", "Ml", "Un"}:
+        flash("Unidad invalida. Usa Gr, Ml o Un.", "error")
+        return redirect(url_for("inventory_bp.insumos_page"))
+
+    if stock < 0 or costo < 0:
+        flash("Stock y costo no pueden ser negativos.", "error")
+        return redirect(url_for("inventory_bp.insumos_page"))
+
+    try:
+        proveedor_id = int(proveedor_raw) if proveedor_raw not in (None, "", "0", 0) else None
+    except (TypeError, ValueError):
+        flash("Proveedor invalido.", "error")
+        return redirect(url_for("inventory_bp.insumos_page"))
+
+    conn = get_db()
+    try:
+        cur = conn.cursor(dictionary=True)
+        if proveedor_id is not None:
+            cur.execute(
+                "SELECT id_proveedor FROM proveedores WHERE id_proveedor=%s AND id_tienda=%s LIMIT 1",
+                (proveedor_id, session["id_tienda"]),
+            )
+            if not cur.fetchone():
+                flash("Proveedor no encontrado para esta tienda.", "error")
+                return redirect(url_for("inventory_bp.insumos_page"))
+
+        cur.execute(
+            "INSERT INTO insumos "
+            "(id_tienda, nombre, stock_actual, unidad_medida, costo_unitario, id_proveedor) "
+            "VALUES (%s, %s, %s, %s, %s, %s)",
+            (session["id_tienda"], nombre, stock, unidad, costo, proveedor_id),
+        )
+        conn.commit()
+        new_id = cur.lastrowid
+    except Exception:
+        flash("No fue posible crear el insumo. Verifica migraciones de base de datos.", "error")
+        return redirect(url_for("inventory_bp.insumos_page"))
+    finally:
+        conn.close()
+
+    _registrar_auditoria(
+        session.get("id_tienda"),
+        session.get("id_usuario"),
+        "crear_insumo",
+        f"Insumo creado id={new_id}, nombre={nombre}",
+    )
+    flash("Insumo creado correctamente.", "success")
+    return redirect(url_for("inventory_bp.insumos_page"))
+
+
+@inventory_api_bp.route("/insumos/editar/<int:id_insumo>", methods=["POST"])
+@login_required
+@roles_required("Admin", "Master")
+def insumos_editar_page(id_insumo):
+    nombre = str(request.form.get("nombre", "")).strip()
+    unidad = str(request.form.get("unidad_medida", "Un")).strip() or "Un"
+    proveedor_raw = request.form.get("id_proveedor")
+
+    try:
+        stock = float(request.form.get("stock_actual", 0) or 0)
+        costo = float(request.form.get("costo_unitario", 0) or 0)
+    except (TypeError, ValueError):
+        flash("Stock y costo deben ser numericos.", "error")
+        return redirect(url_for("inventory_bp.insumos_page"))
+
+    if not nombre:
+        flash("El nombre del insumo es requerido.", "error")
+        return redirect(url_for("inventory_bp.insumos_page"))
+
+    if unidad not in {"Gr", "Ml", "Un"}:
+        flash("Unidad invalida. Usa Gr, Ml o Un.", "error")
+        return redirect(url_for("inventory_bp.insumos_page"))
+
+    if stock < 0 or costo < 0:
+        flash("Stock y costo no pueden ser negativos.", "error")
+        return redirect(url_for("inventory_bp.insumos_page"))
+
+    try:
+        proveedor_id = int(proveedor_raw) if proveedor_raw not in (None, "", "0", 0) else None
+    except (TypeError, ValueError):
+        flash("Proveedor invalido.", "error")
+        return redirect(url_for("inventory_bp.insumos_page"))
+
+    conn = get_db()
+    try:
+        cur = conn.cursor(dictionary=True)
+        if proveedor_id is not None:
+            cur.execute(
+                "SELECT id_proveedor FROM proveedores WHERE id_proveedor=%s AND id_tienda=%s LIMIT 1",
+                (proveedor_id, session["id_tienda"]),
+            )
+            if not cur.fetchone():
+                flash("Proveedor no encontrado para esta tienda.", "error")
+                return redirect(url_for("inventory_bp.insumos_page"))
+
+        cur.execute(
+            "UPDATE insumos "
+            "SET nombre=%s, stock_actual=%s, unidad_medida=%s, costo_unitario=%s, id_proveedor=%s "
+            "WHERE id_insumo=%s AND id_tienda=%s",
+            (nombre, stock, unidad, costo, proveedor_id, id_insumo, session["id_tienda"]),
+        )
+        conn.commit()
+        updated = cur.rowcount > 0
+    except Exception:
+        flash("No fue posible actualizar el insumo.", "error")
+        return redirect(url_for("inventory_bp.insumos_page"))
+    finally:
+        conn.close()
+
+    if not updated:
+        flash("Insumo no encontrado para esta tienda.", "error")
+        return redirect(url_for("inventory_bp.insumos_page"))
+
+    _registrar_auditoria(
+        session.get("id_tienda"),
+        session.get("id_usuario"),
+        "editar_insumo",
+        f"Insumo editado id={id_insumo}, nombre={nombre}",
+    )
+    flash("Insumo actualizado correctamente.", "success")
+    return redirect(url_for("inventory_bp.insumos_page"))
+
+
+@inventory_api_bp.route("/insumos/eliminar/<int:id_insumo>", methods=["POST"])
+@login_required
+@roles_required("Admin", "Master")
+def insumos_eliminar_page(id_insumo):
+    conn = get_db()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "DELETE FROM insumos WHERE id_insumo=%s AND id_tienda=%s",
+            (id_insumo, session["id_tienda"]),
+        )
+        conn.commit()
+        deleted = cur.rowcount > 0
+    except Exception:
+        flash("No fue posible eliminar el insumo.", "error")
+        return redirect(url_for("inventory_bp.insumos_page"))
+    finally:
+        conn.close()
+
+    if not deleted:
+        flash("Insumo no encontrado para esta tienda.", "error")
+        return redirect(url_for("inventory_bp.insumos_page"))
+
+    _registrar_auditoria(
+        session.get("id_tienda"),
+        session.get("id_usuario"),
+        "eliminar_insumo",
+        f"Insumo eliminado id={id_insumo}",
+    )
+    flash("Insumo eliminado correctamente.", "success")
+    return redirect(url_for("inventory_bp.insumos_page"))
+
+
+@inventory_api_bp.route("/proveedores/crear", methods=["POST"])
+@login_required
+@roles_required("Admin", "Master")
+def proveedores_crear_page():
+    empresa = str(request.form.get("empresa", "")).strip()
+    nombre_contacto = str(request.form.get("nombre_contacto", "")).strip()
+    celular = only_digits(request.form.get("celular"))
+    correo = str(request.form.get("correo", "")).strip()
+    detalles = str(request.form.get("detalles", "")).strip()
+
+    if not empresa:
+        flash("La empresa es requerida.", "error")
+        return redirect(url_for("inventory_bp.proveedores_page"))
+
+    if celular and len(celular) > 10:
+        flash("El celular debe tener maximo 10 digitos.", "error")
+        return redirect(url_for("inventory_bp.proveedores_page"))
+
+    conn = get_db()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "INSERT INTO proveedores (id_tienda, nombre_empresa, nombre_contacto, celular, correo, detalles) "
+            "VALUES (%s, %s, %s, %s, %s, %s)",
+            (
+                session["id_tienda"],
+                empresa,
+                nombre_contacto or None,
+                celular or None,
+                correo or None,
+                detalles or None,
+            ),
+        )
+        conn.commit()
+        new_id = cur.lastrowid
+    finally:
+        conn.close()
+
+    _registrar_auditoria(
+        session.get("id_tienda"),
+        session.get("id_usuario"),
+        "crear_proveedor",
+        f"Proveedor creado id={new_id}, empresa={empresa}",
+    )
+    flash("Proveedor creado correctamente.", "success")
+    return redirect(url_for("inventory_bp.proveedores_page"))
+
+
+@inventory_api_bp.route("/proveedores/editar/<int:id_proveedor>", methods=["POST"])
+@login_required
+@roles_required("Admin", "Master")
+def proveedores_editar_page(id_proveedor):
+    empresa = str(request.form.get("empresa", "")).strip()
+    nombre_contacto = str(request.form.get("nombre_contacto", "")).strip()
+    celular = only_digits(request.form.get("celular"))
+    correo = str(request.form.get("correo", "")).strip()
+    detalles = str(request.form.get("detalles", "")).strip()
+
+    if not empresa:
+        flash("La empresa es requerida.", "error")
+        return redirect(url_for("inventory_bp.proveedores_page"))
+
+    if celular and len(celular) > 10:
+        flash("El celular debe tener maximo 10 digitos.", "error")
+        return redirect(url_for("inventory_bp.proveedores_page"))
+
+    conn = get_db()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "UPDATE proveedores "
+            "SET nombre_empresa=%s, nombre_contacto=%s, celular=%s, correo=%s, detalles=%s "
+            "WHERE id_proveedor=%s AND id_tienda=%s",
+            (
+                empresa,
+                nombre_contacto or None,
+                celular or None,
+                correo or None,
+                detalles or None,
+                id_proveedor,
+                session["id_tienda"],
+            ),
+        )
+        conn.commit()
+        updated = cur.rowcount > 0
+    finally:
+        conn.close()
+
+    if not updated:
+        flash("Proveedor no encontrado para esta tienda.", "error")
+        return redirect(url_for("inventory_bp.proveedores_page"))
+
+    _registrar_auditoria(
+        session.get("id_tienda"),
+        session.get("id_usuario"),
+        "editar_proveedor",
+        f"Proveedor editado id={id_proveedor}, empresa={empresa}",
+    )
+    flash("Proveedor actualizado correctamente.", "success")
+    return redirect(url_for("inventory_bp.proveedores_page"))
+
+
+@inventory_api_bp.route("/proveedores/eliminar/<int:id_proveedor>", methods=["POST"])
+@login_required
+@roles_required("Admin", "Master")
+def proveedores_eliminar_page(id_proveedor):
+    conn = get_db()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "DELETE FROM proveedores WHERE id_proveedor=%s AND id_tienda=%s",
+            (id_proveedor, session["id_tienda"]),
+        )
+        conn.commit()
+        deleted = cur.rowcount > 0
+    finally:
+        conn.close()
+
+    if not deleted:
+        flash("Proveedor no encontrado para esta tienda.", "error")
+        return redirect(url_for("inventory_bp.proveedores_page"))
+
+    _registrar_auditoria(
+        session.get("id_tienda"),
+        session.get("id_usuario"),
+        "eliminar_proveedor",
+        f"Proveedor eliminado id={id_proveedor}",
+    )
+    flash("Proveedor eliminado correctamente.", "success")
+    return redirect(url_for("inventory_bp.proveedores_page"))
 
 
 @inventory_api_bp.route("/api/inventario", methods=["GET"])

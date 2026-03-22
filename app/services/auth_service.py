@@ -52,8 +52,8 @@ def resolve_post_login_redirect(rol: str, id_tienda: int | None) -> str:
     if role == "admin":
         return "/dashboard"
     if role == "cajero":
-        return "/caja"
-    return "/turno"
+        return "/pos/caja"
+    return "/pos/turno"
 
 
 def create_reset_token(secret_key: str, email: str, salt: str = "password-reset-salt") -> str:

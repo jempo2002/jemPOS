@@ -52,6 +52,7 @@
 
       <!-- FORMULARIO -->
       <form id="formRegistro" method="POST" action="/registro" novalidate class="space-y-3">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
 
         <!-- â”€â”€ Nombre del Dueno â”€â”€ -->
         <div>

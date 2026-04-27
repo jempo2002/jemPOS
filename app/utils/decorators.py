@@ -5,12 +5,29 @@ from functools import wraps
 from flask import flash, jsonify, redirect, request, session, url_for
 
 
+def _is_api_request() -> bool:
+    path = request.path or ""
+    if request.is_json:
+        return True
+    if path.startswith("/api") or "/api/" in path:
+        return True
+    if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+        return True
+    accept = request.accept_mimetypes
+    if accept and accept.best == "application/json":
+        return True
+    return False
+
+
 def login_required(f):
     """Require an authenticated session for HTML and API endpoints."""
     @wraps(f)
     def _inner(*args, **kwargs):
-        if "id_usuario" not in session:
-            if request.is_json or request.path.startswith("/api/"):
+        user_id = session.get("id_usuario")
+        role = session.get("rol")
+        if not user_id or not role:
+            session.clear()
+            if _is_api_request():
                 return jsonify({"ok": False, "msg": "Sesion expirada."}), 401
             return redirect(url_for("auth.login"))
         return f(*args, **kwargs)
@@ -33,7 +50,7 @@ def roles_required(*roles: str):
         def _inner(*args, **kwargs):
             current_role = str(session.get("rol") or "").strip().lower()
             if current_role not in allowed_roles:
-                if request.is_json or request.path.startswith("/api/"):
+                if _is_api_request():
                     return jsonify({"ok": False, "msg": "No tienes permisos para esta accion."}), 403
                 flash("No tienes permisos para ver esta pantalla.", "error")
                 return redirect(url_for("auth.login"))

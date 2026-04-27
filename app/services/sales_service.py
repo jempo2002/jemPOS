@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime, timedelta
 
-from app.utils.helpers import normalize_payment_method
+from app.utils.helpers import normalize_payment_method, only_digits
+from app.utils.validation import parse_float, parse_int, sanitize_optional_text, sanitize_text
 from database import get_db
 
 
@@ -20,6 +21,10 @@ class SalesNotFoundError(SalesServiceError):
 
 class SalesConflictError(SalesServiceError):
     pass
+
+
+def _raise_validation(exc: ValueError) -> None:
+    raise SalesValidationError(str(exc)) from exc
 
 
 def _registrar_auditoria(id_tienda, id_usuario, accion, detalles) -> None:
@@ -85,9 +90,151 @@ def get_categorias_gastos(id_tienda: int) -> list[str]:
             "SELECT DISTINCT concepto FROM gastos_caja WHERE id_tienda = %s ORDER BY concepto",
             (id_tienda,),
         )
-        return [r[0] for r in cur.fetchall() if r and r[0]]
+        filas = cur.fetchall() or []
     finally:
         conn.close()
+
+    return [r[0] for r in filas if r and r[0]]
+
+
+def get_money_flow_summary(id_tienda: int, since: datetime, until: datetime) -> dict:
+    conn = get_db()
+    try:
+        cur = conn.cursor(dictionary=True)
+
+        cur.execute(
+            "SELECT COALESCE(SUM(v.total_final),0) AS entradas "
+            "FROM ventas v "
+            "WHERE v.id_tienda=%s AND v.estado_venta='Pagada' "
+            "AND v.fecha_creacion >= %s AND v.fecha_creacion < %s",
+            (id_tienda, since, until),
+        )
+        entradas = float((cur.fetchone() or {}).get("entradas") or 0)
+
+        cur.execute(
+            "SELECT COALESCE(SUM(g.monto),0) AS salidas "
+            "FROM gastos_caja g "
+            "WHERE g.id_tienda=%s AND g.fecha_creacion >= %s AND g.fecha_creacion < %s",
+            (id_tienda, since, until),
+        )
+        salidas = float((cur.fetchone() or {}).get("salidas") or 0)
+    finally:
+        conn.close()
+
+    return {
+        "entradas": entradas,
+        "salidas": salidas,
+    }
+
+
+def get_dashboard_financial_summary(id_tienda: int, since: datetime, until: datetime) -> dict:
+    flow = get_money_flow_summary(id_tienda, since, until)
+    ventas = float(flow["entradas"])
+    gastos = float(flow["salidas"])
+
+    conn = get_db()
+    try:
+        cur = conn.cursor(dictionary=True)
+
+        cur.execute(
+            "SELECT DATE(v.fecha_creacion) AS d, COALESCE(SUM(v.total_final),0) AS total "
+            "FROM ventas v "
+            "WHERE v.id_tienda=%s AND v.estado_venta='Pagada' "
+            "AND v.fecha_creacion >= %s AND v.fecha_creacion < %s "
+            "GROUP BY DATE(v.fecha_creacion) "
+            "ORDER BY DATE(v.fecha_creacion)",
+            (id_tienda, since, until),
+        )
+        ingresos_por_dia = {r["d"]: float(r["total"] or 0) for r in cur.fetchall()}
+
+        cur.execute(
+            "SELECT DATE(g.fecha_creacion) AS d, COALESCE(SUM(g.monto),0) AS total "
+            "FROM gastos_caja g "
+            "WHERE g.id_tienda=%s AND g.fecha_creacion >= %s AND g.fecha_creacion < %s "
+            "GROUP BY DATE(g.fecha_creacion) "
+            "ORDER BY DATE(g.fecha_creacion)",
+            (id_tienda, since, until),
+        )
+        gastos_por_dia = {r["d"]: float(r["total"] or 0) for r in cur.fetchall()}
+    finally:
+        conn.close()
+
+    chart_labels: list[str] = []
+    chart_ingresos: list[float] = []
+    chart_gastos: list[float] = []
+    d = since.date()
+    end_day = until.date()
+    while d <= end_day:
+        chart_labels.append(d.strftime("%d/%m"))
+        chart_ingresos.append(ingresos_por_dia.get(d, 0.0))
+        chart_gastos.append(gastos_por_dia.get(d, 0.0))
+        d += timedelta(days=1)
+
+    return {
+        "ventas": ventas,
+        "gastos": gastos,
+        "chart": {
+            "labels": chart_labels,
+            "ingresos": chart_ingresos,
+            "gastos": chart_gastos,
+        },
+    }
+
+
+def get_top_vendidos(id_tienda: int, since: datetime, until: datetime, limit: int = 5) -> list[dict]:
+    conn = get_db()
+    try:
+        cur = conn.cursor(dictionary=True)
+        cur.execute(
+            "SELECT p.nombre, SUM(dv.cantidad) AS total "
+            "FROM detalle_ventas dv "
+            "INNER JOIN ventas v ON dv.id_venta = v.id_venta "
+            "INNER JOIN productos p ON dv.id_producto = p.id_producto "
+            "WHERE v.id_tienda=%s AND v.estado_venta='Pagada' "
+            "AND v.fecha_creacion >= %s AND v.fecha_creacion < %s "
+            "GROUP BY dv.id_producto, p.nombre "
+            "ORDER BY total DESC LIMIT %s",
+            (id_tienda, since, until, limit),
+        )
+        filas = cur.fetchall() or []
+    finally:
+        conn.close()
+
+    return [
+        {
+            "name": r.get("nombre") or "Producto",
+            "total": float(r.get("total") or 0),
+        }
+        for r in filas
+    ]
+
+
+def get_stock_alerts(id_tienda: int, limit: int = 10) -> list[dict]:
+    conn = get_db()
+    try:
+        cur = conn.cursor(dictionary=True)
+        cur.execute(
+            "SELECT nombre, stock_actual, stock_minimo_alerta "
+            "FROM productos "
+            "WHERE id_tienda=%s AND estado_activo=1 "
+            "AND stock_minimo_alerta IS NOT NULL "
+            "AND stock_actual <= stock_minimo_alerta "
+            "ORDER BY stock_actual ASC "
+            "LIMIT %s",
+            (id_tienda, limit),
+        )
+        filas = cur.fetchall() or []
+    finally:
+        conn.close()
+
+    return [
+        {
+            "name": r.get("nombre") or "Producto",
+            "stock": float(r.get("stock_actual") or 0),
+            "min": float(r.get("stock_minimo_alerta") or 0),
+        }
+        for r in filas
+    ]
 
 
 def get_fiados_clientes(id_tienda: int) -> list[dict]:
@@ -214,6 +361,12 @@ def get_turno_estado(id_tienda: int) -> dict | None:
 
 
 def abrir_turno(id_tienda: int, id_usuario: int, monto_inicial: float) -> int:
+    try:
+        id_tienda = parse_int(id_tienda, "Tienda", min_value=1)
+        id_usuario = parse_int(id_usuario, "Usuario", min_value=1)
+        monto_inicial = parse_float(monto_inicial, "Monto inicial", min_value=0, allow_zero=False)
+    except ValueError as exc:
+        _raise_validation(exc)
     conn = get_db()
     try:
         cur = conn.cursor(dictionary=True)
@@ -241,6 +394,12 @@ def abrir_turno(id_tienda: int, id_usuario: int, monto_inicial: float) -> int:
 
 
 def cerrar_turno(id_tienda: int, id_usuario: int, monto_final: float) -> None:
+    try:
+        id_tienda = parse_int(id_tienda, "Tienda", min_value=1)
+        id_usuario = parse_int(id_usuario, "Usuario", min_value=1)
+        monto_final = parse_float(monto_final, "Monto final", min_value=0)
+    except ValueError as exc:
+        _raise_validation(exc)
     conn = get_db()
     try:
         cur = conn.cursor(dictionary=True)
@@ -315,6 +474,22 @@ def registrar_venta(
     monto_total: float,
     descuento: float,
 ) -> dict:
+    try:
+        id_tienda = parse_int(id_tienda, "Tienda", min_value=1)
+        id_usuario = parse_int(id_usuario, "Usuario", min_value=1)
+        if not isinstance(items, list) or not items:
+            raise SalesValidationError("No hay productos en la venta.")
+        if len(items) > 200:
+            raise SalesValidationError("La venta supera el limite de items permitido.")
+        subtotal = parse_float(subtotal, "Subtotal", min_value=0)
+        monto_total = parse_float(monto_total, "Total", min_value=0)
+        descuento = parse_float(descuento, "Descuento", min_value=0)
+        if id_cliente not in (None, ""):
+            id_cliente = parse_int(id_cliente, "Cliente", min_value=1)
+        else:
+            id_cliente = None
+    except ValueError as exc:
+        _raise_validation(exc)
     metodo_pago_db = normalize_payment_method(metodo_pago_ui)
     if not metodo_pago_db:
         raise SalesValidationError("Metodo de pago invalido.")
@@ -340,6 +515,10 @@ def registrar_venta(
 
             if cantidad <= 0:
                 raise SalesValidationError("La cantidad debe ser mayor a cero.")
+            if precio < 0:
+                raise SalesValidationError("El precio no puede ser negativo.")
+            if id_producto <= 0:
+                raise SalesValidationError("Producto invalido.")
 
             cur.execute(
                 "SELECT id_producto, nombre, stock_actual, stock_minimo_alerta, COALESCE(es_preparado, 0) AS es_preparado "
@@ -549,6 +728,19 @@ def get_detalle_venta(id_tienda: int, id_venta: int) -> dict:
 
 
 def crear_cliente_fiado(id_tienda: int, id_usuario: int, nombre: str, telefono: str, deuda_inicial: float) -> int:
+    try:
+        id_tienda = parse_int(id_tienda, "Tienda", min_value=1)
+        id_usuario = parse_int(id_usuario, "Usuario", min_value=1)
+        nombre = sanitize_text(nombre, "El nombre del cliente", max_len=150)
+        telefono_raw = str(telefono or "").strip()
+        telefono_digits = only_digits(telefono_raw)
+        if not telefono_digits:
+            raise SalesValidationError("El telefono es requerido.")
+        if len(telefono_digits) < 7 or len(telefono_digits) > 25:
+            raise SalesValidationError("El telefono es invalido.")
+        deuda_inicial = parse_float(deuda_inicial, "Deuda inicial", min_value=0)
+    except ValueError as exc:
+        _raise_validation(exc)
     conn = get_db()
     try:
         cur = conn.cursor(dictionary=True)
@@ -561,7 +753,7 @@ def crear_cliente_fiado(id_tienda: int, id_usuario: int, nombre: str, telefono: 
 
         cur.execute(
             "INSERT INTO clientes (id_tienda, nombre, telefono) VALUES (%s, %s, %s)",
-            (id_tienda, nombre, telefono or None),
+            (id_tienda, nombre, telefono_digits),
         )
         nuevo_id = cur.lastrowid
 
@@ -600,6 +792,14 @@ def crear_cliente_fiado(id_tienda: int, id_usuario: int, nombre: str, telefono: 
 
 
 def sumar_fiado(id_tienda: int, id_usuario: int, id_cliente: int, monto: float, concepto: str) -> None:
+    try:
+        id_tienda = parse_int(id_tienda, "Tienda", min_value=1)
+        id_usuario = parse_int(id_usuario, "Usuario", min_value=1)
+        id_cliente = parse_int(id_cliente, "Cliente", min_value=1)
+        monto = parse_float(monto, "Monto", min_value=0, allow_zero=False)
+        concepto = sanitize_text(concepto, "El concepto", max_len=255)
+    except ValueError as exc:
+        _raise_validation(exc)
     conn = get_db()
     try:
         cur = conn.cursor(dictionary=True)
@@ -637,6 +837,13 @@ def sumar_fiado(id_tienda: int, id_usuario: int, id_cliente: int, monto: float, 
 
 
 def abonar_fiado(id_tienda: int, id_usuario: int, id_cliente: int, monto: float, metodo_ui: str) -> None:
+    try:
+        id_tienda = parse_int(id_tienda, "Tienda", min_value=1)
+        id_usuario = parse_int(id_usuario, "Usuario", min_value=1)
+        id_cliente = parse_int(id_cliente, "Cliente", min_value=1)
+        monto = parse_float(monto, "Monto", min_value=0, allow_zero=False)
+    except ValueError as exc:
+        _raise_validation(exc)
     metodo = normalize_payment_method(metodo_ui)
     if not metodo:
         raise SalesValidationError("Metodo invalido.")
@@ -739,6 +946,17 @@ def crear_gasto(
     fuente_dinero: str,
     monto: float,
 ) -> int:
+    try:
+        id_tienda = parse_int(id_tienda, "Tienda", min_value=1)
+        id_usuario = parse_int(id_usuario, "Usuario", min_value=1)
+        concepto = sanitize_text(concepto, "La categoria", max_len=150)
+        descripcion = sanitize_optional_text(descripcion, "La descripcion", max_len=255)
+        fuente_dinero = sanitize_text(fuente_dinero, "Fuente de dinero", max_len=20)
+        if fuente_dinero not in {"Caja Menor", "Caja Fuerte", "Bancos"}:
+            raise SalesValidationError("Fuente de dinero invalida.")
+        monto = parse_float(monto, "Monto", min_value=0, allow_zero=False)
+    except ValueError as exc:
+        _raise_validation(exc)
     conn = get_db()
     try:
         cur = conn.cursor(dictionary=True)

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>jemPOS - Inicio</title>
+  <title>jemPOS - Resumen Financiero</title>
 
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -18,9 +18,8 @@
 
   <link rel="stylesheet" href="/static/css/caja.css" />
   <link rel="stylesheet" href="/static/css/dashboard.css" />
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <meta name="csrf-token" content="{{ csrf_token() }}" />
   <link rel="stylesheet" href="/static/css/global.css" />
+  <meta name="csrf-token" content="{{ csrf_token() }}" />
 </head>
 
 <body>
@@ -56,20 +55,27 @@
         <i class="fa-solid fa-file-invoice-dollar"></i>
         <span>Ventas</span>
       </a>
+      <a href="{{ url_for('inventory_bp.proveedores_page') }}" class="nav-link">
+        <i class="fa-solid fa-truck-field"></i>
+        <span>Proveedores</span>
+      </a>
       <a href="{{ url_for('sales_bp.gastos') }}" class="nav-link">
         <i class="fa-solid fa-receipt"></i>
         <span>Gastos</span>
       </a>
+      {% if (session.get('rol') or '')|lower == 'admin' %}
       <a href="/perfil" class="nav-link">
         <i class="fa-solid fa-circle-user"></i>
         <span>Mi Perfil</span>
       </a>
+      {% endif %}
     </nav>
 
-    <a href="{{ url_for('auth.logout') }}" class="sidebar-logout no-underline hover:no-underline">
+    <a href="{{ url_for('auth.logout') }}" class="sidebar-logout no-underline">
       <img src="/static/img/leave.png" alt="" />
       Cerrar sesion
     </a>
+
     <div class="sidebar-footer">
       {% if foto_perfil %}
       <img src="/static/uploads/perfiles/{{ foto_perfil }}" class="avatar avatar-img" alt="Foto" />
@@ -83,307 +89,96 @@
     </div>
   </aside>
 
-  <div class="dash-main flex-1">
-    <div class="dash-mobile-logo" aria-hidden="true">
-      <span class="jem">jem</span><span class="pos">POS</span>
-    </div>
+  <main class="dash-main">
+    <section class="dash-header-card" aria-label="Cabecera financiera">
+      <div>
+        <h1 class="dash-title">Resumen Financiero</h1>
+        <p class="dash-subtitle">Centro de Mando Financiero</p>
+      </div>
+      <div class="dash-filter-wrap">
+        <label class="dash-filter-label" for="filtro-tiempo">Periodo</label>
+        <select id="filtro-tiempo" class="dash-filter-select" aria-label="Filtrar por rango de tiempo">
+          <option value="hoy"{% if filtro_activo in ['dia', 'hoy'] %} selected{% endif %}>Hoy</option>
+          <option value="semana"{% if filtro_activo == 'semana' %} selected{% endif %}>Esta Semana</option>
+          <option value="mes"{% if filtro_activo == 'mes' %} selected{% endif %}>Este Mes</option>
+          <option value="anio"{% if filtro_activo in ['anio', 'año'] %} selected{% endif %}>Este Año</option>
+        </select>
+      </div>
+    </section>
 
-    <div class="max-w-7xl mx-auto space-y-8">
-      <header class="space-y-3">
+    <section class="dash-kpi-grid" aria-label="Indicadores clave">
+      <article class="dash-card dash-kpi-card">
+        <h2 class="dash-kpi-label">Ingresos Totales</h2>
+        <p class="dash-kpi-value"><span id="kpi-ingresos"></span></p>
+      </article>
+      <article class="dash-card dash-kpi-card">
+        <h2 class="dash-kpi-label">Gastos Totales</h2>
+        <p class="dash-kpi-value"><span id="kpi-gastos"></span></p>
+      </article>
+      <article class="dash-card dash-kpi-card">
+        <h2 class="dash-kpi-label">Balance Neto</h2>
+        <p class="dash-kpi-value"><span id="kpi-balance"></span></p>
+      </article>
+    </section>
+
+    <section class="dash-card dash-chart-card" aria-label="Grafica financiera">
+      <div class="dash-section-head">
+        <h2>Comportamiento Financiero</h2>
+      </div>
+      <div class="dash-chart-wrap">
+        <canvas id="graficaFinanzas" aria-label="Grafica de entradas y salidas"></canvas>
+      </div>
+    </section>
+
+    <section class="dash-intelligence-grid" aria-label="Inteligencia de negocio">
+      <article class="dash-card dash-list-card">
+        <div class="dash-section-head">
+          <h2>Top 5 Mas Vendidos</h2>
+        </div>
+        <ul id="lista-top-ventas" class="dash-list"></ul>
+      </article>
+
+      <article class="dash-card dash-list-card">
+        <div class="dash-section-head">
+          <h2>Alertas de Stock</h2>
+        </div>
+        <ul id="lista-stock-bajo" class="dash-list"></ul>
+      </article>
+    </section>
+
+    <section class="dash-card dash-operations-card" aria-label="Gestion de operaciones">
+      <div class="dash-operations-row">
         <div>
-          <h1 class="dash-title">{% if rol == 'Admin' %}Panel de Control{% else %}Resumen del Negocio{% endif %}</h1>
-          <p class="dash-subtitle">Panel de control - <span id="dash-date"></span></p>
+          <h2>Gestion de Operaciones</h2>
+          <p class="dash-operations-status">Turno actual: <span id="estado-turno">Sin iniciar</span></p>
         </div>
-        <div class="pill-bar-wrap">
-          <div class="pill-bar" role="group" aria-label="Filtro de tiempo">
-            <button class="pill {% if filtro_activo == 'dia' %}active{% endif %}" data-filter="dia" type="button">Dia</button>
-            <button class="pill {% if filtro_activo == 'semana' %}active{% endif %}" data-filter="semana" type="button">Semana</button>
-            <button class="pill {% if filtro_activo == 'mes' %}active{% endif %}" data-filter="mes" type="button">Mes</button>
-            <button class="pill {% if filtro_activo == 'semestre' %}active{% endif %}" data-filter="semestre" type="button">Semestre</button>
-            <button class="pill {% if filtro_activo == 'anio' %}active{% endif %}" data-filter="anio" type="button">Ano</button>
-          </div>
-        </div>
-      </header>
-
-      {% set ventas_val = dashboard.kpis.ventas or 0 %}
-      {% set gastos_val = dashboard.kpis.gastos or 0 %}
-      {% set balance_val = ventas_val - gastos_val %}
-
-      <section aria-label="Indicadores principales">
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div class="bg-white rounded-[2rem] p-6 shadow-sm border border-gray-100">
-            <div class="text-sm text-slate-500 font-semibold">Ventas Totales</div>
-            <div class="text-3xl font-extrabold text-slate-900 mt-2">$ {{ "{:,.0f}".format(ventas_val).replace(',', '.') }}</div>
-          </div>
-          <div class="bg-white rounded-[2rem] p-6 shadow-sm border border-gray-100">
-            <div class="text-sm text-slate-500 font-semibold">Gastos Totales</div>
-            <div class="text-3xl font-extrabold text-red-600 mt-2">$ {{ "{:,.0f}".format(gastos_val).replace(',', '.') }}</div>
-          </div>
-          <div class="bg-white rounded-[2rem] p-6 shadow-sm border border-gray-100">
-            <div class="text-sm text-slate-500 font-semibold">Balance</div>
-            <div class="text-3xl font-extrabold text-slate-900 mt-2">$ {{ "{:,.0f}".format(balance_val).replace(',', '.') }}</div>
-          </div>
-        </div>
-      </section>
-
-      <section aria-label="Grafico comparativo de ingresos y gastos">
-        <div class="chart-card">
-          <div class="ranking-header chart-header">
-            <i class="fa-solid fa-chart-column ranking-icon ranking-icon-blue"></i>
-            <span class="ranking-title">Ingresos vs Gastos</span>
-            <span class="ranking-sub">{{ filtro_activo|capitalize }}</span>
-          </div>
-          <div class="chart-wrap">
-            <canvas id="ventas-chart" height="120"></canvas>
-          </div>
-        </div>
-      </section>
-
-      {% if session.get('rol') == 'Admin' %}
-      <section aria-label="Panel de administrador" class="space-y-4">
-        <h2 class="text-xl font-extrabold text-slate-900">Gestion Administrativa</h2>
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div class="bg-white rounded-[2rem] p-6 shadow-sm border border-gray-100 space-y-4">
-            <div>
-              <div class="text-lg font-bold text-slate-900">Gestion de Usuarios</div>
-              <p class="text-sm text-slate-500">Crea y administra el acceso de tu equipo.</p>
-            </div>
-            <button type="button" id="btn-abrir-crear-usuario" class="dash-create-user-btn">
-              <i class="fa-solid fa-user-plus"></i>
-              Crear Usuario
-            </button>
-          </div>
-          <div class="bg-white rounded-[2rem] p-6 shadow-sm border border-gray-100 space-y-4">
-            <div>
-              <div class="text-lg font-bold text-slate-900">Inventario</div>
-              <p class="text-sm text-slate-500">Revisa productos, stock y movimientos.</p>
-            </div>
-            <a href="/inventario" class="dash-create-user-btn">
-              <i class="fa-solid fa-boxes-stacked"></i>
-              Ver Inventario
-            </a>
-          </div>
-          <div class="bg-white rounded-[2rem] p-6 shadow-sm border border-gray-100 space-y-4">
-            <div>
-              <div class="text-lg font-bold text-slate-900">Gastos</div>
-              <p class="text-sm text-slate-500">Controla salidas y medios de pago.</p>
-            </div>
-            <a href="{{ url_for('sales_bp.gastos') }}" class="dash-create-user-btn">
-              <i class="fa-solid fa-receipt"></i>
-              Ver Gastos
-            </a>
-          </div>
-        </div>
-      </section>
-      {% endif %}
-    </div>
-  </div>
+        <button type="button" id="btn-crear-cajero" class="dash-primary-btn">
+          <i class="fa-solid fa-user-plus" aria-hidden="true"></i>
+          Crear Nuevo Cajero
+        </button>
+      </div>
+    </section>
+  </main>
 
   <nav class="bottom-bar" role="navigation" aria-label="Navegacion principal">
     <a href="{{ url_for('sales_bp.ventas') }}" class="bottom-btn{% if request.path.startswith('/pos/ventas') %} active{% endif %}"{% if request.path.startswith('/pos/ventas') %} aria-current="page"{% endif %} aria-label="Ventas">
       <i class="fa-solid fa-file-invoice-dollar"></i>
       <span>Ventas</span>
     </a>
-
     <a href="{{ url_for('sales_bp.caja') }}" class="bottom-btn{% if request.path.startswith('/pos/caja') %} active{% endif %}"{% if request.path.startswith('/pos/caja') %} aria-current="page"{% endif %} aria-label="Caja">
       <i class="fa-solid fa-cash-register"></i>
       <span>Caja</span>
     </a>
-
     <a href="/inventario" class="bottom-btn{% if request.path.startswith('/inventario') %} active{% endif %}"{% if request.path.startswith('/inventario') %} aria-current="page"{% endif %} aria-label="Inventario">
       <i class="fa-solid fa-boxes-stacked"></i>
       <span>Inventario</span>
     </a>
-
-    <button type="button" class="bottom-btn bottom-more-toggle{% if request.path.startswith('/pos/turno') or request.path == '/perfil' %} active{% endif %}" aria-label="Mas opciones" aria-controls="bottom-more-panel" aria-expanded="false">
-      <i class="fa-solid fa-ellipsis"></i>
-      <span>Mas</span>
-    </button>
   </nav>
-
-  <div id="bottom-more-panel" class="bottom-more-panel" hidden>
-    <a href="{{ url_for('sales_bp.turno') }}" class="bottom-more-link{% if request.path.startswith('/pos/turno') %} active{% endif %}">
-      <i class="fa-solid fa-business-time"></i>
-      <span>Mi Turno</span>
-    </a>
-    <a href="/perfil" class="bottom-more-link{% if request.path == '/perfil' %} active{% endif %}">
-      <i class="fa-solid fa-circle-user"></i>
-      <span>Mi Perfil</span>
-    </a>
-  </div>
-</div>
-
-<div id="modal-crear-usuario"
-     class="hidden cu-modal"
-     role="dialog" aria-modal="true" aria-labelledby="modal-cu-titulo">
-  <div id="modal-cu-overlay" class="cu-overlay"></div>
-  <div class="cu-card">
-    <div class="cu-modal-header">
-      <div>
-        <p id="modal-cu-titulo" class="cu-modal-title">Crear Usuario</p>
-        <p class="cu-modal-subtitle">Completa los datos del nuevo integrante.</p>
-      </div>
-      <button type="button" id="btn-cerrar-modal-cu" class="cu-close-btn" aria-label="Cerrar">
-        <img src="/static/img/equis.png" alt="Cerrar" class="cu-close-icon" />
-      </button>
-    </div>
-
-    <form id="form-crear-usuario" novalidate class="cu-form">
-      <div>
-        <label class="cu-label" for="cu-nombre">Nombre completo</label>
-        <div class="cu-field-wrap">
-          <span class="cu-field-icon">
-            <i class="fa-solid fa-user"></i>
-          </span>
-          <input id="cu-nombre" name="nombre" type="text" autocomplete="off"
-                 placeholder="Ej. Maria Garcia"
-                 class="cu-input" />
-        </div>
-      </div>
-
-      <div>
-        <label class="cu-label" for="cu-cedula">Cedula / NIT <span class="cu-label-opt">(opcional)</span></label>
-        <div class="cu-field-wrap">
-          <span class="cu-field-icon">
-            <i class="fa-solid fa-id-card"></i>
-          </span>
-          <input id="cu-cedula" name="cedula" type="text" autocomplete="off"
-                 placeholder="Ej. 1001234567"
-                 class="cu-input" />
-        </div>
-      </div>
-
-      <div>
-        <label class="cu-label" for="cu-telefono">Telefono <span class="cu-label-opt">(opcional)</span></label>
-        <div class="cu-field-wrap">
-          <span class="cu-field-icon">
-            <i class="fa-solid fa-phone"></i>
-          </span>
-          <input id="cu-telefono" name="telefono" type="tel" autocomplete="off" inputmode="numeric"
-                 placeholder="Ej. 310 456 7890"
-                 class="cu-input" />
-        </div>
-      </div>
-
-      <div>
-        <label class="cu-label" for="cu-correo">Correo electronico</label>
-        <div class="cu-field-wrap">
-          <span class="cu-field-icon">
-            <i class="fa-solid fa-envelope"></i>
-          </span>
-          <input id="cu-correo" name="correo" type="email" autocomplete="off" inputmode="email"
-                 placeholder="correo@ejemplo.com"
-                 class="cu-input" />
-        </div>
-      </div>
-
-      {% if rol == 'Master' %}
-      <div>
-        <label class="cu-label" for="cu-rol">Rol del usuario</label>
-        <div class="cu-field-wrap">
-          <span class="cu-field-icon">
-            <i class="fa-solid fa-shield-halved"></i>
-          </span>
-          <select id="cu-rol" name="rol" class="cu-input cu-select">
-            <option value="Cajero">Cajero</option>
-            <option value="Admin">Administrador</option>
-            <option value="Master">Master</option>
-          </select>
-        </div>
-      </div>
-
-      <div id="cu-negocio-wrap" class="cu-hidden-block">
-        <label class="cu-label" for="cu-negocio">Nombre del Negocio / Local</label>
-        <div class="cu-field-wrap">
-          <span class="cu-field-icon">
-            <i class="fa-solid fa-store"></i>
-          </span>
-          <input id="cu-negocio" name="nombre_negocio" type="text" autocomplete="off"
-                 placeholder="Ej. Tienda La Esperanza"
-                 class="cu-input" />
-        </div>
-      </div>
-
-      <div id="cu-tienda-wrap" class="cu-hidden-block">
-        <label class="cu-label" for="cu-tienda-search">Asignar a Tienda</label>
-        <div class="cu-field-wrap">
-          <span class="cu-field-icon cu-z1">
-            <i class="fa-solid fa-shop"></i>
-          </span>
-          <input id="cu-tienda-search" type="text" autocomplete="off"
-                 placeholder="Busca por nombre de tienda..."
-                 class="cu-input" />
-          <div id="cu-tienda-dropdown" class="cu-dropdown"></div>
-        </div>
-        <input type="hidden" id="cu-tienda-id" />
-      </div>
-      {% endif %}
-
-      <div>
-        <label class="cu-label" for="cu-password">Contrasena</label>
-        <div class="cu-field-wrap">
-          <span class="cu-field-icon">
-            <i class="fa-solid fa-lock"></i>
-          </span>
-          <input id="cu-password" name="password" type="password" autocomplete="new-password"
-                 placeholder="Min. 8 caracteres"
-                 class="cu-input cu-input-pwd" />
-          <button type="button" id="cu-toggle-pwd" class="cu-toggle-btn" aria-label="Mostrar contrasena">
-            <i id="cu-eye-icon" class="fa-solid fa-eye cu-eye-icon"></i>
-          </button>
-        </div>
-        <ul class="cu-checklist">
-          <li class="cu-check-item" id="chk-length">
-            <i class="fa-solid fa-circle cu-check-icon"></i>
-            <span class="cu-check-text">8+ caracteres</span>
-          </li>
-          <li class="cu-check-item" id="chk-upper">
-            <i class="fa-solid fa-circle cu-check-icon"></i>
-            <span class="cu-check-text">Mayuscula</span>
-          </li>
-          <li class="cu-check-item" id="chk-lower">
-            <i class="fa-solid fa-circle cu-check-icon"></i>
-            <span class="cu-check-text">Minuscula</span>
-          </li>
-          <li class="cu-check-item" id="chk-number">
-            <i class="fa-solid fa-circle cu-check-icon"></i>
-            <span class="cu-check-text">Numero</span>
-          </li>
-        </ul>
-      </div>
-
-      <div>
-        <label class="cu-label" for="cu-confirm">Confirmar contrasena</label>
-        <div class="cu-field-wrap">
-          <span class="cu-field-icon">
-            <i class="fa-solid fa-lock"></i>
-          </span>
-          <input id="cu-confirm" name="confirm_password" type="password" autocomplete="new-password"
-                 placeholder="Repite la contrasena"
-                 class="cu-input" />
-        </div>
-      </div>
-
-      <div id="cu-error-box" class="cu-error-box" role="alert">
-        <i class="fa-solid fa-circle-exclamation cu-error-icon"></i>
-        <span id="cu-error-msg"></span>
-      </div>
-
-      <button type="submit" id="btn-cu-submit" class="cu-submit-btn cu-submit-full">
-        <i class="fa-solid fa-user-plus"></i>
-        Crear Usuario
-      </button>
-    </form>
-  </div>
 </div>
 
 <script src="/static/js/logout.js"></script>
-<script type="application/json" id="dash-filter-data">{{ filtro_activo | tojson }}</script>
-<script type="application/json" id="dash-chart-data">{{ dashboard.chart | tojson }}</script>
-<script src="/static/js/cop-format.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="/static/js/dashboard.js"></script>
-<script src="/static/js/dashboard-modal.js"></script>
-
 <div id="app-context"
      data-user-rol="{{ rol }}"
      data-subs-alerta='{{ mostrar_alerta_suscripcion | tojson }}'
@@ -392,7 +187,6 @@
 <script src="/static/js/subs-context.js"></script>
 <script src="/static/js/nav-rbac.js"></script>
 <script src="/static/js/subs-modal.js"></script>
-
 </body>
 </html>
 

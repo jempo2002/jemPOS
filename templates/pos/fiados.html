@@ -73,10 +73,12 @@
         <i class="fa-solid fa-receipt"></i>
         <span>Gastos</span>
       </a>
+      {% if (session.get('rol') or '')|lower == 'admin' %}
       <a href="/perfil" class="nav-link">
         <i class="fa-solid fa-circle-user"></i>
         <span>Mi Perfil</span>
       </a>
+      {% endif %}
     </nav>
 
     <a href="{{ url_for('auth.logout') }}" class="sidebar-logout no-underline hover:no-underline">
@@ -186,11 +188,6 @@
     </div>
   </div>
 
-  <button class="fiad-fab" id="btn-new-abono" type="button" data-fab-smart aria-label="Nuevo abono">
-    <i class="fa-solid fa-circle-minus"></i>
-    <span class="fab-label">+ Nuevo</span>
-  </button>
-
   <nav class="bottom-bar" role="navigation" aria-label="Navegacion principal">
       <a href="{{ url_for('sales_bp.ventas') }}" class="bottom-btn{% if request.path.startswith('/pos/ventas') %} active{% endif %}"{% if request.path.startswith('/pos/ventas') %} aria-current="page"{% endif %} aria-label="Ventas">
         <i class="fa-solid fa-file-invoice-dollar"></i>
@@ -224,24 +221,6 @@
       </a>
     </div>
 
-</div>
-
-<div class="fiad-backdrop hidden" id="modal-abono-picker" role="dialog" aria-modal="true" aria-labelledby="modal-abono-picker-title">
-  <div class="fiad-modal-card fiad-picker-card">
-    <div class="fiad-modal-header">
-      <span class="fiad-modal-title" id="modal-abono-picker-title">Nuevo Abono</span>
-      <button class="fiad-modal-close" data-close="modal-abono-picker" type="button" aria-label="Cerrar">
-        <img src="/static/img/equis.png" alt="Cerrar" />
-      </button>
-    </div>
-    <div class="fiad-modal-body">
-      <p class="fiad-picker-help">Selecciona un cliente con deuda para registrar el abono.</p>
-      <div id="fiad-abono-pick-list" class="fiad-picker-list"></div>
-    </div>
-    <div class="fiad-modal-footer">
-      <button class="btn-fiad-cancel" data-close="modal-abono-picker" type="button">Cancelar</button>
-    </div>
-  </div>
 </div>
 
 <div class="fiad-backdrop hidden" id="modal-add" role="dialog" aria-modal="true" aria-labelledby="modal-add-title">

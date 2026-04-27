@@ -16,7 +16,23 @@ from app.utils.helpers import avatar_iniciales
 
 csrf = CSRFProtect()
 server_session = Session()
-limiter = Limiter(key_func=get_remote_address, default_limits=[])
+limiter = Limiter(
+    key_func=get_remote_address,
+    default_limits=["200 per day", "50 per hour"],
+)
+
+def _required_env(name: str, allow_empty: bool = False) -> str:
+    value = os.getenv(name)
+    if value is None or (not allow_empty and value.strip() == ""):
+        raise RuntimeError(f"Missing required environment variable: {name}")
+    return value
+
+
+def _required_int_env(name: str) -> int:
+    raw = _required_env(name)
+    if not raw.strip().isdigit():
+        raise RuntimeError(f"Invalid integer for environment variable: {name}")
+    return int(raw)
 
 
 def create_app() -> Flask:
@@ -35,18 +51,18 @@ def create_app() -> Flask:
     )
 
     app.config.update(
-        SECRET_KEY=os.environ["SECRET_KEY"],
+        SECRET_KEY=_required_env("SECRET_KEY"),
         SESSION_COOKIE_HTTPONLY=True,
         SESSION_COOKIE_SAMESITE="Lax",
         PERMANENT_SESSION_LIFETIME=timedelta(minutes=45),
-        SESSION_TYPE=os.environ.get("SESSION_TYPE", "filesystem"),
+        SESSION_TYPE=_required_env("SESSION_TYPE"),
         SESSION_PERMANENT=False,
         SESSION_USE_SIGNER=True,
-        DB_HOST=os.environ.get("DB_HOST", "127.0.0.1"),
-        DB_PORT=int(os.environ.get("DB_PORT", 3306)),
-        DB_USER=os.environ.get("DB_USER", "root"),
-        DB_PASSWORD=os.environ.get("DB_PASSWORD", ""),
-        DB_NAME=os.environ.get("DB_NAME", "jempos"),
+        DB_HOST=_required_env("DB_HOST"),
+        DB_PORT=_required_int_env("DB_PORT"),
+        DB_USER=_required_env("DB_USER"),
+        DB_PASSWORD=_required_env("DB_PASSWORD", allow_empty=True),
+        DB_NAME=_required_env("DB_NAME"),
     )
 
     csrf.init_app(app)
@@ -73,5 +89,17 @@ def create_app() -> Flask:
     @app.get("/health")
     def health() -> tuple[dict, int]:
         return {"ok": True, "app": "jemPOS", "mode": "factory-ready"}, 200
+
+    @app.errorhandler(429)
+    def rate_limit_exceeded(_err):
+        return (
+            jsonify(
+                {
+                    "ok": False,
+                    "msg": "Demasiadas solicitudes. Espera un momento e intenta de nuevo.",
+                }
+            ),
+            429,
+        )
 
     return app

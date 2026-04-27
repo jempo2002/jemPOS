@@ -18,17 +18,19 @@ from app.services.auth_service import (
     send_recovery_email,
 )
 from app.utils.decorators import login_required
+from app.utils.validation import sanitize_optional_text, sanitize_text
 from database import get_db
 
 auth = Blueprint("auth", __name__)
+LOGIN_RATE_LIMIT = "5 per minute"
 
 
 @auth.route("/login", methods=["GET", "POST"])
-@limiter.limit("5 per minute", methods=["POST"])
+@limiter.limit(LOGIN_RATE_LIMIT, methods=["POST"])
 def login():
     if request.method == "GET":
         if "id_usuario" in session:
-            redirect_url = resolve_post_login_redirect(session.get("rol", ""), session.get("id_tienda"))
+            redirect_url = resolve_post_login_redirect(session.get("rol", ""))
             return redirect(redirect_url)
         return render_template("auth/login.html")
 
@@ -40,6 +42,16 @@ def login():
         if request.is_json:
             return jsonify({"ok": False, "msg": "Correo y contrasena son requeridos."}), 400
         flash("Correo y contrasena son requeridos.", "error")
+        return redirect(url_for("auth.login"))
+    if len(correo) > 150 or not is_valid_email(correo):
+        if request.is_json:
+            return jsonify({"ok": False, "msg": "Correo invalido."}), 400
+        flash("Correo invalido.", "error")
+        return redirect(url_for("auth.login"))
+    if len(contrasena) > 128:
+        if request.is_json:
+            return jsonify({"ok": False, "msg": "La contrasena supera el maximo permitido."}), 400
+        flash("La contrasena supera el maximo permitido.", "error")
         return redirect(url_for("auth.login"))
 
     conn = get_db()
@@ -76,7 +88,11 @@ def login():
         return redirect(url_for("auth.login"))
 
     initialize_user_session(session, user)
-    redirect_url = resolve_post_login_redirect(user["rol"], user.get("id_tienda"))
+    # Admin must always land on dashboard after login.
+    if str(user.get("rol") or "").strip().lower() == "admin":
+        redirect_url = "/dashboard"
+    else:
+        redirect_url = resolve_post_login_redirect(user["rol"])
 
     if request.is_json:
         return jsonify({"ok": True, "redirect": redirect_url})
@@ -90,6 +106,7 @@ def logout():
 
 
 @auth.route("/api/auth/login", methods=["POST"])
+@limiter.limit(LOGIN_RATE_LIMIT)
 def api_login():
     return login()
 
@@ -106,10 +123,19 @@ def registro():
     if request.method == "GET":
         return render_template("auth/registro.html")
 
-    nombre_dueno = str(request.form.get("nombre_dueno", "")).strip()
-    nombre_negocio = str(request.form.get("nombre_negocio", "")).strip()
-    nit = str(request.form.get("nit", "")).strip() or None
-    telefono = re.sub(r"\D", "", str(request.form.get("telefono", "")).strip())[:10] or None
+    try:
+        nombre_dueno = sanitize_text(request.form.get("nombre_dueno"), "Nombre del dueno", max_len=150)
+        nombre_negocio = sanitize_text(request.form.get("nombre_negocio"), "Nombre del negocio", max_len=150)
+        nit = sanitize_optional_text(request.form.get("nit"), "NIT", max_len=30)
+    except ValueError as exc:
+        flash(str(exc), "error")
+        return redirect(url_for("auth.registro"))
+
+    telefono_raw = re.sub(r"\D", "", str(request.form.get("telefono", "")).strip())
+    if telefono_raw and len(telefono_raw) > 25:
+        flash("El telefono no puede superar 25 digitos.", "error")
+        return redirect(url_for("auth.registro"))
+    telefono = telefono_raw or None
     correo = str(request.form.get("correo", "")).strip().lower()
     contrasena = str(request.form.get("contrasena", ""))
     acepta_terminos = bool(request.form.get("acepta_terminos"))
@@ -117,8 +143,11 @@ def registro():
     if not nombre_dueno or not nombre_negocio:
         flash("Nombre del dueno y nombre del negocio son requeridos.", "error")
         return redirect(url_for("auth.registro"))
-    if not correo or not is_valid_email(correo):
+    if not correo or len(correo) > 150 or not is_valid_email(correo):
         flash("Debes ingresar un correo valido.", "error")
+        return redirect(url_for("auth.registro"))
+    if len(contrasena) > 128:
+        flash("La contrasena supera el maximo permitido.", "error")
         return redirect(url_for("auth.registro"))
     pwd_error = first_password_policy_error(contrasena)
     if pwd_error:
@@ -160,17 +189,18 @@ def registro():
 
 
 @auth.route("/olvide_password", methods=["GET", "POST"])
+@auth.route("/olvide-password", methods=["GET", "POST"])
 def olvide_password():
     if request.method == "POST":
         correo = str(request.form.get("correo", "")).strip().lower()
         if correo:
+            if len(correo) > 150 or not is_valid_email(correo):
+                flash("Debes ingresar un correo valido.", "error")
+                return redirect(url_for("auth.olvide_password"))
             conn = get_db()
             try:
                 cur = conn.cursor(dictionary=True)
-                cur.execute(
-                    "SELECT correo FROM usuarios WHERE correo = %s LIMIT 1",
-                    (correo,),
-                )
+                cur.execute("SELECT correo FROM usuarios WHERE correo = %s LIMIT 1", (correo,))
                 user = cur.fetchone()
             finally:
                 conn.close()
@@ -178,7 +208,9 @@ def olvide_password():
             if user:
                 token = create_reset_token(current_app.secret_key, correo)
                 enlace = url_for("auth.reset_password", token=token, _external=True)
-                send_recovery_email(correo, enlace)
+                if not send_recovery_email(correo, enlace):
+                    flash("No fue posible enviar el correo de recuperacion. Intenta de nuevo.", "error")
+                    return redirect(url_for("auth.olvide_password"))
 
         flash("Si el correo existe, recibiras un enlace de recuperacion.", "success")
         return redirect(url_for("auth.olvide_password"))
@@ -187,11 +219,31 @@ def olvide_password():
 
 
 @auth.route("/reset_password/<token>", methods=["GET", "POST"])
+@auth.route("/reset-password/<token>", methods=["GET", "POST"])
 def reset_password(token):
     try:
         correo = decode_reset_token(current_app.secret_key, token)
     except (SignatureExpired, BadSignature):
-        flash("El enlace de recuperacion es invalido o ha expirado.", "error")
+        flash("Enlace inválido o expirado", "error")
+        return redirect(url_for("auth.login"))
+
+    if not correo:
+        flash("Enlace inválido o expirado", "error")
+        return redirect(url_for("auth.login"))
+
+    conn = get_db()
+    try:
+        cur = conn.cursor(dictionary=True)
+        cur.execute(
+            "SELECT id_usuario, correo, estado_activo FROM usuarios WHERE correo = %s LIMIT 1",
+            (correo,),
+        )
+        user = cur.fetchone()
+    finally:
+        conn.close()
+
+    if not user or not user.get("estado_activo"):
+        flash("Enlace inválido o expirado", "error")
         return redirect(url_for("auth.login"))
 
     if request.method == "POST":
@@ -200,6 +252,9 @@ def reset_password(token):
 
         if password != confirm:
             flash("Las contrasenas no coinciden.", "error")
+            return redirect(url_for("auth.reset_password", token=token))
+        if len(password) > 128:
+            flash("La contrasena supera el maximo permitido.", "error")
             return redirect(url_for("auth.reset_password", token=token))
         pwd_error = first_password_policy_error(password)
         if pwd_error:
@@ -210,8 +265,8 @@ def reset_password(token):
         try:
             cur = conn.cursor()
             cur.execute(
-                "UPDATE usuarios SET clave_hash = %s WHERE correo = %s",
-                (generate_password_hash(password), correo),
+                "UPDATE usuarios SET clave_hash = %s WHERE id_usuario = %s AND correo = %s",
+                (generate_password_hash(password), user["id_usuario"], user["correo"]),
             )
             conn.commit()
         finally:

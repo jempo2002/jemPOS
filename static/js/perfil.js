@@ -19,6 +19,8 @@ const inpNegocio     = document.getElementById('inp-negocio');
 const inpTelefono    = document.getElementById('inp-telefono');
 const inpCorreo      = document.getElementById('inp-correo');
 const inpRol         = document.getElementById('inp-rol');
+const btnTogglePassword = document.getElementById('btn-toggle-password');
+const passwordFields = document.getElementById('password-fields');
 
 const perfDisplayName = document.getElementById('perf-display-name');
 
@@ -204,6 +206,18 @@ async function initPerfil() {
   }
 }
 initPerfil();
+
+/* ── Toggle panel de cambio de contrasena ────────────────── */
+if (btnTogglePassword && passwordFields) {
+  btnTogglePassword.addEventListener('click', () => {
+    const isOpen = passwordFields.classList.toggle('is-open');
+    passwordFields.setAttribute('aria-hidden', String(!isOpen));
+    btnTogglePassword.setAttribute('aria-expanded', String(isOpen));
+    btnTogglePassword.innerHTML = isOpen
+      ? '<i class="fa-solid fa-chevron-up"></i> Ocultar Contrasena'
+      : '<i class="fa-solid fa-key"></i> Modificar Contrasena';
+  });
+}
 
 /* ── Guardar cambios ─────────────────────────────────────── */
 form.addEventListener('submit', async (e) => {

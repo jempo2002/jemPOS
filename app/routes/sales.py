@@ -121,6 +121,8 @@ def api_turno_abrir():
     try:
         turno_id = abrir_turno(int(session["id_tienda"]), int(session["id_usuario"]), monto)
         return jsonify({"ok": True, "id_turno": turno_id})
+    except SalesValidationError as exc:
+        return jsonify({"ok": False, "msg": str(exc)}), 400
     except SalesConflictError as exc:
         return jsonify({"ok": False, "msg": str(exc)}), 409
 
@@ -140,6 +142,8 @@ def api_turno_cerrar():
     try:
         cerrar_turno(int(session["id_tienda"]), int(session["id_usuario"]), monto_final)
         return jsonify({"ok": True})
+    except SalesValidationError as exc:
+        return jsonify({"ok": False, "msg": str(exc)}), 400
     except SalesNotFoundError as exc:
         return jsonify({"ok": False, "msg": str(exc)}), 404
 
@@ -223,10 +227,10 @@ def api_fiados_crear_cliente():
         return jsonify({"ok": False, "msg": "El nombre es requerido."}), 400
     if not telefono:
         return jsonify({"ok": False, "msg": "El telefono es requerido."}), 400
-    if len(telefono) > 10:
-        return jsonify({"ok": False, "msg": "El telefono debe tener maximo 10 digitos."}), 400
-    if len(telefono) < 10:
-        return jsonify({"ok": False, "msg": "El telefono debe tener 10 digitos."}), 400
+    if len(telefono) > 25:
+        return jsonify({"ok": False, "msg": "El telefono debe tener maximo 25 digitos."}), 400
+    if len(telefono) < 7:
+        return jsonify({"ok": False, "msg": "El telefono debe tener al menos 7 digitos."}), 400
     if deuda_inicial < 0:
         return jsonify({"ok": False, "msg": "La deuda inicial no puede ser negativa."}), 400
 
@@ -239,6 +243,8 @@ def api_fiados_crear_cliente():
             deuda_inicial,
         )
         return jsonify({"ok": True, "id": nuevo_id})
+    except SalesValidationError as exc:
+        return jsonify({"ok": False, "msg": str(exc)}), 400
     except SalesConflictError as exc:
         return jsonify({"ok": False, "msg": str(exc)}), 409
 
@@ -260,6 +266,8 @@ def api_fiados_sumar(id_cliente: int):
     try:
         sumar_fiado(int(session["id_tienda"]), int(session["id_usuario"]), int(id_cliente), monto, concepto)
         return jsonify({"ok": True})
+    except SalesValidationError as exc:
+        return jsonify({"ok": False, "msg": str(exc)}), 400
     except SalesNotFoundError as exc:
         return jsonify({"ok": False, "msg": str(exc)}), 404
     except SalesConflictError as exc:
@@ -340,5 +348,7 @@ def api_gastos_crear():
             monto,
         )
         return jsonify({"ok": True, "id": nuevo_id})
+    except SalesValidationError as exc:
+        return jsonify({"ok": False, "msg": str(exc)}), 400
     except SalesConflictError as exc:
         return jsonify({"ok": False, "msg": str(exc)}), 409

@@ -1,0 +1,15 @@
+/* Ruta: static/css/perfil-toggle.css */
+
+.perf-password-panel {
+  max-height: 0;
+  opacity: 0;
+  overflow: hidden;
+  transform: translateY(-8px);
+  transition: max-height 0.28s ease, opacity 0.22s ease, transform 0.22s ease;
+}
+
+.perf-password-panel.is-open {
+  max-height: 520px;
+  opacity: 1;
+  transform: translateY(0);
+}

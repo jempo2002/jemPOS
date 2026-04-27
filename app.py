@@ -9,6 +9,7 @@ from dotenv import load_dotenv
 from flask import Flask, jsonify, redirect, session, url_for
 from flask_wtf.csrf import CSRFProtect
 
+from app import limiter
 from app.routes.auth import auth
 from app.routes.core import core_bp
 from app.routes.inventory import inventory_api_bp, inventory_bp
@@ -17,20 +18,35 @@ from database import init_pool
 
 load_dotenv()
 
+def _required_env(name: str, allow_empty: bool = False) -> str:
+    value = os.getenv(name)
+    if value is None or (not allow_empty and value.strip() == ""):
+        raise RuntimeError(f"Missing required environment variable: {name}")
+    return value
+
+
+def _required_int_env(name: str) -> int:
+    raw = _required_env(name)
+    if not raw.strip().isdigit():
+        raise RuntimeError(f"Invalid integer for environment variable: {name}")
+    return int(raw)
+
+
 app = Flask(__name__)
 app.config.update(
-    SECRET_KEY=os.environ["SECRET_KEY"],
+    SECRET_KEY=_required_env("SECRET_KEY"),
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE="Lax",
     PERMANENT_SESSION_LIFETIME=timedelta(minutes=45),
-    DB_HOST=os.environ.get("DB_HOST", "127.0.0.1"),
-    DB_PORT=int(os.environ.get("DB_PORT", 3306)),
-    DB_USER=os.environ.get("DB_USER", "root"),
-    DB_PASSWORD=os.environ.get("DB_PASSWORD", ""),
-    DB_NAME=os.environ.get("DB_NAME", "jempos"),
+    DB_HOST=_required_env("DB_HOST"),
+    DB_PORT=_required_int_env("DB_PORT"),
+    DB_USER=_required_env("DB_USER"),
+    DB_PASSWORD=_required_env("DB_PASSWORD", allow_empty=True),
+    DB_NAME=_required_env("DB_NAME"),
 )
 
 csrf = CSRFProtect(app)
+limiter.init_app(app)
 
 app.register_blueprint(auth)
 app.register_blueprint(core_bp)
@@ -68,6 +84,16 @@ def not_found(_err):
 @app.errorhandler(500)
 def server_error(_err):
     return jsonify({"ok": False, "msg": "Error interno del servidor."}), 500
+
+
+@app.errorhandler(429)
+def rate_limit_exceeded(_err):
+    return (
+        jsonify(
+            {"ok": False, "msg": "Demasiadas solicitudes. Espera un momento e intenta de nuevo."}
+        ),
+        429,
+    )
 
 
 if __name__ == "__main__":

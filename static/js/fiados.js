@@ -46,14 +46,11 @@ document.addEventListener('DOMContentLoaded', () => {
   const emptyEl    = document.getElementById('fiad-empty');
   const statTotal  = document.getElementById('stat-total');
   const statCount  = document.getElementById('stat-count');
-  const btnNewAbono = document.getElementById('btn-new-abono');
 
   /* Modales */
   const modalAdd   = document.getElementById('modal-add');
   const modalAbono = document.getElementById('modal-abono');
   const modalSumar = document.getElementById('modal-sumar');
-  const modalAbonoPicker = document.getElementById('modal-abono-picker');
-  const fiadAbonoPickList = document.getElementById('fiad-abono-pick-list');
 
   /* Campos modal Nuevo Cliente */
   const addName    = document.getElementById('add-name');
@@ -274,18 +271,6 @@ document.addEventListener('DOMContentLoaded', () => {
     addName.focus();
   });
 
-  if (btnNewAbono) {
-    btnNewAbono.addEventListener('click', () => {
-      const debtors = clients.filter(c => Number(c.debt || 0) > 0);
-      if (!debtors.length) {
-        notify('No hay clientes con deuda pendiente para abonar.', 'info');
-        return;
-      }
-      renderAbonoPicker(debtors);
-      openModal(modalAbonoPicker);
-    });
-  }
-
   addPhone.addEventListener('input', () => {
     addPhone.value = addPhone.value.replace(/\D/g, '').slice(0, 10);
   });
@@ -332,36 +317,6 @@ document.addEventListener('DOMContentLoaded', () => {
     hideModalError();
     openModal(modalAbono);
     setTimeout(() => abonoAmount.focus(), 80);
-  }
-
-  function renderAbonoPicker(debtors) {
-    if (!fiadAbonoPickList) return;
-    if (!debtors.length) {
-      fiadAbonoPickList.innerHTML = '<p class="fiad-picker-empty">No hay deudas pendientes.</p>';
-      return;
-    }
-
-    fiadAbonoPickList.innerHTML = debtors
-      .sort((a, b) => Number(b.debt || 0) - Number(a.debt || 0))
-      .map(client => `
-        <button class="fiad-picker-item" type="button" data-client-id="${client.id}">
-          <span class="fiad-picker-item-name">${esc(client.name)}</span>
-          <span class="fiad-picker-item-debt">${formatoMoneda(client.debt)}</span>
-        </button>
-      `)
-      .join('');
-  }
-
-  if (fiadAbonoPickList) {
-    fiadAbonoPickList.addEventListener('click', (e) => {
-      const btn = e.target.closest('[data-client-id]');
-      if (!btn) return;
-      const id = Number(btn.dataset.clientId);
-      const client = clients.find(c => c.id === id);
-      if (!client) return;
-      closeModal(modalAbonoPicker);
-      openModalAbono(client);
-    });
   }
 
   function validarAbonoVisual(client, abono) {
@@ -480,7 +435,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   /* Clic fuera del card cierra el modal */
-  [modalAdd, modalAbono, modalSumar, modalAbonoPicker].forEach(m => {
+  [modalAdd, modalAbono, modalSumar].forEach(m => {
     m.addEventListener('click', e => {
       if (e.target === m) closeModal(m);
     });
@@ -489,7 +444,7 @@ document.addEventListener('DOMContentLoaded', () => {
   /* Escape cierra el modal visible */
   document.addEventListener('keydown', e => {
     if (e.key !== 'Escape') return;
-    [modalAdd, modalAbono, modalSumar, modalAbonoPicker].forEach(m => {
+    [modalAdd, modalAbono, modalSumar].forEach(m => {
       if (!m.classList.contains('hidden')) closeModal(m);
     });
   });

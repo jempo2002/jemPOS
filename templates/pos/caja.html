@@ -83,10 +83,12 @@
         <i class="fa-solid fa-receipt"></i>
         <span>Gastos</span>
       </a>
+      {% if (session.get('rol') or '')|lower == 'admin' %}
       <a href="/perfil" class="nav-link">
         <i class="fa-solid fa-circle-user"></i>
         <span>Mi Perfil</span>
       </a>
+      {% endif %}
     </nav>
 
     <!-- Usuario (pie del sidebar) -->
@@ -120,12 +122,11 @@
       <div class="search-wrap">
         <i class="fa-solid fa-barcode" aria-hidden="true"></i>
         <input
-          type="number"
+          type="text"
           id="search-input"
           class="search-input"
           placeholder="Buscar producto o escanear..."
-          inputmode="numeric"
-          pattern="[0-9]*"
+          inputmode="search"
           autocomplete="off"
           autocorrect="off"
           spellcheck="false"
@@ -136,8 +137,8 @@
 
     </header>
     <!-- /top-bar -->
-    <div class="pos-columns flex flex-col md:flex-row h-full gap-4">
-      <div class="left-col flex-1 bg-gray-50 rounded-3xl">
+    <div class="pos-container">
+      <div class="left-col">
 
         <!-- Cabecera del carrito -->
         <div class="cart-header cart-header-main">
@@ -161,7 +162,7 @@
 
       </div>
       <!-- /left-col -->
-      <aside class="payment-panel w-full md:w-96 bg-white rounded-[2rem] shadow-md border border-gray-100 p-6 flex flex-col justify-between h-full" aria-label="Panel de cobro">
+      <aside class="checkout-panel payment-panel" aria-label="Panel de cobro">
 
         <div class="payment-footer flex flex-col gap-4">
 
@@ -256,10 +257,10 @@
         </button>
 
       </aside>
-      <!-- /payment-panel -->
+      <!-- /checkout-panel -->
 
     </div>
-    <!-- /pos-columns -->
+    <!-- /pos-container -->
 
   </div>
   <!-- /main-area -->

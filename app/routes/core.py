@@ -17,8 +17,14 @@ from app.services.auth_service import (
     is_valid_email,
     update_profile_basic,
 )
+from app.services.sales_service import (
+    get_dashboard_financial_summary,
+    get_stock_alerts,
+    get_top_vendidos,
+)
 from app.utils.decorators import login_required, roles_required
-from app.utils.helpers import avatar_iniciales, fmt_money, normalize_phone
+from app.utils.helpers import avatar_iniciales, fmt_money, only_digits
+from app.utils.validation import parse_bool, parse_int, sanitize_optional_text, sanitize_text
 from database import get_db
 
 core_bp = Blueprint("core_bp", __name__)
@@ -176,11 +182,14 @@ def _registrar_auditoria(id_tienda, id_usuario, accion, detalles) -> None:
 
 
 def _dashboard_period_bounds(raw_filter: str):
-    filtro = (raw_filter or "dia").strip().lower()
+    filtro = (raw_filter or "hoy").strip().lower()
     aliases = {
         "hoy": "dia",
+        "day": "dia",
         "ano": "anio",
-        "ano": "anio",
+        "anio": "anio",
+        "año": "anio",
+        "year": "anio",
     }
     filtro = aliases.get(filtro, filtro)
     if filtro not in ("dia", "semana", "mes", "semestre", "anio"):
@@ -240,13 +249,12 @@ def _build_dashboard_data(id_tienda: int, raw_filter: str) -> dict:
             row = cur.fetchone() or {}
             return float(row.get("v") or 0)
 
-        ventas = scalar(
-            "SELECT COALESCE(SUM(v.total_final),0) AS v "
-            "FROM ventas v "
-            "WHERE v.id_tienda=%s AND v.estado_venta='Pagada' "
-            "AND v.fecha_creacion >= %s AND v.fecha_creacion < %s",
-            (id_tienda, since, until),
-        )
+        financials = get_dashboard_financial_summary(id_tienda, since, until)
+        ventas = float(financials.get("ventas") or 0)
+        gastos = float(financials.get("gastos") or 0)
+        chart_labels = financials.get("chart", {}).get("labels", [])
+        chart_ingresos = financials.get("chart", {}).get("ingresos", [])
+        chart_gastos = financials.get("chart", {}).get("gastos", [])
 
         ventas_prev = scalar(
             "SELECT COALESCE(SUM(v.total_final),0) AS v "
@@ -254,13 +262,6 @@ def _build_dashboard_data(id_tienda: int, raw_filter: str) -> dict:
             "WHERE v.id_tienda=%s AND v.estado_venta='Pagada' "
             "AND v.fecha_creacion >= %s AND v.fecha_creacion < %s",
             (id_tienda, prev_since, prev_until),
-        )
-
-        gastos = scalar(
-            "SELECT COALESCE(SUM(g.monto),0) AS v "
-            "FROM gastos_caja g "
-            "WHERE g.id_tienda=%s AND g.fecha_creacion >= %s AND g.fecha_creacion < %s",
-            (id_tienda, since, until),
         )
 
         ganancia_bruta = scalar(
@@ -299,23 +300,13 @@ def _build_dashboard_data(id_tienda: int, raw_filter: str) -> dict:
         else:
             ventas_badge = {"up": True, "text": "Sin datos anteriores"}
 
-        cur.execute(
-            "SELECT p.nombre, SUM(dv.cantidad) AS total_qty "
-            "FROM detalle_ventas dv "
-            "INNER JOIN ventas v ON dv.id_venta = v.id_venta "
-            "INNER JOIN productos p ON dv.id_producto = p.id_producto "
-            "WHERE v.id_tienda=%s AND v.estado_venta='Pagada' "
-            "AND v.fecha_creacion >= %s AND v.fecha_creacion < %s "
-            "GROUP BY dv.id_producto, p.nombre "
-            "ORDER BY total_qty DESC LIMIT 5",
-            (id_tienda, since, until),
-        )
         top_vendidos = [
             {
-                "name": r["nombre"],
-                "value": f"{int(float(r['total_qty'] or 0))} und",
+                "name": r["name"],
+                "value": f"{int(float(r['total'] or 0))} und",
+                "total": float(r["total"] or 0),
             }
-            for r in cur.fetchall()
+            for r in get_top_vendidos(id_tienda, since, until, limit=5)
         ]
 
         cur.execute(
@@ -338,38 +329,7 @@ def _build_dashboard_data(id_tienda: int, raw_filter: str) -> dict:
             for r in cur.fetchall()
         ]
 
-        cur.execute(
-            "SELECT DATE(v.fecha_creacion) AS d, COALESCE(SUM(v.total_final),0) AS total "
-            "FROM ventas v "
-            "WHERE v.id_tienda=%s AND v.estado_venta='Pagada' "
-            "AND v.fecha_creacion >= %s AND v.fecha_creacion < %s "
-            "GROUP BY DATE(v.fecha_creacion) "
-            "ORDER BY DATE(v.fecha_creacion)",
-            (id_tienda, since, until),
-        )
-        ingresos_por_dia = {r["d"]: float(r["total"] or 0) for r in cur.fetchall()}
-
-        cur.execute(
-            "SELECT DATE(g.fecha_creacion) AS d, COALESCE(SUM(g.monto),0) AS total "
-            "FROM gastos_caja g "
-            "WHERE g.id_tienda=%s "
-            "AND g.fecha_creacion >= %s AND g.fecha_creacion < %s "
-            "GROUP BY DATE(g.fecha_creacion) "
-            "ORDER BY DATE(g.fecha_creacion)",
-            (id_tienda, since, until),
-        )
-        gastos_por_dia = {r["d"]: float(r["total"] or 0) for r in cur.fetchall()}
-
-        chart_labels = []
-        chart_ingresos = []
-        chart_gastos = []
-        d = since.date()
-        end_day = until.date()
-        while d <= end_day:
-            chart_labels.append(d.strftime("%d/%m"))
-            chart_ingresos.append(ingresos_por_dia.get(d, 0.0))
-            chart_gastos.append(gastos_por_dia.get(d, 0.0))
-            d += timedelta(days=1)
+        stock_alertas = get_stock_alerts(id_tienda)
 
         cur.execute(
             "SELECT c.id_cliente, c.nombre, c.telefono, "
@@ -429,10 +389,10 @@ def _build_dashboard_data(id_tienda: int, raw_filter: str) -> dict:
     finally:
         conn.close()
 
-    return {
-        "filtro": filtro,
-        "kpis": {
-            "ventas": ventas,
+        return {
+            "filtro": filtro,
+            "kpis": {
+                "ventas": ventas,
             "ventas_fmt": fmt_money(ventas),
             "ganancia": ganancia_neta,
             "ganancia_fmt": fmt_money(ganancia_neta),
@@ -442,13 +402,14 @@ def _build_dashboard_data(id_tienda: int, raw_filter: str) -> dict:
             "fiados_fmt": fmt_money(cuentas_por_cobrar),
             "ventas_badge": ventas_badge,
         },
-        "chart": {
-            "labels": chart_labels,
-            "ingresos": chart_ingresos,
-            "gastos": chart_gastos,
-            "values": chart_ingresos,
-        },
-        "top_vendidos": top_vendidos,
+            "chart": {
+                "labels": chart_labels,
+                "ingresos": chart_ingresos,
+                "gastos": chart_gastos,
+                "values": chart_ingresos,
+            },
+            "stock_alertas": stock_alertas,
+            "top_vendidos": top_vendidos,
         "top_rentables": top_rentables,
         "cajeros_abiertos": cajeros_abiertos,
         "deudores": deudores,
@@ -456,6 +417,7 @@ def _build_dashboard_data(id_tienda: int, raw_filter: str) -> dict:
 
 
 @core_bp.route("/servicio-suspendido")
+@login_required
 def servicio_suspendido():
     nombre_negocio = ""
     if "id_tienda" in session:
@@ -481,7 +443,7 @@ def servicio_suspendido():
 @login_required
 @roles_required("Admin", "Master")
 def dashboard_page():
-    filtro = request.args.get("filtro", "hoy")
+    filtro = request.args.get("filter") or request.args.get("filtro") or "hoy"
     dashboard = _build_dashboard_data(session["id_tienda"], filtro)
     insumos_criticos = []
 
@@ -527,13 +489,6 @@ def perfil_page():
     return _render_protected("pos/perfil.html")
 
 
-@core_bp.route("/onboarding")
-@login_required
-@roles_required("Admin", "Master")
-def onboarding_page():
-    return _render_protected("pos/onboarding.html")
-
-
 @core_bp.route("/panel-master")
 @login_required
 @roles_required("Admin", "Master")
@@ -546,50 +501,6 @@ def panel_master_page():
         proximos_vencer=_get_master_proximos_vencer(),
         hoy=date.today(),
     )
-
-
-@core_bp.route("/api/onboarding", methods=["POST"])
-@login_required
-@roles_required("Admin", "Master")
-def api_onboarding():
-    data = request.get_json(silent=True) or {}
-    category = str(data.get("category", "")).strip()
-    product = str(data.get("product", "")).strip()
-    cost = data.get("cost")
-    sale = data.get("sale")
-    stock = data.get("stock", 0)
-
-    if not category:
-        return jsonify({"ok": False, "msg": "El nombre de la categoria es requerido."}), 400
-    if not product:
-        return jsonify({"ok": False, "msg": "El nombre del producto es requerido."}), 400
-
-    try:
-        cost = float(cost) if cost not in (None, "") else 0.0
-        sale = float(sale) if sale not in (None, "") else 0.0
-        stock = int(stock) if stock not in (None, "") else 0
-    except (ValueError, TypeError):
-        return jsonify({"ok": False, "msg": "Valores de precio o stock invalidos."}), 400
-
-    conn = get_db()
-    try:
-        cur = conn.cursor()
-        cur.execute(
-            "INSERT INTO categorias (id_tienda, nombre) VALUES (%s, %s)",
-            (session["id_tienda"], category),
-        )
-        id_cat = cur.lastrowid
-        cur.execute(
-            "INSERT INTO productos "
-            "(id_tienda, id_categoria, nombre, precio_costo, precio_venta, stock_actual) "
-            "VALUES (%s, %s, %s, %s, %s, %s)",
-            (session["id_tienda"], id_cat, product, cost, sale, stock),
-        )
-        conn.commit()
-    finally:
-        conn.close()
-
-    return jsonify({"ok": True, "redirect": "/dashboard"})
 
 
 @core_bp.route("/api/tiendas", methods=["GET"])
@@ -652,21 +563,21 @@ def api_master_admins_search():
 @roles_required("Admin", "Master")
 def api_master_tiendas_create():
     data = request.get_json(silent=True) or {}
-    nombre = str(data.get("nombre_negocio", "")).strip()
-    nit = str(data.get("nit", "")).strip() or None
-    telefono = normalize_phone(data.get("telefono"), max_len=10)
-    owner_id = data.get("owner_id")
-    es_restaurante = bool(data.get("es_restaurante"))
-
     try:
-        owner_id = int(owner_id)
-    except (TypeError, ValueError):
-        return jsonify({"ok": False, "msg": "Debes seleccionar un Admin dueno."}), 400
-
-    if not nombre:
-        return jsonify({"ok": False, "msg": "El nombre del negocio es requerido."}), 400
-    if telefono and len(telefono) > 10:
-        return jsonify({"ok": False, "msg": "El telefono debe tener maximo 10 digitos."}), 400
+        nombre = sanitize_text(data.get("nombre_negocio"), "El nombre del negocio", max_len=150)
+        nit = sanitize_optional_text(data.get("nit"), "NIT", max_len=30)
+        telefono_raw = data.get("telefono")
+        telefono_digits = only_digits(telefono_raw)
+        if telefono_raw and not telefono_digits:
+            raise ValueError("El telefono es invalido.")
+        if telefono_digits and len(telefono_digits) > 25:
+            raise ValueError("El telefono no puede superar 25 digitos.")
+        telefono = telefono_digits or None
+        owner_id = parse_int(data.get("owner_id"), "Admin dueno", min_value=1)
+        es_restaurante_raw = data.get("es_restaurante")
+        es_restaurante = parse_bool(es_restaurante_raw if es_restaurante_raw is not None else False)
+    except ValueError as exc:
+        return jsonify({"ok": False, "msg": str(exc)}), 400
 
     conn = get_db()
     try:
@@ -707,13 +618,18 @@ def api_master_tiendas_create():
 @roles_required("Admin", "Master")
 def api_master_tiendas_update(id_tienda):
     data = request.get_json(silent=True) or {}
-    nombre = str(data.get("nombre_negocio", "")).strip()
-    nit = str(data.get("nit", "")).strip() or None
-    telefono = normalize_phone(data.get("telefono"), max_len=10)
-    owner_id = data.get("owner_id")
-
-    if not nombre:
-        return jsonify({"ok": False, "msg": "El nombre del negocio es requerido."}), 400
+    try:
+        nombre = sanitize_text(data.get("nombre_negocio"), "El nombre del negocio", max_len=150)
+        nit = sanitize_optional_text(data.get("nit"), "NIT", max_len=30)
+        telefono_raw = data.get("telefono")
+        telefono_digits = only_digits(telefono_raw)
+        if telefono_raw and not telefono_digits:
+            raise ValueError("El telefono es invalido.")
+        if telefono_digits and len(telefono_digits) > 25:
+            raise ValueError("El telefono no puede superar 25 digitos.")
+        telefono = telefono_digits or None
+    except ValueError as exc:
+        return jsonify({"ok": False, "msg": str(exc)}), 400
 
     conn = get_db()
     try:
@@ -722,11 +638,12 @@ def api_master_tiendas_update(id_tienda):
         if not cur.fetchone():
             return jsonify({"ok": False, "msg": "Tienda no encontrada."}), 404
 
+        owner_id = data.get("owner_id")
         if owner_id not in (None, ""):
             try:
-                owner_id = int(owner_id)
-            except (TypeError, ValueError):
-                return jsonify({"ok": False, "msg": "Dueno invalido."}), 400
+                owner_id = parse_int(owner_id, "Dueno", min_value=1)
+            except ValueError as exc:
+                return jsonify({"ok": False, "msg": str(exc)}), 400
 
             cur.execute(
                 "SELECT id_usuario, cc FROM usuarios WHERE id_usuario = %s AND rol='Admin' LIMIT 1",
@@ -788,6 +705,8 @@ def api_master_suscripcion_renovar():
         id_tienda = int(id_tienda)
     except (TypeError, ValueError):
         return jsonify({"ok": False, "msg": "Tienda invalida."}), 400
+    if fecha_manual_raw and len(fecha_manual_raw) > 10:
+        return jsonify({"ok": False, "msg": "Fecha manual invalida."}), 400
 
     fecha_inicio = date.today()
 
@@ -827,12 +746,15 @@ def api_master_suscripcion_renovar():
 @roles_required("Admin", "Master")
 def api_crear_usuario():
     data = request.get_json(silent=True) or {}
-    nombre = str(data.get("nombre", "")).strip()
+    try:
+        nombre = sanitize_text(data.get("nombre"), "El nombre completo", max_len=150)
+    except ValueError as exc:
+        return jsonify({"ok": False, "msg": str(exc)}), 400
     correo = str(data.get("correo", "")).strip().lower()
     password = str(data.get("password", ""))
     confirm = str(data.get("confirm_password", ""))
-    cedula = str(data.get("cedula", "") or "").strip()
-    telefono = str(data.get("telefono", "") or "").strip()
+    cedula_raw = str(data.get("cedula", "") or "").strip()
+    telefono_raw = str(data.get("telefono", "") or "").strip()
     rol_sesion = session["rol"]
 
     if rol_sesion == "Admin":
@@ -845,7 +767,10 @@ def api_crear_usuario():
         nombre_negocio = None
         id_tienda = None
         if nuevo_rol == "Admin":
-            nombre_negocio = str(data.get("nombre_negocio", "")).strip()
+            try:
+                nombre_negocio = sanitize_text(data.get("nombre_negocio"), "Nombre del negocio", max_len=150)
+            except ValueError as exc:
+                return jsonify({"ok": False, "msg": str(exc)}), 400
         elif nuevo_rol == "Cajero":
             try:
                 id_tienda = int(data.get("id_tienda"))
@@ -857,10 +782,10 @@ def api_crear_usuario():
             except (ValueError, TypeError):
                 return jsonify({"ok": False, "msg": "ID de tienda invalido."}), 400
 
-    if not nombre:
-        return jsonify({"ok": False, "msg": "El nombre completo es requerido."}), 400
-    if not correo or not is_valid_email(correo):
+    if not correo or len(correo) > 150 or not is_valid_email(correo):
         return jsonify({"ok": False, "msg": "El correo no es valido."}), 400
+    if len(password) > 128:
+        return jsonify({"ok": False, "msg": "La contrasena supera el maximo permitido."}), 400
     if password != confirm:
         return jsonify({"ok": False, "msg": "Las contrasenas no coinciden."}), 400
 
@@ -892,7 +817,7 @@ def api_crear_usuario():
             cur.execute(
                 "INSERT INTO usuarios (id_tienda, nombre_completo, correo, clave_hash, rol, cedula, telefono) "
                 "VALUES (%s, %s, %s, %s, %s, %s, %s)",
-                (id_tienda, nombre, correo, clave_hash, nuevo_rol, cedula or None, telefono or None),
+                (id_tienda, nombre, correo, clave_hash, nuevo_rol, cedula_digits, telefono_digits),
             )
         except _mc_err.ProgrammingError:
             cur.execute(
@@ -911,7 +836,7 @@ def api_crear_usuario():
 @login_required
 @roles_required("Admin", "Master")
 def api_dashboard():
-    filtro = request.args.get("filtro") or request.args.get("period") or "hoy"
+    filtro = request.args.get("filter") or request.args.get("filtro") or request.args.get("period") or "hoy"
     data = _build_dashboard_data(session["id_tienda"], filtro)
 
     return jsonify(
@@ -928,6 +853,7 @@ def api_dashboard():
             "cajeros": data["cajeros_abiertos"],
             "deudores": data["deudores"],
             "chart": data["chart"],
+            "stock_alertas": data["stock_alertas"],
         }
     )
 
@@ -947,14 +873,18 @@ def api_perfil_get():
 @roles_required("Admin")
 def api_perfil_update():
     data = request.get_json(silent=True) or {}
-    nombre = str(data.get("nombre_completo", "")).strip()
-    negocio = str(data.get("nombre_negocio", "")).strip()
-    telefono = normalize_phone(data.get("telefono"), max_len=10)
-
-    if not nombre:
-        return jsonify({"ok": False, "msg": "El nombre no puede estar vacio."}), 400
-    if telefono and len(telefono) < 7:
-        return jsonify({"ok": False, "msg": "Telefono invalido."}), 400
+    try:
+        nombre = sanitize_text(data.get("nombre_completo"), "El nombre", max_len=150)
+        negocio = sanitize_optional_text(data.get("nombre_negocio"), "El negocio", max_len=150) or ""
+        telefono_raw = data.get("telefono")
+        telefono_digits = only_digits(telefono_raw)
+        if telefono_raw and not telefono_digits:
+            raise ValueError("Telefono invalido.")
+        if telefono_digits and len(telefono_digits) > 25:
+            raise ValueError("El telefono no puede superar 25 digitos.")
+        telefono = telefono_digits or None
+    except ValueError as exc:
+        return jsonify({"ok": False, "msg": str(exc)}), 400
 
     update_profile_basic(
         id_usuario=int(session["id_usuario"]),
@@ -1058,3 +988,19 @@ def api_perfil_foto_delete():
 
     session["foto_perfil"] = None
     return jsonify({"ok": True})
+    if cedula_raw:
+        cedula_digits = only_digits(cedula_raw)
+        if not cedula_digits:
+            return jsonify({"ok": False, "msg": "Cedula invalida."}), 400
+        if len(cedula_digits) > 20:
+            return jsonify({"ok": False, "msg": "La cedula no puede superar 20 digitos."}), 400
+    else:
+        cedula_digits = None
+    if telefono_raw:
+        telefono_digits = only_digits(telefono_raw)
+        if not telefono_digits:
+            return jsonify({"ok": False, "msg": "Telefono invalido."}), 400
+        if len(telefono_digits) > 25:
+            return jsonify({"ok": False, "msg": "El telefono no puede superar 25 digitos."}), 400
+    else:
+        telefono_digits = None

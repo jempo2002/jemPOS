@@ -60,6 +60,38 @@ input[type="reset"] {
   min-height: var(--touch-target-min);
 }
 
+.sidebar-logout,
+#btn-logout {
+  text-decoration: none !important;
+}
+
+.sidebar-logout:hover,
+.sidebar-logout:focus,
+.sidebar-logout:active,
+#btn-logout:hover,
+#btn-logout:focus,
+#btn-logout:active {
+  text-decoration: none !important;
+}
+
+.bottom-more-link.bottom-more-link-danger,
+.bottom-more-link.bottom-more-link-danger:visited,
+.bottom-more-link.bottom-more-link-danger:hover,
+.bottom-more-link.bottom-more-link-danger:focus,
+.bottom-more-link.bottom-more-link-danger:active {
+  color: var(--color-danger) !important;
+  text-decoration: none !important;
+}
+
+.bottom-more-link.bottom-more-link-danger i {
+  color: var(--color-danger) !important;
+}
+
+.bottom-more-link.bottom-more-link-danger:hover,
+.bottom-more-link.bottom-more-link-danger:focus {
+  background: #fef2f2 !important;
+}
+
 /* Micro-feedback tactil estilo app nativa */
 @media (hover: none) and (pointer: coarse) {
   button,

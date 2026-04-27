@@ -1,7 +1,14 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-
+from app.services.auth_service import is_valid_email
+from app.utils.helpers import only_digits
+from app.utils.validation import (
+    parse_bool,
+    parse_float,
+    parse_int,
+    sanitize_optional_text,
+    sanitize_text,
+)
 from database import get_db
 
 
@@ -37,16 +44,15 @@ def _registrar_auditoria(id_tienda, id_usuario, accion, detalles) -> None:
 
 
 def _parse_ingredientes(ingredientes_raw: list) -> list[dict]:
-    ingredientes = []
+    if not isinstance(ingredientes_raw, list):
+        raise ValueError("Ingredientes invalidos.")
+    ingredientes: list[dict] = []
     for item in ingredientes_raw:
-        try:
-            id_insumo = int(item.get("id_insumo"))
-            cantidad = float(item.get("cantidad"))
-            if id_insumo <= 0 or cantidad <= 0:
-                continue
-            ingredientes.append({"id_insumo": id_insumo, "cantidad": cantidad})
-        except (TypeError, ValueError, AttributeError):
-            continue
+        if not isinstance(item, dict):
+            raise ValueError("Ingredientes invalidos.")
+        id_insumo = parse_int(item.get("id_insumo"), "Insumo", min_value=1)
+        cantidad = parse_float(item.get("cantidad"), "Cantidad", min_value=0, allow_zero=False)
+        ingredientes.append({"id_insumo": id_insumo, "cantidad": cantidad})
     return ingredientes
 
 
@@ -185,6 +191,15 @@ def get_productos_inventario(id_tienda: int) -> list:
 
 
 def create_insumo(id_tienda: int, id_usuario: int, nombre: str, unidad: str, stock: float, costo: float, proveedor_id: int | None) -> int:
+    nombre = sanitize_text(nombre, "El nombre del insumo", max_len=150)
+    unidad = str(unidad or "").strip()
+    if unidad not in {"Gr", "Ml", "Un"}:
+        raise ValueError("Unidad invalida. Usa Gr, Ml o Un.")
+    stock = parse_float(stock, "Stock", min_value=0)
+    costo = parse_float(costo, "Costo unitario", min_value=0)
+    if proveedor_id is not None:
+        proveedor_id = parse_int(proveedor_id, "Proveedor", min_value=1)
+
     conn = get_db()
     try:
         cur = conn.cursor(dictionary=True)
@@ -215,6 +230,16 @@ def create_insumo(id_tienda: int, id_usuario: int, nombre: str, unidad: str, sto
 
 
 def update_insumo(id_tienda: int, id_usuario: int, id_insumo: int, nombre: str, unidad: str, stock: float, costo: float, proveedor_id: int | None) -> None:
+    id_insumo = parse_int(id_insumo, "Insumo", min_value=1)
+    nombre = sanitize_text(nombre, "El nombre del insumo", max_len=150)
+    unidad = str(unidad or "").strip()
+    if unidad not in {"Gr", "Ml", "Un"}:
+        raise ValueError("Unidad invalida. Usa Gr, Ml o Un.")
+    stock = parse_float(stock, "Stock", min_value=0)
+    costo = parse_float(costo, "Costo unitario", min_value=0)
+    if proveedor_id is not None:
+        proveedor_id = parse_int(proveedor_id, "Proveedor", min_value=1)
+
     conn = get_db()
     try:
         cur = conn.cursor(dictionary=True)
@@ -247,6 +272,7 @@ def update_insumo(id_tienda: int, id_usuario: int, id_insumo: int, nombre: str, 
 
 
 def delete_insumo(id_tienda: int, id_usuario: int, id_insumo: int) -> None:
+    id_insumo = parse_int(id_insumo, "Insumo", min_value=1)
     conn = get_db()
     try:
         cur = conn.cursor()
@@ -269,13 +295,29 @@ def delete_insumo(id_tienda: int, id_usuario: int, id_insumo: int) -> None:
 
 
 def create_proveedor(id_tienda: int, id_usuario: int, empresa: str, contacto: str, celular: str, correo: str, detalles: str) -> int:
+    empresa = sanitize_text(empresa, "La empresa", max_len=150)
+    contacto = sanitize_optional_text(contacto, "El nombre de contacto", max_len=150)
+    celular_raw = str(celular or "").strip()
+    celular_digits = only_digits(celular_raw)
+    if celular_raw and not celular_digits:
+        raise ValueError("Celular invalido.")
+    if celular_digits and len(celular_digits) > 20:
+        raise ValueError("El celular no puede superar 20 digitos.")
+    correo_raw = str(correo or "").strip().lower()
+    if correo_raw:
+        if len(correo_raw) > 100:
+            raise ValueError("El correo no puede superar 100 caracteres.")
+        if not is_valid_email(correo_raw):
+            raise ValueError("El correo no es valido.")
+    detalles = sanitize_optional_text(detalles, "Los detalles", max_len=1000)
+
     conn = get_db()
     try:
         cur = conn.cursor()
         cur.execute(
             "INSERT INTO proveedores (id_tienda, nombre_empresa, nombre_contacto, celular, correo, detalles) "
             "VALUES (%s, %s, %s, %s, %s, %s)",
-            (id_tienda, empresa, contacto or None, celular or None, correo or None, detalles or None),
+            (id_tienda, empresa, contacto or None, celular_digits or None, correo_raw or None, detalles or None),
         )
         conn.commit()
         new_id = cur.lastrowid
@@ -290,6 +332,23 @@ def create_proveedor(id_tienda: int, id_usuario: int, empresa: str, contacto: st
 
 
 def update_proveedor(id_tienda: int, id_usuario: int, id_proveedor: int, empresa: str, contacto: str, celular: str, correo: str, detalles: str) -> None:
+    id_proveedor = parse_int(id_proveedor, "Proveedor", min_value=1)
+    empresa = sanitize_text(empresa, "La empresa", max_len=150)
+    contacto = sanitize_optional_text(contacto, "El nombre de contacto", max_len=150)
+    celular_raw = str(celular or "").strip()
+    celular_digits = only_digits(celular_raw)
+    if celular_raw and not celular_digits:
+        raise ValueError("Celular invalido.")
+    if celular_digits and len(celular_digits) > 20:
+        raise ValueError("El celular no puede superar 20 digitos.")
+    correo_raw = str(correo or "").strip().lower()
+    if correo_raw:
+        if len(correo_raw) > 100:
+            raise ValueError("El correo no puede superar 100 caracteres.")
+        if not is_valid_email(correo_raw):
+            raise ValueError("El correo no es valido.")
+    detalles = sanitize_optional_text(detalles, "Los detalles", max_len=1000)
+
     conn = get_db()
     try:
         cur = conn.cursor()
@@ -297,7 +356,7 @@ def update_proveedor(id_tienda: int, id_usuario: int, id_proveedor: int, empresa
             "UPDATE proveedores "
             "SET nombre_empresa=%s, nombre_contacto=%s, celular=%s, correo=%s, detalles=%s "
             "WHERE id_proveedor=%s AND id_tienda=%s",
-            (empresa, contacto or None, celular or None, correo or None, detalles or None, id_proveedor, id_tienda),
+            (empresa, contacto or None, celular_digits or None, correo_raw or None, detalles or None, id_proveedor, id_tienda),
         )
         conn.commit()
         updated = cur.rowcount > 0
@@ -314,6 +373,7 @@ def update_proveedor(id_tienda: int, id_usuario: int, id_proveedor: int, empresa
 
 
 def delete_proveedor(id_tienda: int, id_usuario: int, id_proveedor: int, soft_products: bool = False) -> None:
+    id_proveedor = parse_int(id_proveedor, "Proveedor", min_value=1)
     conn = get_db()
     try:
         cur = conn.cursor(dictionary=True)
@@ -416,7 +476,15 @@ def create_producto(
     ingredientes_raw: list,
     proveedor_id: int | None,
 ) -> int:
-    ingredientes = _parse_ingredientes(ingredientes_raw)
+    nombre = sanitize_text(nombre, "El nombre del producto", max_len=150)
+    categoria = sanitize_text(categoria, "La categoria", max_len=120)
+    costo = parse_float(costo, "Precio de costo", min_value=0)
+    venta = parse_float(venta, "Precio de venta", min_value=0)
+    stock = parse_float(stock, "Stock", min_value=0)
+    es_preparado = parse_bool(es_preparado)
+    if proveedor_id is not None:
+        proveedor_id = parse_int(proveedor_id, "Proveedor", min_value=1)
+    ingredientes = _parse_ingredientes(ingredientes_raw) if es_preparado else []
     if es_preparado and not ingredientes:
         raise ValueError("Agrega al menos un ingrediente para la receta.")
 
@@ -474,7 +542,16 @@ def update_producto(
     ingredientes_raw: list,
     proveedor_id: int | None,
 ) -> None:
-    ingredientes = _parse_ingredientes(ingredientes_raw)
+    id_producto = parse_int(id_producto, "Producto", min_value=1)
+    nombre = sanitize_text(nombre, "El nombre del producto", max_len=150)
+    categoria = sanitize_text(categoria, "La categoria", max_len=120)
+    costo = parse_float(costo, "Precio de costo", min_value=0)
+    venta = parse_float(venta, "Precio de venta", min_value=0)
+    stock = parse_float(stock, "Stock", min_value=0)
+    es_preparado = parse_bool(es_preparado)
+    if proveedor_id is not None:
+        proveedor_id = parse_int(proveedor_id, "Proveedor", min_value=1)
+    ingredientes = _parse_ingredientes(ingredientes_raw) if es_preparado else []
     if es_preparado and not ingredientes:
         raise ValueError("Agrega al menos un ingrediente para la receta.")
 
@@ -526,6 +603,7 @@ def update_producto(
 
 
 def delete_producto(id_tienda: int, id_usuario: int, id_producto: int) -> None:
+    id_producto = parse_int(id_producto, "Producto", min_value=1)
     conn = get_db()
     try:
         cur = conn.cursor()
@@ -547,6 +625,8 @@ def delete_producto(id_tienda: int, id_usuario: int, id_producto: int) -> None:
 
 
 def add_stock(id_tienda: int, id_usuario: int, id_producto: int, cantidad: int) -> int:
+    id_producto = parse_int(id_producto, "Producto", min_value=1)
+    cantidad = parse_int(cantidad, "Cantidad", min_value=1, allow_zero=False)
     conn = get_db()
     try:
         cur = conn.cursor(dictionary=True)

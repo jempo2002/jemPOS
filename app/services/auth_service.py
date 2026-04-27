@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import re
 import smtplib
+from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
 from itsdangerous import URLSafeTimedSerializer
@@ -45,7 +46,7 @@ def initialize_user_session(session_obj, user: dict) -> None:
     session_obj["es_restaurante"] = bool(user.get("es_restaurante"))
 
 
-def resolve_post_login_redirect(rol: str, id_tienda: int | None) -> str:
+def resolve_post_login_redirect(rol: str) -> str:
     role = str(rol or "").strip().lower()
     if role == "master":
         return "/panel-master"
@@ -58,39 +59,75 @@ def resolve_post_login_redirect(rol: str, id_tienda: int | None) -> str:
 
 def create_reset_token(secret_key: str, email: str, salt: str = "password-reset-salt") -> str:
     serializer = URLSafeTimedSerializer(secret_key)
-    return serializer.dumps(email, salt=salt)
+    return serializer.dumps(str(email or "").strip().lower(), salt=salt)
 
 
 def decode_reset_token(
     secret_key: str,
     token: str,
     salt: str = "password-reset-salt",
-    max_age: int = 900,
+    max_age: int = 1800,
 ) -> str:
     serializer = URLSafeTimedSerializer(secret_key)
     return serializer.loads(token, salt=salt, max_age=max_age)
 
 
 def send_recovery_email(destinatario: str, enlace: str) -> bool:
-    sender = os.environ.get("EMAIL_SENDER", "")
-    password = os.environ.get("EMAIL_PASSWORD", "")
-    smtp_host = os.environ.get("EMAIL_SMTP_HOST", "smtp.gmail.com")
-    smtp_port = int(os.environ.get("EMAIL_SMTP_PORT", 587))
+    sender = os.getenv("EMAIL_SENDER")
+    password = os.getenv("EMAIL_PASSWORD")
+    smtp_host = os.getenv("EMAIL_SMTP_HOST")
+    smtp_port_raw = os.getenv("EMAIL_SMTP_PORT")
 
-    if not sender or not password:
+    if not sender or not password or not smtp_host or not smtp_port_raw:
         return False
 
-    cuerpo = (
-        "Hola,\n\n"
-        "Recibimos una solicitud para restablecer tu contrasena en jemPOS.\n"
-        "Haz clic en el siguiente enlace (valido por 15 minutos):\n\n"
+    smtp_port_str = smtp_port_raw.strip()
+    if not smtp_port_str.isdigit():
+        return False
+
+    smtp_port = int(smtp_port_str)
+
+    subject = "Recupera tu acceso a jemPOS"
+    cuerpo_texto = (
+        "Hola, recibimos una solicitud para cambiar tu contraseña en jemPOS.\n"
+        "Haz clic en el enlace para continuar:\n\n"
         f"{enlace}\n\n"
-        "Si no solicitaste este cambio, ignora este correo.\n"
+        "El enlace es válido por 30 minutos.\n"
+        "Si no fuiste tú, ignora este mensaje.\n"
     )
-    msg = MIMEText(cuerpo, "plain", "utf-8")
-    msg["Subject"] = "Recuperacion de contrasena - jemPOS"
+    cuerpo_html = f"""
+    <html>
+      <body style="font-family: Arial, sans-serif; background-color: #f8fafc; color: #0f172a; padding: 24px;">
+        <div style="max-width: 520px; margin: 0 auto; background: #ffffff; border: 1px solid #e2e8f0;
+                    border-radius: 16px; padding: 24px;">
+          <h2 style="margin: 0 0 12px; color: #0f172a;">Recupera tu acceso a jemPOS</h2>
+          <p style="margin: 0 0 16px; color: #475569; line-height: 1.5;">
+            Hola, recibimos una solicitud para cambiar tu contraseña en jemPOS.
+            Haz clic en el enlace para continuar:
+          </p>
+          <div style="text-align: center; margin: 24px 0;">
+            <a href="{enlace}"
+               style="background: #2563eb; color: #ffffff; text-decoration: none; padding: 12px 24px;
+                      border-radius: 12px; display: inline-block; font-weight: 600;">
+              Recuperar acceso
+            </a>
+          </div>
+          <p style="margin: 0 0 8px; color: #475569; line-height: 1.5;">
+            El enlace es válido por 30 minutos.
+          </p>
+          <p style="margin: 0; color: #94a3b8; font-size: 13px;">
+            Si no fuiste tú, ignora este mensaje.
+          </p>
+        </div>
+      </body>
+    </html>
+    """
+    msg = MIMEMultipart("alternative")
+    msg["Subject"] = subject
     msg["From"] = sender
     msg["To"] = destinatario
+    msg.attach(MIMEText(cuerpo_texto, "plain", "utf-8"))
+    msg.attach(MIMEText(cuerpo_html, "html", "utf-8"))
 
     try:
         with smtplib.SMTP(smtp_host, smtp_port, timeout=20) as smtp:

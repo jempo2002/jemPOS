@@ -24,6 +24,7 @@ from app.services.inventory_service import (
     update_proveedor,
 )
 from app.utils.decorators import login_required, roles_required
+from app.utils.validation import parse_bool
 from app.utils.helpers import avatar_iniciales, only_digits
 
 inventory_bp = Blueprint("inventory_bp", __name__, url_prefix="/inventario")
@@ -190,6 +191,8 @@ def insumos_eliminar_page(id_insumo):
         flash("Insumo eliminado correctamente.", "success")
     except InventoryNotFoundError as exc:
         flash(str(exc), "error")
+    except ValueError as exc:
+        flash(str(exc), "error")
     except Exception:
         flash("No fue posible eliminar el insumo.", "error")
     return redirect(url_for("inventory_bp.insumos_page"))
@@ -209,13 +212,15 @@ def proveedores_crear_page():
         flash("La empresa es requerida.", "error")
         return redirect(url_for("inventory_bp.proveedores_page"))
 
-    if celular and len(celular) > 10:
-        flash("El celular debe tener maximo 10 digitos.", "error")
+    if celular and len(celular) > 20:
+        flash("El celular debe tener maximo 20 digitos.", "error")
         return redirect(url_for("inventory_bp.proveedores_page"))
 
     try:
         create_proveedor(int(session["id_tienda"]), int(session["id_usuario"]), empresa, nombre_contacto, celular, correo, detalles)
         flash("Proveedor creado correctamente.", "success")
+    except ValueError as exc:
+        flash(str(exc), "error")
     except Exception:
         flash("No fue posible crear el proveedor.", "error")
 
@@ -236,8 +241,8 @@ def proveedores_editar_page(id_proveedor):
         flash("La empresa es requerida.", "error")
         return redirect(url_for("inventory_bp.proveedores_page"))
 
-    if celular and len(celular) > 10:
-        flash("El celular debe tener maximo 10 digitos.", "error")
+    if celular and len(celular) > 20:
+        flash("El celular debe tener maximo 20 digitos.", "error")
         return redirect(url_for("inventory_bp.proveedores_page"))
 
     try:
@@ -254,6 +259,8 @@ def proveedores_editar_page(id_proveedor):
         flash("Proveedor actualizado correctamente.", "success")
     except InventoryNotFoundError as exc:
         flash(str(exc), "error")
+    except ValueError as exc:
+        flash(str(exc), "error")
     except Exception:
         flash("No fue posible actualizar el proveedor.", "error")
 
@@ -268,6 +275,8 @@ def proveedores_eliminar_page(id_proveedor):
         delete_proveedor(int(session["id_tienda"]), int(session["id_usuario"]), int(id_proveedor))
         flash("Proveedor eliminado correctamente.", "success")
     except InventoryNotFoundError as exc:
+        flash(str(exc), "error")
+    except ValueError as exc:
         flash(str(exc), "error")
     except Exception:
         flash("No fue posible eliminar el proveedor.", "error")
@@ -311,7 +320,12 @@ def api_inventario_create():
     except (TypeError, ValueError):
         return jsonify({"ok": False, "msg": "Valores numericos invalidos."}), 400
 
-    es_preparado = bool(data.get("es_preparado")) if is_json else (request.form.get("es_preparado") == "on")
+    try:
+        es_preparado = parse_bool(
+            data.get("es_preparado", False) if is_json else (request.form.get("es_preparado") == "on")
+        )
+    except ValueError as exc:
+        return jsonify({"ok": False, "msg": str(exc)}), 400
     if es_preparado:
         stock = 0
 
@@ -374,7 +388,12 @@ def api_inventario_update(id_producto: int):
     except (TypeError, ValueError):
         return jsonify({"ok": False, "msg": "Valores numericos invalidos."}), 400
 
-    es_preparado = bool(data.get("es_preparado")) if is_json else (request.form.get("es_preparado") == "on")
+    try:
+        es_preparado = parse_bool(
+            data.get("es_preparado", False) if is_json else (request.form.get("es_preparado") == "on")
+        )
+    except ValueError as exc:
+        return jsonify({"ok": False, "msg": str(exc)}), 400
     if es_preparado:
         stock = 0
 
@@ -426,6 +445,8 @@ def api_inventario_delete(id_producto: int):
         return jsonify({"ok": True})
     except InventoryNotFoundError as exc:
         return jsonify({"ok": False, "msg": str(exc)}), 404
+    except ValueError as exc:
+        return jsonify({"ok": False, "msg": str(exc)}), 400
     except Exception:
         return jsonify({"ok": False, "msg": "No se pudo eliminar el producto."}), 500
 
@@ -490,6 +511,8 @@ def api_proveedores_create():
     try:
         new_id = create_proveedor(int(session["id_tienda"]), int(session["id_usuario"]), empresa, contacto, celular, correo, detalles)
         return jsonify({"ok": True, "id": new_id})
+    except ValueError as exc:
+        return jsonify({"ok": False, "msg": str(exc)}), 400
     except Exception:
         return jsonify({"ok": False, "msg": "No se pudo crear el proveedor."}), 500
 
@@ -523,6 +546,8 @@ def api_proveedores_update(id_proveedor: int):
         return jsonify({"ok": True})
     except InventoryNotFoundError as exc:
         return jsonify({"ok": False, "msg": str(exc)}), 404
+    except ValueError as exc:
+        return jsonify({"ok": False, "msg": str(exc)}), 400
     except Exception:
         return jsonify({"ok": False, "msg": "No se pudo actualizar el proveedor."}), 500
 
@@ -537,6 +562,8 @@ def api_proveedores_delete(id_proveedor: int):
         return jsonify({"ok": True})
     except InventoryNotFoundError as exc:
         return jsonify({"ok": False, "msg": str(exc)}), 404
+    except ValueError as exc:
+        return jsonify({"ok": False, "msg": str(exc)}), 400
     except Exception:
         return jsonify({"ok": False, "msg": "No se pudo eliminar el proveedor."}), 500
 

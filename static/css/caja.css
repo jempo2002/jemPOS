@@ -78,12 +78,13 @@ html, body {
   align-items: center;
   gap: 0.75rem;
   padding: 0.7rem 0.85rem;
+  border: 1px solid transparent;
   border-radius: 0.65rem;
   text-decoration: none;
   font-size: 0.9rem;
-  font-weight: 500;
+  font-weight: 600;
   color: #94A3B8;
-  transition: background 0.18s, color 0.18s;
+  transition: background 0.18s, color 0.18s, box-shadow 0.18s;
 }
 
 .nav-link i { width: 1.1rem; text-align: center; font-size: 0.95rem; }
@@ -96,7 +97,6 @@ html, body {
 .nav-link.active {
   background: #3B82F6;
   color: #ffffff;
-  font-weight: 600;
   box-shadow: 0 4px 12px rgba(59,130,246,0.35);
 }
 
@@ -114,9 +114,15 @@ html, body {
   font-weight: 600;
   font-family: inherit;
   cursor: pointer;
+  text-decoration: none !important;
   width: calc(100% - 1.5rem);
   transition: background 0.18s;
   text-align: left;
+}
+.sidebar-logout:hover,
+.sidebar-logout:focus,
+.sidebar-logout:active {
+  text-decoration: none !important;
 }
 .sidebar-logout:hover  { background: #DC2626; }
 .sidebar-logout:active { background: #B91C1C; }
@@ -166,8 +172,8 @@ html, body {
   padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px));
 }
 
-/* ── Columna de contenido + panel cobro ─────────────────── */
-.pos-columns {
+/* ── Contenedor principal: productos + checkout ──────────── */
+.pos-container {
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -535,6 +541,10 @@ html, body {
   box-shadow: 0 -4px 20px rgba(15,23,42,0.07);
 }
 
+.checkout-panel {
+  width: 100%;
+}
+
 /* Checkout siempre visible en movil, por encima de la bottom tab bar */
 .page-caja .payment-panel {
   position: fixed;
@@ -725,14 +735,22 @@ html, body {
   backdrop-filter: blur(10px);
   z-index: 50;
   align-items: stretch;
-  justify-content: space-between;
   gap: 0;
-  overflow: hidden;
+  overflow-x: auto;
+  overflow-y: hidden;
+  white-space: nowrap;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.bottom-bar::-webkit-scrollbar {
+  display: none;
 }
 
 .bottom-btn {
-  flex: 1;
-  min-width: 0;
+  flex: 0 0 auto;
+  min-width: 78px;
   min-height: var(--touch-target-min);
   display: flex;
   flex-direction: column;
@@ -956,7 +974,7 @@ html, body {
   .sidebar { display: none; }
 }
 
-@media (min-width: 768px) {
+@media (min-width: 769px) {
 
   /* Mostrar sidebar, ocultar bottom bar */
   .sidebar     { display: flex; }
@@ -970,32 +988,45 @@ html, body {
   .top-bar-logo { display: none; }
 
   /* Columnas: main ocupa toda la altura disponible */
-  .pos-columns {
-    flex-direction: row;
+  .pos-container {
+    display: grid;
+    grid-template-columns: 1fr 350px;
+    gap: 2rem;
+    align-items: center;
+    min-height: calc(100vh - 100px);
+    padding: 1rem 1.5rem;
     overflow: hidden;
   }
 
-  /* Lado izquierdo: search + carrito */
+  /* Lado izquierdo: buscador + carrito */
   .left-col {
-    flex: 1;
+    width: 100%;
+    align-self: stretch;
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    border-right: 1px solid #E2E8F0;
+    border-right: none;
   }
 
-  /* Panel de cobro: columna derecha fija, contenido centrado verticalmente */
-  .payment-panel {
+  /* Panel de cobro: anclado a la derecha y centrado verticalmente */
+  .checkout-panel,
+  .page-caja .checkout-panel,
+  .page-caja .payment-panel {
     position: static;
-    width: 300px;
-    min-width: 300px;
+    width: 350px;
+    min-width: 350px;
+    max-width: 350px;
+    max-height: calc(100vh - 140px);
+    align-self: center;
     border-top: none;
-    border-left: 1px solid #E2E8F0;
-    box-shadow: none;
-    justify-content: flex-start;
-    overflow: hidden;
+    border: 1px solid #E2E8F0;
+    background: var(--color-surface);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-md);
+    justify-content: space-between;
+    overflow: auto;
     gap: 0;
-    padding: 0;
+    padding: 1.5rem;
   }
 
   .page-caja .cart-section {
@@ -1046,5 +1077,4 @@ html, body {
 
 @media (min-width: 1024px) {
   .sidebar { width: 240px; min-width: 240px; }
-  .payment-panel { width: 320px; min-width: 320px; }
 }

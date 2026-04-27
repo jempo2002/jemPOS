@@ -1,130 +1,200 @@
-/* ============================================================
-   Ruta: static/js/dashboard.js
-   Pantalla: Dashboard — Resumen del Negocio
-   jemPOS — Confianza Financiera
-   ============================================================ */
+// Ruta: static/js/dashboard.js
+// Centro de Mando Financiero - consumo de datos reales desde /api/dashboard
 
-'use strict';
+(function () {
+  'use strict';
 
-const pills = document.querySelectorAll('.pill');
-const dashDate = document.getElementById('dash-date');
-const chartCanvas = document.getElementById('ventas-chart');
-const chartDataEl = document.getElementById('dash-chart-data');
+  let chartInstance = null;
 
-/* ── Fecha ───────────────────────────────────────────────── */
-function renderFecha() {
-  const now = new Date();
-  const opts = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
-  dashDate.textContent = now.toLocaleDateString('es-CO', opts);
-}
+  function getCssVar(name, fallback) {
+    const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    return value || fallback;
+  }
 
-function renderVentasChart() {
-  if (!chartCanvas || !window.Chart) return;
+  function toCOP(value) {
+    return new Intl.NumberFormat('es-CO', {
+      style: 'currency',
+      currency: 'COP',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(Number(value || 0));
+  }
 
-  let chartData = { labels: [], ingresos: [], gastos: [] };
-  if (chartDataEl && chartDataEl.textContent) {
+  function setText(id, text) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.textContent = text;
+  }
+
+  function renderList(id, items) {
+    const list = document.getElementById(id);
+    if (!list) return;
+    list.innerHTML = '';
+
+    if (!Array.isArray(items) || !items.length) {
+      const li = document.createElement('li');
+      li.className = 'dash-list-item';
+      li.textContent = 'Sin datos para este periodo';
+      list.appendChild(li);
+      return;
+    }
+
+    items.forEach(function (item) {
+      const li = document.createElement('li');
+      li.className = 'dash-list-item';
+      li.textContent = item;
+      list.appendChild(li);
+    });
+  }
+
+  function renderChart(labels, ingresos, salidas) {
+    const canvas = document.getElementById('graficaFinanzas');
+    if (!canvas || typeof Chart === 'undefined') return;
+
+    if (chartInstance) {
+      chartInstance.destroy();
+      chartInstance = null;
+    }
+
+    const colorSuccess = getCssVar('--color-success', '#10b981');
+    const colorDanger = getCssVar('--color-danger', '#ef4444');
+    const colorTextMuted = getCssVar('--color-text-muted', '#64748b');
+
+    chartInstance = new Chart(canvas, {
+      type: 'bar',
+      data: {
+        labels: labels || [],
+        datasets: [
+          {
+            label: 'Entradas',
+            data: ingresos || [],
+            backgroundColor: colorSuccess,
+            borderRadius: 8,
+            maxBarThickness: 28,
+          },
+          {
+            label: 'Salidas',
+            data: salidas || [],
+            backgroundColor: colorDanger,
+            borderRadius: 8,
+            maxBarThickness: 28,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            labels: {
+              color: colorTextMuted,
+              font: { weight: '600' },
+            },
+          },
+        },
+        scales: {
+          x: {
+            ticks: { color: colorTextMuted },
+            grid: { display: false },
+          },
+          y: {
+            ticks: {
+              color: colorTextMuted,
+              callback: function (value) {
+                return '$' + (Number(value) / 1000).toFixed(0) + 'k';
+              },
+            },
+            grid: {
+              color: 'rgba(148, 163, 184, 0.15)',
+            },
+          },
+        },
+      },
+    });
+  }
+
+  function normalizeFilter(value) {
+    const raw = String(value || '').toLowerCase();
+    if (raw === 'año' || raw === 'ano') return 'anio';
+    if (raw === 'dia') return 'hoy';
+    return raw || 'hoy';
+  }
+
+  function mapTopVendidos(vendidos) {
+    if (!Array.isArray(vendidos)) return [];
+    return vendidos.slice(0, 5).map(function (item, index) {
+      const name = item && item.name ? item.name : 'Producto';
+      const total = Number(item && item.total ? item.total : 0);
+      return (index + 1) + '. ' + name + ' - ' + total.toFixed(0) + ' und';
+    });
+  }
+
+  function mapStockAlerts(stock) {
+    if (!Array.isArray(stock)) return [];
+    return stock.map(function (item) {
+      const name = item && item.name ? item.name : 'Producto';
+      const currentStock = Number(item && item.stock ? item.stock : 0);
+      const minStock = Number(item && item.min ? item.min : 0);
+      return name + ' - ' + currentStock.toFixed(0) + ' (min. ' + minStock.toFixed(0) + ')';
+    });
+  }
+
+  function pintarDashboard(data) {
+    const ingresos = Number(data && data.ventas ? data.ventas : 0);
+    const gastos = Number(data && data.gastos ? data.gastos : 0);
+
+    setText('kpi-ingresos', toCOP(ingresos));
+    setText('kpi-gastos', toCOP(gastos));
+    setText('kpi-balance', toCOP(ingresos - gastos));
+    setText('estado-turno', 'Abierto');
+
+    renderList('lista-top-ventas', mapTopVendidos(data && data.vendidos));
+    renderList('lista-stock-bajo', mapStockAlerts(data && data.stock_alertas));
+
+    const chart = data && data.chart ? data.chart : {};
+    renderChart(chart.labels || [], chart.ingresos || [], chart.gastos || []);
+  }
+
+  async function actualizarDashboard(rango) {
+    const filtro = normalizeFilter(rango);
     try {
-      chartData = JSON.parse(chartDataEl.textContent);
-    } catch (_) {
-      chartData = { labels: [], ingresos: [], gastos: [] };
+      const response = await fetch('/api/dashboard?filter=' + encodeURIComponent(filtro), {
+        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+      });
+
+      if (!response.ok) {
+        throw new Error('No se pudo cargar la informacion del dashboard.');
+      }
+
+      const payload = await response.json();
+      if (!payload || !payload.ok) {
+        throw new Error('Respuesta invalida del dashboard.');
+      }
+
+      pintarDashboard(payload);
+    } catch (error) {
+      console.error(error);
+      renderList('lista-top-ventas', []);
+      renderList('lista-stock-bajo', []);
+      setText('kpi-ingresos', toCOP(0));
+      setText('kpi-gastos', toCOP(0));
+      setText('kpi-balance', toCOP(0));
+      setText('estado-turno', 'Sin datos');
+      renderChart([], [], []);
     }
   }
-  const labels = Array.isArray(chartData.labels) ? chartData.labels : [];
-  const ingresos = Array.isArray(chartData.ingresos) ? chartData.ingresos : [];
-  const gastos = Array.isArray(chartData.gastos) ? chartData.gastos : [];
 
-  if (!labels.length) {
-    const ctx = chartCanvas.getContext('2d');
-    ctx.clearRect(0, 0, chartCanvas.width, chartCanvas.height);
-    ctx.font = '500 13px Inter, sans-serif';
-    ctx.fillStyle = '#94A3B8';
-    ctx.textAlign = 'center';
-    ctx.fillText('Sin movimientos para el filtro seleccionado', chartCanvas.width / 2, chartCanvas.height / 2);
-    return;
-  }
+  document.addEventListener('DOMContentLoaded', function () {
+    const filtro = document.getElementById('filtro-tiempo');
+    let filtroInicial = 'hoy';
 
-  new Chart(chartCanvas, {
-    type: 'bar',
-    data: {
-      labels,
-      datasets: [
-        {
-          label: 'Ingresos',
-          data: ingresos,
-          backgroundColor: '#3B82F6',
-          borderRadius: 8,
-          maxBarThickness: 28,
-        },
-        {
-          label: 'Gastos',
-          data: gastos,
-          backgroundColor: '#EF4444',
-          borderRadius: 8,
-          maxBarThickness: 28,
-        },
-      ],
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: { display: true, position: 'bottom' },
-      },
-      scales: {
-        x: {
-          grid: { display: false },
-          ticks: { color: '#64748B' },
-        },
-        y: {
-          beginAtZero: true,
-          ticks: {
-            color: '#64748B',
-            callback: (value) => window.COP ? `$${window.COP.format(value)}` : `$${Number(value).toLocaleString('es-CO')}`,
-          },
-          grid: { color: 'rgba(148,163,184,0.2)' },
-        },
-      },
-    },
+    if (filtro) {
+      filtroInicial = normalizeFilter(filtro.value);
+      filtro.addEventListener('change', function (event) {
+        actualizarDashboard(event.target.value);
+      });
+    }
+
+    actualizarDashboard(filtroInicial);
   });
-}
-
-function initWhatsAppInsumos() {
-  const btn = document.getElementById('btn-whatsapp-insumos');
-  if (!btn) return;
-
-  btn.addEventListener('click', () => {
-    const rows = Array.from(document.querySelectorAll('[data-insumo-critico="1"]'));
-    if (!rows.length) return;
-
-    const lineas = rows.map((row) => {
-      const nombre = row.dataset.nombre || 'Insumo';
-      const stock = Number(row.dataset.stock || 0);
-      const min = Number(row.dataset.min || 0);
-      const unidad = row.dataset.unidad || 'Un';
-      return `- ${nombre} (Quedan ${stock.toFixed(3)} ${unidad} | Min: ${min.toFixed(3)} ${unidad})`;
-    });
-
-    const mensaje = [
-      'Hola, reporte de jemPOS:',
-      'Faltan estos insumos urgentes:',
-      ...lineas,
-    ].join('\n');
-
-    const url = `https://wa.me/?text=${encodeURIComponent(mensaje)}`;
-    window.open(url, '_blank', 'noopener');
-  });
-}
-
-/* ── Pills ───────────────────────────────────────────────── */
-pills.forEach(pill => {
-  pill.addEventListener('click', () => {
-    const filtro = pill.dataset.filter;
-    if (!filtro) return;
-    window.location.href = `/dashboard?filtro=${encodeURIComponent(filtro)}`;
-  });
-});
-
-/* ── Init ────────────────────────────────────────────────── */
-renderFecha();
-renderVentasChart();
-initWhatsAppInsumos();
+})();

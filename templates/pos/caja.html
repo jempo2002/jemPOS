@@ -26,7 +26,7 @@
   <link rel="stylesheet" href="/static/css/global.css" />
 </head>
 
-<body class="page-caja">
+<body class="page-caja" data-user-rol="{{ (rol or '')|lower }}">
 
 <!-- Flash de permisos (RBAC redirect) -->
 {% with messages = get_flashed_messages(with_categories=true) %}
@@ -133,6 +133,11 @@
           aria-label="Buscar producto o escanear codigo de barras"
         />
         <div id="search-dropdown" class="search-dropdown hidden" role="listbox" aria-label="Resultados de busqueda"></div>
+      </div>
+
+      <div id="offline-sync-indicator" class="offline-sync-indicator" hidden>
+        <i class="fa-solid fa-cloud"></i>
+        <span id="offline-sync-indicator-text">Sincronizacion local</span>
       </div>
 
     </header>
@@ -255,6 +260,36 @@
           <i class="fa-solid fa-circle-check"></i>
           Cobrar
         </button>
+
+        {% if (rol or '')|lower == 'admin' %}
+        <section class="offline-sync-panel" aria-labelledby="offline-sync-title">
+          <div class="offline-sync-panel-header">
+            <div>
+              <h3 id="offline-sync-title">Sincronizacion offline</h3>
+              <p>Alertas para ventas guardadas localmente o fallas al reenviar.</p>
+            </div>
+            <span id="offline-sync-count" class="offline-sync-count">0 pendientes</span>
+          </div>
+          <div class="offline-sync-table-wrap">
+            <table class="offline-sync-table">
+              <thead>
+                <tr>
+                  <th>Hora</th>
+                  <th>Venta</th>
+                  <th>Estado</th>
+                  <th>Error</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="offline-sync-log-body">
+                <tr class="offline-sync-empty">
+                  <td colspan="5">No hay eventos offline pendientes.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+        {% endif %}
 
       </aside>
       <!-- /checkout-panel -->

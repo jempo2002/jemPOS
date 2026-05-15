@@ -57,10 +57,6 @@
           <i class="fa-solid fa-file-invoice-dollar"></i>
           <span>Ventas</span>
         </a>
-        <a href="{{ url_for('inventory_bp.proveedores_page') }}" class="nav-link">
-          <i class="fa-solid fa-truck-field"></i>
-          <span>Proveedores</span>
-        </a>
         <a href="{{ url_for('sales_bp.gastos') }}" class="nav-link">
           <i class="fa-solid fa-receipt"></i>
           <span>Gastos</span>
@@ -79,11 +75,7 @@
       </a>
 
       <div class="sidebar-footer">
-        {% if foto_perfil %}
-        <img src="/static/uploads/perfiles/{{ foto_perfil }}" class="avatar avatar-img" alt="Foto" />
-        {% else %}
         <div class="avatar">{{ avatar_iniciales }}</div>
-        {% endif %}
         <div class="user-info">
           <div class="user-name">{{ nombre_completo }}</div>
           <div class="user-role">{{ rol }}</div>
@@ -114,47 +106,19 @@
               </div>
               <div class="flex flex-col gap-2">
                 <div class="text-2xl font-extrabold text-slate-900">Datos del Usuario</div>
-                <p class="text-sm text-slate-500">Actualiza tu informacion personal y foto de perfil.</p>
+                <p class="text-sm text-slate-500">Actualiza tu informacion personal.</p>
               </div>
             </div>
 
             <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
               <div class="flex items-center gap-4">
-                <div class="relative h-20 w-20">
-                  <div id="perf-avatar" class="absolute inset-0 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-2xl font-bold" aria-label="Avatar de usuario">
-                    {{ avatar_iniciales }}
-                  </div>
-                  <img
-                    id="perf-avatar-img"
-                    src="{% if foto_perfil %}/static/uploads/perfiles/{{ foto_perfil }}{% endif %}"
-                    alt="Foto de perfil"
-                    class="absolute inset-0 h-20 w-20 rounded-full object-cover{% if not foto_perfil %} hidden{% endif %}"
-                  />
+                <div id="perf-avatar" class="h-20 w-20 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-2xl font-bold" aria-label="Avatar de usuario">
+                  {{ avatar_iniciales }}
                 </div>
                 <div>
                   <div id="perf-display-name" class="text-lg font-semibold text-slate-900">{{ nombre_completo }}</div>
                   <div class="text-sm text-slate-500 perf-display-role">{{ rol }}</div>
                 </div>
-              </div>
-              <div class="flex flex-col gap-2">
-                <button
-                  class="inline-flex items-center justify-center gap-2 rounded-full bg-blue-500 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-600"
-                  type="button"
-                  id="perf-camera-btn"
-                >
-                  <i class="fa-solid fa-camera"></i>
-                  Cambiar foto
-                </button>
-                <input type="file" id="inp-foto-perfil" accept="image/png, image/jpeg" class="hidden" />
-                <button
-                  type="button"
-                  id="btn-eliminar-foto"
-                  class="inline-flex items-center justify-center gap-2 rounded-full border border-gray-200 px-5 py-2.5 text-sm font-semibold text-slate-600 hover:border-rose-200 hover:text-rose-500{% if not foto_perfil %} hidden{% endif %}"
-                  aria-label="Eliminar foto de perfil"
-                >
-                  <img src="/static/img/basura.png" alt="" class="h-4 w-4" />
-                  Eliminar foto
-                </button>
               </div>
             </div>
 

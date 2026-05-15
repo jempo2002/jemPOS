@@ -1,15 +1,10 @@
 from __future__ import annotations
 
 import calendar
-import os
 import re
-import uuid
 from datetime import date, datetime, timedelta
-from io import BytesIO
 
 from flask import Blueprint, jsonify, redirect, render_template, request, session, url_for
-from PIL import Image
-from werkzeug.security import generate_password_hash
 
 from app.services.auth_service import (
     first_password_policy_error,
@@ -28,13 +23,6 @@ from app.utils.validation import parse_bool, parse_int, sanitize_optional_text, 
 from database import get_db
 
 core_bp = Blueprint("core_bp", __name__)
-
-_UPLOAD_DIR = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
-    "static",
-    "uploads",
-    "perfiles",
-)
 
 
 def _get_dias_restantes(id_tienda: int) -> int:
@@ -62,7 +50,6 @@ def _render_protected(template: str, **kwargs):
     nombre = session.get("nombre_completo", "")
     kwargs.setdefault("rol", session.get("rol", ""))
     kwargs.setdefault("nombre_completo", nombre)
-    kwargs.setdefault("foto_perfil", session.get("foto_perfil"))
     kwargs.setdefault("avatar_iniciales", avatar_iniciales(nombre))
     kwargs["dias_restantes"] = dias
     kwargs["mostrar_alerta_suscripcion"] = (0 < dias <= 5)
@@ -894,113 +881,3 @@ def api_perfil_update():
     )
     session["nombre_completo"] = nombre
     return jsonify({"ok": True, "msg": "Perfil actualizado."})
-
-
-@core_bp.route("/api/perfil/foto", methods=["POST"])
-@login_required
-@roles_required("Admin")
-def api_perfil_foto():
-    if "foto" not in request.files:
-        return jsonify({"ok": False, "msg": "No se recibio archivo."}), 400
-    f = request.files["foto"]
-    if not f.filename:
-        return jsonify({"ok": False, "msg": "Nombre de archivo invalido."}), 400
-
-    ext = f.filename.rsplit(".", 1)[-1].lower() if "." in f.filename else ""
-    if ext not in {"jpg", "jpeg", "png"}:
-        return jsonify({"ok": False, "msg": "Solo se permiten JPG o PNG."}), 400
-
-    content = f.read()
-    if len(content) > 5 * 1024 * 1024:
-        return jsonify({"ok": False, "msg": "El archivo supera los 5 MB."}), 400
-
-    try:
-        img = Image.open(BytesIO(content))
-        img = img.convert("RGB")
-        img.thumbnail((500, 500))
-    except Exception:
-        return jsonify({"ok": False, "msg": "Imagen invalida o corrupta."}), 400
-
-    id_usuario = session["id_usuario"]
-
-    conn = get_db()
-    try:
-        cur = conn.cursor(dictionary=True)
-        cur.execute(
-            "SELECT foto_perfil FROM usuarios WHERE id_usuario = %s LIMIT 1",
-            (id_usuario,),
-        )
-        old_row = cur.fetchone()
-    finally:
-        conn.close()
-
-    if old_row and old_row.get("foto_perfil"):
-        old_path = os.path.join(_UPLOAD_DIR, old_row["foto_perfil"])
-        if os.path.exists(old_path):
-            os.remove(old_path)
-
-    os.makedirs(_UPLOAD_DIR, exist_ok=True)
-    filename = f"{uuid.uuid4().hex}.jpg"
-    save_path = os.path.join(_UPLOAD_DIR, filename)
-    img.save(save_path, format="JPEG", quality=85, optimize=True)
-
-    conn = get_db()
-    try:
-        cur = conn.cursor()
-        cur.execute(
-            "UPDATE usuarios SET foto_perfil = %s WHERE id_usuario = %s",
-            (filename, id_usuario),
-        )
-        conn.commit()
-    finally:
-        conn.close()
-
-    session["foto_perfil"] = filename
-    return jsonify({"ok": True, "url": f"/static/uploads/perfiles/{filename}"})
-
-
-@core_bp.route("/api/perfil/foto", methods=["DELETE"])
-@login_required
-@roles_required("Admin")
-def api_perfil_foto_delete():
-    id_usuario = session["id_usuario"]
-    conn = get_db()
-    try:
-        cur = conn.cursor(dictionary=True)
-        cur.execute(
-            "SELECT foto_perfil FROM usuarios WHERE id_usuario = %s LIMIT 1",
-            (id_usuario,),
-        )
-        row = cur.fetchone()
-        if row and row.get("foto_perfil"):
-            old_path = os.path.join(_UPLOAD_DIR, row["foto_perfil"])
-            if os.path.exists(old_path):
-                os.remove(old_path)
-
-        cur2 = conn.cursor()
-        cur2.execute(
-            "UPDATE usuarios SET foto_perfil = NULL WHERE id_usuario = %s",
-            (id_usuario,),
-        )
-        conn.commit()
-    finally:
-        conn.close()
-
-    session["foto_perfil"] = None
-    return jsonify({"ok": True})
-    if cedula_raw:
-        cedula_digits = only_digits(cedula_raw)
-        if not cedula_digits:
-            return jsonify({"ok": False, "msg": "Cedula invalida."}), 400
-        if len(cedula_digits) > 20:
-            return jsonify({"ok": False, "msg": "La cedula no puede superar 20 digitos."}), 400
-    else:
-        cedula_digits = None
-    if telefono_raw:
-        telefono_digits = only_digits(telefono_raw)
-        if not telefono_digits:
-            return jsonify({"ok": False, "msg": "Telefono invalido."}), 400
-        if len(telefono_digits) > 25:
-            return jsonify({"ok": False, "msg": "El telefono no puede superar 25 digitos."}), 400
-    else:
-        telefono_digits = None

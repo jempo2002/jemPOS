@@ -40,7 +40,6 @@ def _base_context() -> dict:
     return {
         "rol": session.get("rol", ""),
         "nombre_completo": nombre,
-        "foto_perfil": session.get("foto_perfil"),
         "avatar_iniciales": avatar_iniciales(nombre),
         "mostrar_alerta_suscripcion": mostrar_alerta,
         "dias_restantes": dias,
@@ -144,8 +143,8 @@ def api_turno_cerrar():
         return jsonify({"ok": True})
     except SalesValidationError as exc:
         return jsonify({"ok": False, "msg": str(exc)}), 400
-    except SalesNotFoundError as exc:
-        return jsonify({"ok": False, "msg": str(exc)}), 404
+    except SalesNotFoundError:
+        return jsonify({"ok": False, "msg": "Registro no encontrado o acceso denegado"}), 404
 
 
 @sales_api_bp.get("/api/caja/productos")
@@ -187,12 +186,12 @@ def api_ventas_crear():
         return jsonify({"ok": True, **resultado})
     except SalesValidationError as exc:
         return jsonify({"ok": False, "msg": str(exc)}), 400
-    except SalesNotFoundError as exc:
-        return jsonify({"ok": False, "msg": str(exc)}), 404
+    except SalesNotFoundError:
+        return jsonify({"ok": False, "msg": "Registro no encontrado o acceso denegado"}), 404
     except SalesConflictError as exc:
         return jsonify({"ok": False, "msg": str(exc)}), 409
-    except Exception as exc:
-        return jsonify({"ok": False, "msg": f"Error al registrar la venta: {exc}"}), 500
+    except Exception:
+        return jsonify({"ok": False, "msg": "No fue posible registrar la venta."}), 500
 
 
 @sales_api_bp.get("/api/ventas/detalle/<int:id_venta>")
@@ -201,8 +200,8 @@ def api_ventas_detalle(id_venta: int):
     try:
         data = get_detalle_venta(int(session["id_tienda"]), int(id_venta))
         return jsonify({"ok": True, **data})
-    except SalesNotFoundError as exc:
-        return jsonify({"ok": False, "msg": str(exc)}), 404
+    except SalesNotFoundError:
+        return jsonify({"ok": False, "msg": "Registro no encontrado o acceso denegado"}), 404
 
 
 @sales_api_bp.get("/api/fiados")
@@ -268,8 +267,8 @@ def api_fiados_sumar(id_cliente: int):
         return jsonify({"ok": True})
     except SalesValidationError as exc:
         return jsonify({"ok": False, "msg": str(exc)}), 400
-    except SalesNotFoundError as exc:
-        return jsonify({"ok": False, "msg": str(exc)}), 404
+    except SalesNotFoundError:
+        return jsonify({"ok": False, "msg": "Registro no encontrado o acceso denegado"}), 404
     except SalesConflictError as exc:
         return jsonify({"ok": False, "msg": str(exc)}), 409
 
@@ -297,8 +296,8 @@ def api_fiados_abonar(id_cliente: int):
         return jsonify({"ok": True})
     except SalesValidationError as exc:
         return jsonify({"ok": False, "msg": str(exc)}), 400
-    except SalesNotFoundError as exc:
-        return jsonify({"ok": False, "msg": str(exc)}), 404
+    except SalesNotFoundError:
+        return jsonify({"ok": False, "msg": "Registro no encontrado o acceso denegado"}), 404
 
 
 @sales_api_bp.get("/api/gastos")

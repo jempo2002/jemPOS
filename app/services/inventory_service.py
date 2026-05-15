@@ -3,7 +3,6 @@ from __future__ import annotations
 from app.services.auth_service import is_valid_email
 from app.utils.helpers import only_digits
 from app.utils.validation import (
-    parse_bool,
     parse_float,
     parse_int,
     sanitize_optional_text,
@@ -43,19 +42,6 @@ def _registrar_auditoria(id_tienda, id_usuario, accion, detalles) -> None:
             pass
 
 
-def _parse_ingredientes(ingredientes_raw: list) -> list[dict]:
-    if not isinstance(ingredientes_raw, list):
-        raise ValueError("Ingredientes invalidos.")
-    ingredientes: list[dict] = []
-    for item in ingredientes_raw:
-        if not isinstance(item, dict):
-            raise ValueError("Ingredientes invalidos.")
-        id_insumo = parse_int(item.get("id_insumo"), "Insumo", min_value=1)
-        cantidad = parse_float(item.get("cantidad"), "Cantidad", min_value=0, allow_zero=False)
-        ingredientes.append({"id_insumo": id_insumo, "cantidad": cantidad})
-    return ingredientes
-
-
 def _obtener_o_crear_categoria(cur, id_tienda: int, categoria: str) -> int:
     cur.execute(
         "SELECT id_categoria FROM categorias "
@@ -93,7 +79,7 @@ def get_proveedores(id_tienda: int) -> list:
         cur.execute(
             "SELECT id_proveedor, nombre_empresa, nombre_contacto, celular, correo, detalles "
             "FROM proveedores "
-            "WHERE id_tienda = %s "
+            "WHERE id_tienda = %s AND estado_activo = 1 "
             "ORDER BY nombre_empresa",
             (id_tienda,),
         )
@@ -114,57 +100,13 @@ def get_proveedores(id_tienda: int) -> list:
     ]
 
 
-def get_proveedores_page(id_tienda: int) -> list:
-    conn = get_db()
-    try:
-        cur = conn.cursor(dictionary=True)
-        cur.execute(
-            "SELECT * FROM proveedores WHERE id_tienda = %s ORDER BY nombre_empresa",
-            (id_tienda,),
-        )
-        return cur.fetchall() or []
-    finally:
-        conn.close()
-
-
-def get_insumos(id_tienda: int) -> list:
-    conn = get_db()
-    try:
-        cur = conn.cursor(dictionary=True)
-        cur.execute(
-            "SELECT i.id_insumo, i.nombre, i.stock_actual, i.unidad_medida, i.costo_unitario, "
-            "i.id_proveedor, p.nombre_empresa AS proveedor_nombre "
-            "FROM insumos i "
-            "LEFT JOIN proveedores p ON p.id_proveedor = i.id_proveedor "
-            "WHERE i.id_tienda = %s "
-            "ORDER BY i.nombre",
-            (id_tienda,),
-        )
-        rows = cur.fetchall() or []
-    finally:
-        conn.close()
-
-    return [
-        {
-            "id_insumo": r.get("id_insumo"),
-            "nombre": r.get("nombre") or "",
-            "stock_actual": float(r.get("stock_actual") or 0),
-            "unidad_medida": (r.get("unidad_medida") or "Un").strip() or "Un",
-            "costo_unitario": float(r.get("costo_unitario") or 0),
-            "id_proveedor": r.get("id_proveedor"),
-            "proveedor_nombre": r.get("proveedor_nombre") or "Sin proveedor",
-        }
-        for r in rows
-    ]
-
-
 def get_productos_inventario(id_tienda: int) -> list:
     conn = get_db()
     try:
         cur = conn.cursor(dictionary=True)
         cur.execute(
             "SELECT p.id_producto, p.nombre, c.nombre AS categoria, p.precio_costo, p.precio_venta, "
-            "p.stock_actual, p.id_proveedor, COALESCE(p.es_preparado, 0) AS es_preparado "
+            "p.stock_actual, p.id_proveedor "
             "FROM productos p "
             "LEFT JOIN categorias c ON c.id_categoria = p.id_categoria "
             "WHERE p.id_tienda=%s AND p.estado_activo=1 "
@@ -184,114 +126,9 @@ def get_productos_inventario(id_tienda: int) -> list:
             "precio_venta": float(r.get("precio_venta") or 0),
             "stock_actual": float(r.get("stock_actual") or 0),
             "id_proveedor": r.get("id_proveedor"),
-            "es_preparado": bool(r.get("es_preparado") or 0),
         }
         for r in rows
     ]
-
-
-def create_insumo(id_tienda: int, id_usuario: int, nombre: str, unidad: str, stock: float, costo: float, proveedor_id: int | None) -> int:
-    nombre = sanitize_text(nombre, "El nombre del insumo", max_len=150)
-    unidad = str(unidad or "").strip()
-    if unidad not in {"Gr", "Ml", "Un"}:
-        raise ValueError("Unidad invalida. Usa Gr, Ml o Un.")
-    stock = parse_float(stock, "Stock", min_value=0)
-    costo = parse_float(costo, "Costo unitario", min_value=0)
-    if proveedor_id is not None:
-        proveedor_id = parse_int(proveedor_id, "Proveedor", min_value=1)
-
-    conn = get_db()
-    try:
-        cur = conn.cursor(dictionary=True)
-        if proveedor_id is not None:
-            cur.execute(
-                "SELECT id_proveedor FROM proveedores WHERE id_proveedor=%s AND id_tienda=%s LIMIT 1",
-                (proveedor_id, id_tienda),
-            )
-            if not cur.fetchone():
-                raise InventoryNotFoundError("Proveedor no encontrado para esta tienda.")
-
-        cur.execute(
-            "INSERT INTO insumos "
-            "(id_tienda, nombre, stock_actual, unidad_medida, costo_unitario, id_proveedor) "
-            "VALUES (%s, %s, %s, %s, %s, %s)",
-            (id_tienda, nombre, stock, unidad, costo, proveedor_id),
-        )
-        conn.commit()
-        new_id = cur.lastrowid
-    except Exception:
-        conn.rollback()
-        raise
-    finally:
-        conn.close()
-
-    _registrar_auditoria(id_tienda, id_usuario, "crear_insumo", f"Insumo creado id={new_id}, nombre={nombre}")
-    return new_id
-
-
-def update_insumo(id_tienda: int, id_usuario: int, id_insumo: int, nombre: str, unidad: str, stock: float, costo: float, proveedor_id: int | None) -> None:
-    id_insumo = parse_int(id_insumo, "Insumo", min_value=1)
-    nombre = sanitize_text(nombre, "El nombre del insumo", max_len=150)
-    unidad = str(unidad or "").strip()
-    if unidad not in {"Gr", "Ml", "Un"}:
-        raise ValueError("Unidad invalida. Usa Gr, Ml o Un.")
-    stock = parse_float(stock, "Stock", min_value=0)
-    costo = parse_float(costo, "Costo unitario", min_value=0)
-    if proveedor_id is not None:
-        proveedor_id = parse_int(proveedor_id, "Proveedor", min_value=1)
-
-    conn = get_db()
-    try:
-        cur = conn.cursor(dictionary=True)
-        if proveedor_id is not None:
-            cur.execute(
-                "SELECT id_proveedor FROM proveedores WHERE id_proveedor=%s AND id_tienda=%s LIMIT 1",
-                (proveedor_id, id_tienda),
-            )
-            if not cur.fetchone():
-                raise InventoryNotFoundError("Proveedor no encontrado para esta tienda.")
-
-        cur.execute(
-            "UPDATE insumos "
-            "SET nombre=%s, stock_actual=%s, unidad_medida=%s, costo_unitario=%s, id_proveedor=%s "
-            "WHERE id_insumo=%s AND id_tienda=%s",
-            (nombre, stock, unidad, costo, proveedor_id, id_insumo, id_tienda),
-        )
-        conn.commit()
-        updated = cur.rowcount > 0
-    except Exception:
-        conn.rollback()
-        raise
-    finally:
-        conn.close()
-
-    if not updated:
-        raise InventoryNotFoundError("Insumo no encontrado para esta tienda.")
-
-    _registrar_auditoria(id_tienda, id_usuario, "editar_insumo", f"Insumo editado id={id_insumo}, nombre={nombre}")
-
-
-def delete_insumo(id_tienda: int, id_usuario: int, id_insumo: int) -> None:
-    id_insumo = parse_int(id_insumo, "Insumo", min_value=1)
-    conn = get_db()
-    try:
-        cur = conn.cursor()
-        cur.execute(
-            "DELETE FROM insumos WHERE id_insumo=%s AND id_tienda=%s",
-            (id_insumo, id_tienda),
-        )
-        conn.commit()
-        deleted = cur.rowcount > 0
-    except Exception:
-        conn.rollback()
-        raise
-    finally:
-        conn.close()
-
-    if not deleted:
-        raise InventoryNotFoundError("Insumo no encontrado para esta tienda.")
-
-    _registrar_auditoria(id_tienda, id_usuario, "eliminar_insumo", f"Insumo eliminado id={id_insumo}")
 
 
 def create_proveedor(id_tienda: int, id_usuario: int, empresa: str, contacto: str, celular: str, correo: str, detalles: str) -> int:
@@ -355,7 +192,7 @@ def update_proveedor(id_tienda: int, id_usuario: int, id_proveedor: int, empresa
         cur.execute(
             "UPDATE proveedores "
             "SET nombre_empresa=%s, nombre_contacto=%s, celular=%s, correo=%s, detalles=%s "
-            "WHERE id_proveedor=%s AND id_tienda=%s",
+            "WHERE id_proveedor=%s AND id_tienda=%s AND estado_activo=1",
             (empresa, contacto or None, celular_digits or None, correo_raw or None, detalles or None, id_proveedor, id_tienda),
         )
         conn.commit()
@@ -377,39 +214,34 @@ def delete_proveedor(id_tienda: int, id_usuario: int, id_proveedor: int, soft_pr
     conn = get_db()
     try:
         cur = conn.cursor(dictionary=True)
+        cur.execute(
+            "SELECT id_proveedor FROM proveedores "
+            "WHERE id_proveedor=%s AND id_tienda=%s AND estado_activo=1 LIMIT 1",
+            (id_proveedor, id_tienda),
+        )
+        if not cur.fetchone():
+            raise InventoryNotFoundError("Proveedor no encontrado para esta tienda.")
+
         if soft_products:
             cur.execute(
-                "SELECT id_proveedor FROM proveedores WHERE id_proveedor=%s AND id_tienda=%s LIMIT 1",
+                "UPDATE productos SET id_proveedor = NULL "
+                "WHERE id_proveedor=%s AND id_tienda=%s AND estado_activo=1",
                 (id_proveedor, id_tienda),
             )
-            if not cur.fetchone():
-                raise InventoryNotFoundError("Proveedor no encontrado.")
 
-            cur.execute(
-                "UPDATE productos SET id_proveedor = NULL WHERE id_proveedor=%s AND id_tienda=%s",
-                (id_proveedor, id_tienda),
-            )
-            cur.execute(
-                "DELETE FROM proveedores WHERE id_proveedor=%s AND id_tienda=%s",
-                (id_proveedor, id_tienda),
-            )
-            conn.commit()
-        else:
-            cur2 = conn.cursor()
-            cur2.execute(
-                "DELETE FROM proveedores WHERE id_proveedor=%s AND id_tienda=%s",
-                (id_proveedor, id_tienda),
-            )
-            conn.commit()
-            if cur2.rowcount == 0:
-                raise InventoryNotFoundError("Proveedor no encontrado para esta tienda.")
+        cur.execute(
+            "UPDATE proveedores SET estado_activo = 0 "
+            "WHERE id_proveedor=%s AND id_tienda=%s AND estado_activo=1",
+            (id_proveedor, id_tienda),
+        )
+        conn.commit()
     except Exception:
         conn.rollback()
         raise
     finally:
         conn.close()
 
-    _registrar_auditoria(id_tienda, id_usuario, "eliminar_proveedor", f"Proveedor eliminado id={id_proveedor}")
+    _registrar_auditoria(id_tienda, id_usuario, "eliminar_proveedor", f"Proveedor desactivado id={id_proveedor}")
 
 
 def list_inventario_api(id_tienda: int) -> list:
@@ -419,7 +251,7 @@ def list_inventario_api(id_tienda: int) -> list:
         cur.execute(
             "SELECT p.id_producto, p.nombre, c.nombre AS categoria, "
             "p.precio_costo, p.precio_venta, p.stock_actual, p.stock_minimo_alerta, "
-            "p.id_proveedor, pr.nombre_empresa AS proveedor_nombre, COALESCE(p.es_preparado, 0) AS es_preparado "
+            "p.id_proveedor, pr.nombre_empresa AS proveedor_nombre "
             "FROM productos p "
             "LEFT JOIN categorias c ON c.id_categoria = p.id_categoria "
             "LEFT JOIN proveedores pr ON pr.id_proveedor = p.id_proveedor "
@@ -442,7 +274,6 @@ def list_inventario_api(id_tienda: int) -> list:
             "stock_min": r["stock_minimo_alerta"] or 0,
             "proveedor_id": r.get("id_proveedor"),
             "proveedor_nombre": r.get("proveedor_nombre") or "",
-            "es_preparado": bool(r.get("es_preparado") or 0),
         }
         for r in rows
     ]
@@ -472,8 +303,6 @@ def create_producto(
     costo: float,
     venta: float,
     stock: float,
-    es_preparado: bool,
-    ingredientes_raw: list,
     proveedor_id: int | None,
 ) -> int:
     nombre = sanitize_text(nombre, "El nombre del producto", max_len=150)
@@ -481,12 +310,8 @@ def create_producto(
     costo = parse_float(costo, "Precio de costo", min_value=0)
     venta = parse_float(venta, "Precio de venta", min_value=0)
     stock = parse_float(stock, "Stock", min_value=0)
-    es_preparado = parse_bool(es_preparado)
     if proveedor_id is not None:
         proveedor_id = parse_int(proveedor_id, "Proveedor", min_value=1)
-    ingredientes = _parse_ingredientes(ingredientes_raw) if es_preparado else []
-    if es_preparado and not ingredientes:
-        raise ValueError("Agrega al menos un ingrediente para la receta.")
 
     conn = get_db()
     try:
@@ -494,7 +319,8 @@ def create_producto(
 
         if proveedor_id is not None:
             cur.execute(
-                "SELECT id_proveedor FROM proveedores WHERE id_proveedor=%s AND id_tienda=%s LIMIT 1",
+                "SELECT id_proveedor FROM proveedores "
+                "WHERE id_proveedor=%s AND id_tienda=%s AND estado_activo=1 LIMIT 1",
                 (proveedor_id, id_tienda),
             )
             if not cur.fetchone():
@@ -504,19 +330,11 @@ def create_producto(
 
         cur.execute(
             "INSERT INTO productos "
-            "(id_tienda, id_categoria, nombre, precio_costo, precio_venta, stock_actual, id_proveedor, es_preparado) "
-            "VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
-            (id_tienda, id_cat, nombre, costo, venta, stock, proveedor_id, 1 if es_preparado else 0),
+            "(id_tienda, id_categoria, nombre, precio_costo, precio_venta, stock_actual, id_proveedor) "
+            "VALUES (%s, %s, %s, %s, %s, %s, %s)",
+            (id_tienda, id_cat, nombre, costo, venta, stock, proveedor_id),
         )
         new_id = cur.lastrowid
-
-        if es_preparado:
-            for ing in ingredientes:
-                cur.execute(
-                    "INSERT INTO recetas_productos (id_producto, id_insumo, cantidad_requerida) "
-                    "VALUES (%s, %s, %s)",
-                    (new_id, ing["id_insumo"], ing["cantidad"]),
-                )
 
         conn.commit()
     except Exception:
@@ -538,8 +356,6 @@ def update_producto(
     costo: float,
     venta: float,
     stock: float,
-    es_preparado: bool,
-    ingredientes_raw: list,
     proveedor_id: int | None,
 ) -> None:
     id_producto = parse_int(id_producto, "Producto", min_value=1)
@@ -548,12 +364,8 @@ def update_producto(
     costo = parse_float(costo, "Precio de costo", min_value=0)
     venta = parse_float(venta, "Precio de venta", min_value=0)
     stock = parse_float(stock, "Stock", min_value=0)
-    es_preparado = parse_bool(es_preparado)
     if proveedor_id is not None:
         proveedor_id = parse_int(proveedor_id, "Proveedor", min_value=1)
-    ingredientes = _parse_ingredientes(ingredientes_raw) if es_preparado else []
-    if es_preparado and not ingredientes:
-        raise ValueError("Agrega al menos un ingrediente para la receta.")
 
     conn = get_db()
     try:
@@ -568,7 +380,8 @@ def update_producto(
 
         if proveedor_id is not None:
             cur.execute(
-                "SELECT id_proveedor FROM proveedores WHERE id_proveedor=%s AND id_tienda=%s LIMIT 1",
+                "SELECT id_proveedor FROM proveedores "
+                "WHERE id_proveedor=%s AND id_tienda=%s AND estado_activo=1 LIMIT 1",
                 (proveedor_id, id_tienda),
             )
             if not cur.fetchone():
@@ -578,19 +391,10 @@ def update_producto(
 
         cur.execute(
             "UPDATE productos "
-            "SET nombre=%s, id_categoria=%s, precio_costo=%s, precio_venta=%s, stock_actual=%s, id_proveedor=%s, es_preparado=%s "
+            "SET nombre=%s, id_categoria=%s, precio_costo=%s, precio_venta=%s, stock_actual=%s, id_proveedor=%s "
             "WHERE id_producto=%s AND id_tienda=%s",
-            (nombre, id_cat, costo, venta, stock, proveedor_id, 1 if es_preparado else 0, id_producto, id_tienda),
+            (nombre, id_cat, costo, venta, stock, proveedor_id, id_producto, id_tienda),
         )
-
-        cur.execute("DELETE FROM recetas_productos WHERE id_producto=%s", (id_producto,))
-        if es_preparado:
-            for ing in ingredientes:
-                cur.execute(
-                    "INSERT INTO recetas_productos (id_producto, id_insumo, cantidad_requerida) "
-                    "VALUES (%s, %s, %s)",
-                    (id_producto, ing["id_insumo"], ing["cantidad"]),
-                )
 
         conn.commit()
     except Exception:
@@ -631,7 +435,7 @@ def add_stock(id_tienda: int, id_usuario: int, id_producto: int, cantidad: int) 
     try:
         cur = conn.cursor(dictionary=True)
         cur.execute(
-            "SELECT id_producto, stock_actual, COALESCE(es_preparado, 0) AS es_preparado "
+            "SELECT id_producto, stock_actual "
             "FROM productos "
             "WHERE id_producto = %s AND id_tienda = %s AND estado_activo = 1 LIMIT 1",
             (id_producto, id_tienda),
@@ -639,8 +443,6 @@ def add_stock(id_tienda: int, id_usuario: int, id_producto: int, cantidad: int) 
         p = cur.fetchone()
         if not p:
             raise InventoryNotFoundError("Producto no encontrado.")
-        if bool(p.get("es_preparado") or 0):
-            raise ValueError("El stock de platos preparados se calcula desde sus insumos.")
 
         nuevo_stock = p["stock_actual"] + cantidad
         cur.execute(
@@ -670,7 +472,7 @@ def get_proveedor_productos(id_tienda: int, id_proveedor: int) -> dict:
         cur.execute(
             "SELECT id_proveedor, nombre_empresa "
             "FROM proveedores "
-            "WHERE id_proveedor=%s AND id_tienda=%s LIMIT 1",
+            "WHERE id_proveedor=%s AND id_tienda=%s AND estado_activo=1 LIMIT 1",
             (id_proveedor, id_tienda),
         )
         prov = cur.fetchone()

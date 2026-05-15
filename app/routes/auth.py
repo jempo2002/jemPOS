@@ -59,7 +59,7 @@ def login():
         cur = conn.cursor(dictionary=True)
         cur.execute(
             "SELECT u.id_usuario, u.id_tienda, u.nombre_completo, u.clave_hash, u.rol, "
-            "u.estado_activo, u.foto_perfil, COALESCE(t.es_restaurante, 0) AS es_restaurante "
+            "u.estado_activo, COALESCE(t.es_restaurante, 0) AS es_restaurante "
             "FROM usuarios u "
             "LEFT JOIN tiendas t ON t.id_tienda = u.id_tienda "
             "WHERE u.correo = %s LIMIT 1",
@@ -208,9 +208,8 @@ def olvide_password():
             if user:
                 token = create_reset_token(current_app.secret_key, correo)
                 enlace = url_for("auth.reset_password", token=token, _external=True)
-                if not send_recovery_email(correo, enlace):
-                    flash("No fue posible enviar el correo de recuperacion. Intenta de nuevo.", "error")
-                    return redirect(url_for("auth.olvide_password"))
+                # Fire-and-forget: mail is dispatched in background and failures are logged.
+                send_recovery_email(correo, enlace)
 
         flash("Si el correo existe, recibiras un enlace de recuperacion.", "success")
         return redirect(url_for("auth.olvide_password"))

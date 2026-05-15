@@ -2,12 +2,10 @@ from __future__ import annotations
 
 import os
 import re
-import smtplib
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
 
 from itsdangerous import URLSafeTimedSerializer
 
+from app.utils.mail import send_recovery_email_async
 from database import get_db
 
 _EMAIL_RE = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
@@ -42,7 +40,6 @@ def initialize_user_session(session_obj, user: dict) -> None:
     session_obj["id_tienda"] = user["id_tienda"]
     session_obj["nombre_completo"] = user["nombre_completo"]
     session_obj["rol"] = user["rol"]
-    session_obj["foto_perfil"] = user.get("foto_perfil") or None
     session_obj["es_restaurante"] = bool(user.get("es_restaurante"))
 
 
@@ -73,70 +70,15 @@ def decode_reset_token(
 
 
 def send_recovery_email(destinatario: str, enlace: str) -> bool:
-    sender = os.getenv("EMAIL_SENDER")
-    password = os.getenv("EMAIL_PASSWORD")
-    smtp_host = os.getenv("EMAIL_SMTP_HOST")
-    smtp_port_raw = os.getenv("EMAIL_SMTP_PORT")
+        """Queue password recovery email in a background thread.
 
-    if not sender or not password or not smtp_host or not smtp_port_raw:
-        return False
+        The HTTP request flow should not block or fail if SMTP fails later.
+        """
+        if not destinatario or not enlace:
+                return False
 
-    smtp_port_str = smtp_port_raw.strip()
-    if not smtp_port_str.isdigit():
-        return False
-
-    smtp_port = int(smtp_port_str)
-
-    subject = "Recupera tu acceso a jemPOS"
-    cuerpo_texto = (
-        "Hola, recibimos una solicitud para cambiar tu contraseña en jemPOS.\n"
-        "Haz clic en el enlace para continuar:\n\n"
-        f"{enlace}\n\n"
-        "El enlace es válido por 30 minutos.\n"
-        "Si no fuiste tú, ignora este mensaje.\n"
-    )
-    cuerpo_html = f"""
-    <html>
-      <body style="font-family: Arial, sans-serif; background-color: #f8fafc; color: #0f172a; padding: 24px;">
-        <div style="max-width: 520px; margin: 0 auto; background: #ffffff; border: 1px solid #e2e8f0;
-                    border-radius: 16px; padding: 24px;">
-          <h2 style="margin: 0 0 12px; color: #0f172a;">Recupera tu acceso a jemPOS</h2>
-          <p style="margin: 0 0 16px; color: #475569; line-height: 1.5;">
-            Hola, recibimos una solicitud para cambiar tu contraseña en jemPOS.
-            Haz clic en el enlace para continuar:
-          </p>
-          <div style="text-align: center; margin: 24px 0;">
-            <a href="{enlace}"
-               style="background: #2563eb; color: #ffffff; text-decoration: none; padding: 12px 24px;
-                      border-radius: 12px; display: inline-block; font-weight: 600;">
-              Recuperar acceso
-            </a>
-          </div>
-          <p style="margin: 0 0 8px; color: #475569; line-height: 1.5;">
-            El enlace es válido por 30 minutos.
-          </p>
-          <p style="margin: 0; color: #94a3b8; font-size: 13px;">
-            Si no fuiste tú, ignora este mensaje.
-          </p>
-        </div>
-      </body>
-    </html>
-    """
-    msg = MIMEMultipart("alternative")
-    msg["Subject"] = subject
-    msg["From"] = sender
-    msg["To"] = destinatario
-    msg.attach(MIMEText(cuerpo_texto, "plain", "utf-8"))
-    msg.attach(MIMEText(cuerpo_html, "html", "utf-8"))
-
-    try:
-        with smtplib.SMTP(smtp_host, smtp_port, timeout=20) as smtp:
-            smtp.starttls()
-            smtp.login(sender, password)
-            smtp.sendmail(sender, [destinatario], msg.as_string())
+        send_recovery_email_async(destinatario=destinatario, enlace=enlace)
         return True
-    except Exception:
-        return False
 
 
 def get_profile_for_user(id_usuario: int) -> dict | None:
@@ -144,7 +86,7 @@ def get_profile_for_user(id_usuario: int) -> dict | None:
     try:
         cur = conn.cursor(dictionary=True)
         cur.execute(
-            "SELECT u.nombre_completo, u.correo, u.rol, u.foto_perfil, t.nombre_negocio "
+            "SELECT u.nombre_completo, u.correo, u.rol, t.nombre_negocio "
             "FROM usuarios u "
             "LEFT JOIN tiendas t ON t.id_tienda = u.id_tienda "
             "WHERE u.id_usuario = %s LIMIT 1",
@@ -157,17 +99,13 @@ def get_profile_for_user(id_usuario: int) -> dict | None:
     if not row:
         return None
 
-    foto_url = None
-    if row.get("foto_perfil"):
-        foto_url = f"/static/uploads/perfiles/{row['foto_perfil']}"
-
     return {
         "nombre_completo": row["nombre_completo"],
         "correo": row["correo"],
         "rol": row["rol"],
         "nombre_negocio": row.get("nombre_negocio") or "",
         "telefono": "",
-        "foto_url": foto_url,
+        "foto_url": None,
     }
 
 

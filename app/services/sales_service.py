@@ -189,7 +189,7 @@ def get_top_vendidos(id_tienda: int, since: datetime, until: datetime, limit: in
             "SELECT p.nombre, SUM(dv.cantidad) AS total "
             "FROM detalle_ventas dv "
             "INNER JOIN ventas v ON dv.id_venta = v.id_venta "
-            "INNER JOIN productos p ON dv.id_producto = p.id_producto "
+            "INNER JOIN productos p ON dv.id_producto = p.id_producto AND p.id_tienda = v.id_tienda "
             "WHERE v.id_tienda=%s AND v.estado_venta='Pagada' "
             "AND v.fecha_creacion >= %s AND v.fecha_creacion < %s "
             "GROUP BY dv.id_producto, p.nombre "
@@ -533,15 +533,19 @@ def registrar_venta(
             if bool(producto.get("es_preparado") or 0):
                 try:
                     cur.execute(
-                        "SELECT id_insumo, cantidad_necesaria "
-                        "FROM recetas_productos WHERE id_producto = %s",
-                        (id_producto,),
+                        "SELECT rp.id_insumo, rp.cantidad_necesaria "
+                        "FROM recetas_productos rp "
+                        "INNER JOIN productos p ON p.id_producto = rp.id_producto "
+                        "WHERE rp.id_producto = %s AND p.id_tienda = %s",
+                        (id_producto, id_tienda),
                     )
                 except Exception:
                     cur.execute(
-                        "SELECT id_insumo, cantidad_requerida AS cantidad_necesaria "
-                        "FROM recetas_productos WHERE id_producto = %s",
-                        (id_producto,),
+                        "SELECT rp.id_insumo, rp.cantidad_requerida AS cantidad_necesaria "
+                        "FROM recetas_productos rp "
+                        "INNER JOIN productos p ON p.id_producto = rp.id_producto "
+                        "WHERE rp.id_producto = %s AND p.id_tienda = %s",
+                        (id_producto, id_tienda),
                     )
                 recetas = cur.fetchall() or []
 
@@ -701,8 +705,8 @@ def get_detalle_venta(id_tienda: int, id_venta: int) -> dict:
         cur.execute(
             "SELECT p.nombre AS producto, dv.cantidad, dv.subtotal_linea "
             "FROM detalle_ventas dv "
-            "INNER JOIN productos p ON p.id_producto = dv.id_producto "
             "INNER JOIN ventas v ON v.id_venta = dv.id_venta "
+            "INNER JOIN productos p ON p.id_producto = dv.id_producto AND p.id_tienda = v.id_tienda "
             "WHERE dv.id_venta = %s AND v.id_tienda = %s "
             "ORDER BY dv.id_detalle_venta ASC",
             (id_venta, id_tienda),
@@ -791,6 +795,35 @@ def crear_cliente_fiado(id_tienda: int, id_usuario: int, nombre: str, telefono: 
         conn.close()
 
 
+def delete_cliente_fiado(id_tienda: int, id_usuario: int, id_cliente: int) -> None:
+    """Soft delete a fiado client preserving historical sales integrity."""
+    try:
+        id_tienda = parse_int(id_tienda, "Tienda", min_value=1)
+        id_usuario = parse_int(id_usuario, "Usuario", min_value=1)
+        id_cliente = parse_int(id_cliente, "Cliente", min_value=1)
+    except ValueError as exc:
+        _raise_validation(exc)
+
+    conn = get_db()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "UPDATE clientes SET estado_activo = 0 "
+            "WHERE id_cliente = %s AND id_tienda = %s AND estado_activo = 1",
+            (id_cliente, id_tienda),
+        )
+        if cur.rowcount == 0:
+            raise SalesNotFoundError("Cliente no encontrado.")
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+    _registrar_auditoria(id_tienda, id_usuario, "eliminar_cliente", f"Cliente desactivado id={id_cliente}")
+
+
 def sumar_fiado(id_tienda: int, id_usuario: int, id_cliente: int, monto: float, concepto: str) -> None:
     try:
         id_tienda = parse_int(id_tienda, "Tienda", min_value=1)
@@ -804,7 +837,8 @@ def sumar_fiado(id_tienda: int, id_usuario: int, id_cliente: int, monto: float, 
     try:
         cur = conn.cursor(dictionary=True)
         cur.execute(
-            "SELECT id_cliente FROM clientes WHERE id_cliente = %s AND id_tienda = %s LIMIT 1",
+            "SELECT id_cliente FROM clientes "
+            "WHERE id_cliente = %s AND id_tienda = %s AND estado_activo = 1 LIMIT 1",
             (id_cliente, id_tienda),
         )
         if not cur.fetchone():
@@ -852,7 +886,8 @@ def abonar_fiado(id_tienda: int, id_usuario: int, id_cliente: int, monto: float,
     try:
         cur = conn.cursor(dictionary=True)
         cur.execute(
-            "SELECT id_cliente FROM clientes WHERE id_cliente = %s AND id_tienda = %s LIMIT 1",
+            "SELECT id_cliente FROM clientes "
+            "WHERE id_cliente = %s AND id_tienda = %s AND estado_activo = 1 LIMIT 1",
             (id_cliente, id_tienda),
         )
         if not cur.fetchone():
@@ -896,8 +931,9 @@ def abonar_fiado(id_tienda: int, id_usuario: int, id_cliente: int, monto: float,
 
         if float(venta["abonado"]) + monto >= float(venta["total_final"]):
             cur.execute(
-                "UPDATE ventas SET estado_venta = 'Pagada' WHERE id_venta = %s",
-                (venta["id_venta"],),
+                "UPDATE ventas SET estado_venta = 'Pagada' "
+                "WHERE id_venta = %s AND id_tienda = %s",
+                (venta["id_venta"], id_tienda),
             )
 
         conn.commit()

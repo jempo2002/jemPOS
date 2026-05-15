@@ -11,6 +11,11 @@ document.addEventListener('DOMContentLoaded', () => {
     : { 'Content-Type': 'application/json' };
   const cajaApiBase = '/pos/api/caja';
   const ventasApi = '/pos/api/ventas';
+  const userRol = (document.body?.dataset?.userRol || '').toLowerCase();
+  const isAdminUser = userRol === 'admin';
+  const offlineQueueKey = 'jempos_offline_sales_queue';
+  const offlineLogKey = 'jempos_offline_sales_log';
+  const maxOfflineLogRows = 8;
 
   /* ── Estado del carrito ────────────────────────────────────
      items: Map<productId, { qty, ... }>
@@ -37,6 +42,24 @@ document.addEventListener('DOMContentLoaded', () => {
   const searchWrap     = document.querySelector('.search-wrap');
   const searchDropdown = document.getElementById('search-dropdown');
   const toast          = document.getElementById('toast');
+  const offlineIndicator = document.getElementById('offline-sync-indicator');
+  const offlineIndicatorText = document.getElementById('offline-sync-indicator-text');
+  const offlineLogBody = document.getElementById('offline-sync-log-body');
+  const offlineLogCount = document.getElementById('offline-sync-count');
+
+  const offlineQueue = loadJsonArray(offlineQueueKey);
+  const offlineLog = loadJsonArray(offlineLogKey);
+
+  renderOfflineSyncPanel();
+  updateConnectionIndicator();
+  window.addEventListener('online', handleConnectionChange);
+  window.addEventListener('offline', handleConnectionChange);
+
+  if (navigator.onLine) {
+    setTimeout(() => {
+      syncOfflineQueue();
+    }, 0);
+  }
 
 
   /* ── Busqueda de productos (dropdown) ─────────────────────── */
@@ -170,20 +193,15 @@ document.addEventListener('DOMContentLoaded', () => {
     if (cart.size === 0) return;
     btnCobrar.disabled = true;
     const total = calcTotal();
+    const salePayload = {
+      items   : cartToArray(),
+      subtotal: calcSubtotal(),
+      discount: DISCOUNT,
+      total,
+      method  : selectedPayMethod,
+    };
     try {
-      const res = await fetch(ventasApi, {
-        method: 'POST',
-        headers: jsonHeaders,
-        body: JSON.stringify({
-          items   : cartToArray(),
-          subtotal: calcSubtotal(),
-          discount: DISCOUNT,
-          total,
-          method  : selectedPayMethod,
-        }),
-      });
-      if (res.status === 401) { window.location.href = '/login'; return; }
-      const data = await res.json();
+      const data = await submitSale(salePayload);
       if (data.ok) {
         showToast(`¡Venta de $${COP.format(total)} registrada!`);
         if (Array.isArray(data.stock_alerts) && data.stock_alerts.length) {
@@ -195,8 +213,14 @@ document.addEventListener('DOMContentLoaded', () => {
       } else {
         showToast(data.msg || 'Error al registrar la venta.', true);
       }
-    } catch (_) {
-      showToast('Error de conexion.', true);
+    } catch (error) {
+      const errorMessage = normalizeErrorMessage(error);
+      if (!navigator.onLine || isNetworkLikeError(error)) {
+        enqueueOfflineSale(salePayload, errorMessage);
+        showToast('Venta guardada localmente. Se sincronizará al volver internet.', true, 4200);
+      } else {
+        showToast(errorMessage, true, 6000);
+      }
     }
     btnCobrar.disabled = false;
   });
@@ -408,6 +432,289 @@ document.addEventListener('DOMContentLoaded', () => {
     /* badge eliminado — funcion conservada por compatibilidad con llamadas existentes */
   }
 
+  async function submitSale(payload) {
+    const res = await fetch(ventasApi, {
+      method: 'POST',
+      headers: jsonHeaders,
+      body: JSON.stringify(payload),
+    });
+
+    if (res.status === 401) { window.location.href = '/login'; return { ok: false, msg: 'Sesion expirada.' }; }
+
+    const rawText = await res.text();
+    let data = null;
+    try {
+      data = rawText ? JSON.parse(rawText) : null;
+    } catch (_) {
+      data = null;
+    }
+
+    if (res.ok && data && data.ok) {
+      return data;
+    }
+
+    const message = (data && (data.msg || data.error)) || rawText || `HTTP ${res.status}`;
+    throw new Error(message);
+  }
+
+  function loadJsonArray(storageKey) {
+    try {
+      const raw = localStorage.getItem(storageKey);
+      const parsed = raw ? JSON.parse(raw) : [];
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (_) {
+      return [];
+    }
+  }
+
+  function saveJsonArray(storageKey, value) {
+    localStorage.setItem(storageKey, JSON.stringify(value));
+  }
+
+  function handleConnectionChange() {
+    updateConnectionIndicator();
+    if (navigator.onLine) {
+      syncOfflineQueue();
+    }
+  }
+
+  function updateConnectionIndicator(state = null, label = null) {
+    if (!offlineIndicator || !isAdminUser) return;
+
+    offlineIndicator.hidden = false;
+    offlineIndicator.classList.remove('is-online', 'is-offline', 'is-syncing');
+
+    const pendingCount = offlineQueue.filter((entry) => entry.status === 'pending' || entry.status === 'failed').length;
+    if (offlineLogCount) {
+      offlineLogCount.textContent = `${pendingCount} ${pendingCount === 1 ? 'pendiente' : 'pendientes'}`;
+    }
+
+    const currentState = state || (navigator.onLine ? 'online' : 'offline');
+    if (currentState === 'syncing') {
+      offlineIndicator.classList.add('is-syncing');
+      offlineIndicatorText.textContent = label || 'Sincronizando ventas';
+    } else if (!navigator.onLine || currentState === 'offline') {
+      offlineIndicator.classList.add('is-offline');
+      offlineIndicatorText.textContent = label || 'Offline - guardando localmente';
+    } else {
+      offlineIndicator.classList.add('is-online');
+      offlineIndicatorText.textContent = label || 'Online';
+    }
+  }
+
+  function renderOfflineSyncPanel() {
+    if (!isAdminUser || !offlineLogBody) return;
+
+    const pendingCount = offlineQueue.filter((entry) => entry.status === 'pending' || entry.status === 'failed').length;
+    if (offlineLogCount) {
+      offlineLogCount.textContent = `${pendingCount} ${pendingCount === 1 ? 'pendiente' : 'pendientes'}`;
+    }
+
+    const rows = [...offlineLog, ...offlineQueue]
+      .sort((a, b) => new Date(b.updated_at || b.created_at || 0) - new Date(a.updated_at || a.created_at || 0))
+      .slice(0, maxOfflineLogRows);
+
+    if (!rows.length) {
+      offlineLogBody.innerHTML = '<tr class="offline-sync-empty"><td colspan="5">No hay eventos offline pendientes.</td></tr>';
+      return;
+    }
+
+    offlineLogBody.innerHTML = rows.map((entry) => {
+      const saleLabel = entry.sale_label || `#${entry.id}`;
+      const timeLabel = formatOfflineTime(entry.updated_at || entry.created_at);
+      const statusLabel = getOfflineStatusLabel(entry.status);
+      const retryCell = entry.status === 'failed'
+        ? `<button type="button" class="offline-sync-retry" data-retry-id="${escapeHtml(String(entry.id))}">Reintentar</button>`
+        : '';
+      const errorCell = entry.error ? `<span class="offline-sync-error">${escapeHtml(entry.error)}</span>` : '—';
+
+      return `
+        <tr>
+          <td>${escapeHtml(timeLabel)}</td>
+          <td>${escapeHtml(saleLabel)}</td>
+          <td><span class="offline-sync-status ${escapeHtml(entry.status || 'pending')}">${escapeHtml(statusLabel)}</span></td>
+          <td>${errorCell}</td>
+          <td>${retryCell}</td>
+        </tr>
+      `;
+    }).join('');
+
+    offlineLogBody.querySelectorAll('[data-retry-id]').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const entryId = btn.getAttribute('data-retry-id');
+        await retryOfflineSale(entryId);
+      });
+    });
+  }
+
+  function formatOfflineTime(value) {
+    if (!value) return '—';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '—';
+    return date.toLocaleString('es-CO', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  }
+
+  function getOfflineStatusLabel(status) {
+    const normalized = String(status || 'pending').toLowerCase();
+    if (normalized === 'failed') return 'Falló';
+    if (normalized === 'synced') return 'Sincronizada';
+    if (normalized === 'syncing') return 'Sincronizando';
+    return 'Pendiente';
+  }
+
+  function normalizeErrorMessage(error) {
+    if (!error) return 'Error desconocido.';
+    if (typeof error === 'string') return error;
+    if (error instanceof Error) return error.message || 'Error desconocido.';
+    if (typeof error === 'object' && error.msg) return String(error.msg);
+    return 'Error desconocido.';
+  }
+
+  function isNetworkLikeError(error) {
+    const message = normalizeErrorMessage(error).toLowerCase();
+    return message.includes('failed to fetch') || message.includes('network') || message.includes('conexion') || message.includes('connection');
+  }
+
+  function enqueueOfflineSale(payload, errorMessage = '') {
+    const now = new Date().toISOString();
+    const entry = {
+      id: generateOfflineId(),
+      sale_label: buildOfflineSaleLabel(payload),
+      created_at: now,
+      updated_at: now,
+      status: 'pending',
+      attempts: 0,
+      error: errorMessage,
+      payload,
+    };
+
+    offlineQueue.unshift(entry);
+    saveJsonArray(offlineQueueKey, offlineQueue);
+    renderOfflineSyncPanel();
+    updateConnectionIndicator();
+  }
+
+  async function syncOfflineQueue() {
+    if (!isAdminUser || !offlineQueue.length) {
+      updateConnectionIndicator();
+      return;
+    }
+
+    updateConnectionIndicator('syncing', 'Sincronizando ventas guardadas');
+
+    const pendingEntries = offlineQueue.filter((entry) => entry.status === 'pending');
+    for (const entry of pendingEntries) {
+      entry.status = 'syncing';
+      entry.attempts = (entry.attempts || 0) + 1;
+      entry.updated_at = new Date().toISOString();
+      saveJsonArray(offlineQueueKey, offlineQueue);
+      renderOfflineSyncPanel();
+
+      try {
+        const data = await submitSale(entry.payload);
+        if (data.ok) {
+          removeOfflineEntry(entry.id, 'synced', 'Sincronizada correctamente.');
+          showToast(`Venta offline ${entry.sale_label} sincronizada correctamente.`, false, 3200);
+        } else {
+          throw new Error(data.msg || 'La sincronizacion fue rechazada por el servidor.');
+        }
+      } catch (error) {
+        const message = normalizeErrorMessage(error);
+        moveOfflineEntryToFailed(entry.id, message);
+        showToast(`Error al sincronizar ${entry.sale_label}: ${message}`, true, 7000);
+        break;
+      }
+    }
+
+    updateConnectionIndicator();
+    renderOfflineSyncPanel();
+  }
+
+  function removeOfflineEntry(entryId, finalStatus = 'synced', finalError = '') {
+    const idx = offlineQueue.findIndex((entry) => String(entry.id) === String(entryId));
+    if (idx === -1) return;
+
+    const [entry] = offlineQueue.splice(idx, 1);
+    const logEntry = {
+      ...entry,
+      status: finalStatus,
+      error: finalError,
+      updated_at: new Date().toISOString(),
+    };
+
+    offlineLog.unshift(logEntry);
+    offlineLog.splice(maxOfflineLogRows);
+    saveJsonArray(offlineQueueKey, offlineQueue);
+    saveJsonArray(offlineLogKey, offlineLog);
+  }
+
+  function moveOfflineEntryToFailed(entryId, errorMessage) {
+    const idx = offlineQueue.findIndex((entry) => String(entry.id) === String(entryId));
+    if (idx === -1) return;
+
+    const [entry] = offlineQueue.splice(idx, 1);
+    const logEntry = {
+      ...entry,
+      status: 'failed',
+      error: errorMessage,
+      updated_at: new Date().toISOString(),
+    };
+
+    offlineLog.unshift(logEntry);
+    offlineLog.splice(maxOfflineLogRows);
+    saveJsonArray(offlineQueueKey, offlineQueue);
+    saveJsonArray(offlineLogKey, offlineLog);
+    renderOfflineSyncPanel();
+    updateConnectionIndicator();
+  }
+
+  async function retryOfflineSale(entryId) {
+    const logIdx = offlineLog.findIndex((entry) => String(entry.id) === String(entryId));
+    if (logIdx === -1) return;
+
+    const entry = offlineLog[logIdx];
+    offlineLog.splice(logIdx, 1);
+    offlineQueue.unshift({
+      ...entry,
+      status: 'pending',
+      error: '',
+      updated_at: new Date().toISOString(),
+      attempts: (entry.attempts || 0) + 1,
+    });
+    saveJsonArray(offlineLogKey, offlineLog);
+    saveJsonArray(offlineQueueKey, offlineQueue);
+    renderOfflineSyncPanel();
+    showToast(`Reintentando ${entry.sale_label}...`, false, 2400);
+
+    if (navigator.onLine) {
+      await syncOfflineQueue();
+    } else {
+      updateConnectionIndicator('offline', 'Sin internet - reintento pendiente');
+    }
+  }
+
+  function buildOfflineSaleLabel(payload) {
+    try {
+      const total = typeof payload.total === 'number' ? payload.total : Number(payload.total || 0);
+      return `$${COP.format(total)}`;
+    } catch (_) {
+      return 'Venta offline';
+    }
+  }
+
+  function generateOfflineId() {
+    if (window.crypto && typeof window.crypto.randomUUID === 'function') {
+      return window.crypto.randomUUID();
+    }
+    return `offline-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  }
+
   /* ── Helpers ─────────────────────────────────────────────── */
 
   function cartToArray() {
@@ -443,7 +750,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function escapeHtml(str) {
-    return str
+    return String(str)
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;')

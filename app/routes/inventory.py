@@ -5,26 +5,20 @@ from flask import Blueprint, flash, jsonify, redirect, render_template, request,
 from app.services.inventory_service import (
     InventoryNotFoundError,
     add_stock,
-    create_insumo,
     create_producto,
     create_proveedor,
-    delete_insumo,
     delete_producto,
     delete_proveedor,
     get_categorias_inventario,
-    get_insumos,
     get_productos_inventario,
     get_proveedor_productos,
     get_proveedores,
-    get_proveedores_page,
     list_categorias_api,
     list_inventario_api,
-    update_insumo,
     update_producto,
     update_proveedor,
 )
 from app.utils.decorators import login_required, roles_required
-from app.utils.validation import parse_bool
 from app.utils.helpers import avatar_iniciales, only_digits
 
 inventory_bp = Blueprint("inventory_bp", __name__, url_prefix="/inventario")
@@ -36,7 +30,6 @@ def _base_context() -> dict:
     return {
         "rol": session.get("rol", ""),
         "nombre_completo": nombre,
-        "foto_perfil": session.get("foto_perfil"),
         "avatar_iniciales": avatar_iniciales(nombre),
         "mostrar_alerta_suscripcion": False,
         "dias_restantes": 0,
@@ -59,228 +52,11 @@ def inventario_page():
     ctx.update(
         {
             "productos": get_productos_inventario(id_tienda),
-            "insumos": get_insumos(id_tienda),
             "categorias": get_categorias_inventario(id_tienda),
             "proveedores": get_proveedores(id_tienda),
         }
     )
     return render_template("pos/inventario.html", **ctx)
-
-
-@inventory_bp.route("/insumos")
-@login_required
-@roles_required("Admin", "Master")
-def insumos_page():
-    id_tienda = int(session["id_tienda"])
-    ctx = _base_context()
-    ctx.update(
-        {
-            "insumos": get_insumos(id_tienda),
-            "proveedores": get_proveedores(id_tienda),
-        }
-    )
-    return render_template("pos/insumos.html", **ctx)
-
-
-@inventory_bp.route("/proveedores")
-@login_required
-@roles_required("Admin", "Master")
-def proveedores_page():
-    ctx = _base_context()
-    ctx.update({"proveedores": get_proveedores_page(int(session["id_tienda"]))})
-    return render_template("pos/proveedores.html", **ctx)
-
-
-@inventory_api_bp.route("/insumos/crear", methods=["POST"])
-@login_required
-@roles_required("Admin", "Master")
-def insumos_crear_page():
-    nombre = str(request.form.get("nombre", "")).strip()
-    unidad = str(request.form.get("unidad_medida", "Un")).strip() or "Un"
-
-    try:
-        stock = float(request.form.get("stock_actual", 0) or 0)
-        costo = float(request.form.get("costo_unitario", 0) or 0)
-    except (TypeError, ValueError):
-        flash("Stock y costo deben ser numericos.", "error")
-        return redirect(url_for("inventory_bp.insumos_page"))
-
-    if not nombre:
-        flash("El nombre del insumo es requerido.", "error")
-        return redirect(url_for("inventory_bp.insumos_page"))
-
-    if unidad not in {"Gr", "Ml", "Un"}:
-        flash("Unidad invalida. Usa Gr, Ml o Un.", "error")
-        return redirect(url_for("inventory_bp.insumos_page"))
-
-    if stock < 0 or costo < 0:
-        flash("Stock y costo no pueden ser negativos.", "error")
-        return redirect(url_for("inventory_bp.insumos_page"))
-
-    try:
-        proveedor_id = _parse_proveedor_id(request.form.get("id_proveedor"))
-        create_insumo(int(session["id_tienda"]), int(session["id_usuario"]), nombre, unidad, stock, costo, proveedor_id)
-    except InventoryNotFoundError as exc:
-        flash(str(exc), "error")
-    except ValueError as exc:
-        flash(str(exc), "error")
-    except Exception:
-        flash("No fue posible crear el insumo. Verifica migraciones de base de datos.", "error")
-        return redirect(url_for("inventory_bp.insumos_page"))
-
-    if '_flashes' not in session or not any(cat == 'error' for cat, _ in session.get('_flashes', [])):
-        flash("Insumo creado correctamente.", "success")
-    return redirect(url_for("inventory_bp.insumos_page"))
-
-
-@inventory_api_bp.route("/insumos/editar/<int:id_insumo>", methods=["POST"])
-@login_required
-@roles_required("Admin", "Master")
-def insumos_editar_page(id_insumo):
-    nombre = str(request.form.get("nombre", "")).strip()
-    unidad = str(request.form.get("unidad_medida", "Un")).strip() or "Un"
-
-    try:
-        stock = float(request.form.get("stock_actual", 0) or 0)
-        costo = float(request.form.get("costo_unitario", 0) or 0)
-    except (TypeError, ValueError):
-        flash("Stock y costo deben ser numericos.", "error")
-        return redirect(url_for("inventory_bp.insumos_page"))
-
-    if not nombre:
-        flash("El nombre del insumo es requerido.", "error")
-        return redirect(url_for("inventory_bp.insumos_page"))
-
-    if unidad not in {"Gr", "Ml", "Un"}:
-        flash("Unidad invalida. Usa Gr, Ml o Un.", "error")
-        return redirect(url_for("inventory_bp.insumos_page"))
-
-    if stock < 0 or costo < 0:
-        flash("Stock y costo no pueden ser negativos.", "error")
-        return redirect(url_for("inventory_bp.insumos_page"))
-
-    try:
-        proveedor_id = _parse_proveedor_id(request.form.get("id_proveedor"))
-        update_insumo(
-            int(session["id_tienda"]),
-            int(session["id_usuario"]),
-            int(id_insumo),
-            nombre,
-            unidad,
-            stock,
-            costo,
-            proveedor_id,
-        )
-        flash("Insumo actualizado correctamente.", "success")
-    except InventoryNotFoundError as exc:
-        flash(str(exc), "error")
-    except ValueError as exc:
-        flash(str(exc), "error")
-    except Exception:
-        flash("No fue posible actualizar el insumo.", "error")
-
-    return redirect(url_for("inventory_bp.insumos_page"))
-
-
-@inventory_api_bp.route("/insumos/eliminar/<int:id_insumo>", methods=["POST"])
-@login_required
-@roles_required("Admin", "Master")
-def insumos_eliminar_page(id_insumo):
-    try:
-        delete_insumo(int(session["id_tienda"]), int(session["id_usuario"]), int(id_insumo))
-        flash("Insumo eliminado correctamente.", "success")
-    except InventoryNotFoundError as exc:
-        flash(str(exc), "error")
-    except ValueError as exc:
-        flash(str(exc), "error")
-    except Exception:
-        flash("No fue posible eliminar el insumo.", "error")
-    return redirect(url_for("inventory_bp.insumos_page"))
-
-
-@inventory_api_bp.route("/proveedores/crear", methods=["POST"])
-@login_required
-@roles_required("Admin", "Master")
-def proveedores_crear_page():
-    empresa = str(request.form.get("empresa", "")).strip()
-    nombre_contacto = str(request.form.get("nombre_contacto", "")).strip()
-    celular = only_digits(request.form.get("celular"))
-    correo = str(request.form.get("correo", "")).strip()
-    detalles = str(request.form.get("detalles", "")).strip()
-
-    if not empresa:
-        flash("La empresa es requerida.", "error")
-        return redirect(url_for("inventory_bp.proveedores_page"))
-
-    if celular and len(celular) > 20:
-        flash("El celular debe tener maximo 20 digitos.", "error")
-        return redirect(url_for("inventory_bp.proveedores_page"))
-
-    try:
-        create_proveedor(int(session["id_tienda"]), int(session["id_usuario"]), empresa, nombre_contacto, celular, correo, detalles)
-        flash("Proveedor creado correctamente.", "success")
-    except ValueError as exc:
-        flash(str(exc), "error")
-    except Exception:
-        flash("No fue posible crear el proveedor.", "error")
-
-    return redirect(url_for("inventory_bp.proveedores_page"))
-
-
-@inventory_api_bp.route("/proveedores/editar/<int:id_proveedor>", methods=["POST"])
-@login_required
-@roles_required("Admin", "Master")
-def proveedores_editar_page(id_proveedor):
-    empresa = str(request.form.get("empresa", "")).strip()
-    nombre_contacto = str(request.form.get("nombre_contacto", "")).strip()
-    celular = only_digits(request.form.get("celular"))
-    correo = str(request.form.get("correo", "")).strip()
-    detalles = str(request.form.get("detalles", "")).strip()
-
-    if not empresa:
-        flash("La empresa es requerida.", "error")
-        return redirect(url_for("inventory_bp.proveedores_page"))
-
-    if celular and len(celular) > 20:
-        flash("El celular debe tener maximo 20 digitos.", "error")
-        return redirect(url_for("inventory_bp.proveedores_page"))
-
-    try:
-        update_proveedor(
-            int(session["id_tienda"]),
-            int(session["id_usuario"]),
-            int(id_proveedor),
-            empresa,
-            nombre_contacto,
-            celular,
-            correo,
-            detalles,
-        )
-        flash("Proveedor actualizado correctamente.", "success")
-    except InventoryNotFoundError as exc:
-        flash(str(exc), "error")
-    except ValueError as exc:
-        flash(str(exc), "error")
-    except Exception:
-        flash("No fue posible actualizar el proveedor.", "error")
-
-    return redirect(url_for("inventory_bp.proveedores_page"))
-
-
-@inventory_api_bp.route("/proveedores/eliminar/<int:id_proveedor>", methods=["POST"])
-@login_required
-@roles_required("Admin", "Master")
-def proveedores_eliminar_page(id_proveedor):
-    try:
-        delete_proveedor(int(session["id_tienda"]), int(session["id_usuario"]), int(id_proveedor))
-        flash("Proveedor eliminado correctamente.", "success")
-    except InventoryNotFoundError as exc:
-        flash(str(exc), "error")
-    except ValueError as exc:
-        flash(str(exc), "error")
-    except Exception:
-        flash("No fue posible eliminar el proveedor.", "error")
-    return redirect(url_for("inventory_bp.proveedores_page"))
 
 
 @inventory_api_bp.route("/api/inventario", methods=["GET"])
@@ -321,22 +97,6 @@ def api_inventario_create():
         return jsonify({"ok": False, "msg": "Valores numericos invalidos."}), 400
 
     try:
-        es_preparado = parse_bool(
-            data.get("es_preparado", False) if is_json else (request.form.get("es_preparado") == "on")
-        )
-    except ValueError as exc:
-        return jsonify({"ok": False, "msg": str(exc)}), 400
-    if es_preparado:
-        stock = 0
-
-    if is_json:
-        ingredientes_raw = data.get("ingredientes") or []
-    else:
-        ids = request.form.getlist("id_insumo[]")
-        cants = request.form.getlist("cantidad_insumo[]")
-        ingredientes_raw = [{"id_insumo": i, "cantidad": c} for i, c in zip(ids, cants)]
-
-    try:
         proveedor_id = _parse_proveedor_id(fuente.get("id_proveedor"))
     except ValueError as exc:
         return jsonify({"ok": False, "msg": str(exc)}), 400
@@ -355,8 +115,6 @@ def api_inventario_create():
             costo,
             venta,
             stock,
-            es_preparado,
-            ingredientes_raw,
             proveedor_id,
         )
         return jsonify({"ok": True, "id": new_id})
@@ -389,22 +147,6 @@ def api_inventario_update(id_producto: int):
         return jsonify({"ok": False, "msg": "Valores numericos invalidos."}), 400
 
     try:
-        es_preparado = parse_bool(
-            data.get("es_preparado", False) if is_json else (request.form.get("es_preparado") == "on")
-        )
-    except ValueError as exc:
-        return jsonify({"ok": False, "msg": str(exc)}), 400
-    if es_preparado:
-        stock = 0
-
-    if is_json:
-        ingredientes_raw = data.get("ingredientes") or []
-    else:
-        ids = request.form.getlist("id_insumo[]")
-        cants = request.form.getlist("cantidad_insumo[]")
-        ingredientes_raw = [{"id_insumo": i, "cantidad": c} for i, c in zip(ids, cants)]
-
-    try:
         proveedor_id = _parse_proveedor_id(fuente.get("id_proveedor"))
     except ValueError as exc:
         return jsonify({"ok": False, "msg": str(exc)}), 400
@@ -422,8 +164,6 @@ def api_inventario_update(id_producto: int):
             costo,
             venta,
             stock,
-            es_preparado,
-            ingredientes_raw,
             proveedor_id,
         )
         return jsonify({"ok": True})
@@ -578,102 +318,3 @@ def api_proveedor_productos(id_proveedor: int):
         return jsonify({"ok": True, **data})
     except InventoryNotFoundError as exc:
         return jsonify({"ok": False, "msg": str(exc)}), 404
-
-
-@inventory_api_bp.route("/api/insumos", methods=["GET"])
-@inventory_api_bp.route("/inventario/api/insumos", methods=["GET"])
-@login_required
-@roles_required("Admin", "Master")
-def api_insumos_list():
-    return jsonify({"ok": True, "insumos": get_insumos(int(session["id_tienda"]))})
-
-
-@inventory_api_bp.route("/api/insumos", methods=["POST"])
-@inventory_api_bp.route("/inventario/api/insumos", methods=["POST"])
-@login_required
-@roles_required("Admin", "Master")
-def api_insumos_create():
-    data = request.get_json(silent=True) or {}
-    nombre = str(data.get("nombre", "")).strip()
-    unidad = str(data.get("unidad_medida", "Un")).strip() or "Un"
-
-    try:
-        stock = float(data.get("stock_actual", 0) or 0)
-        costo = float(data.get("costo_unitario", 0) or 0)
-    except (TypeError, ValueError):
-        return jsonify({"ok": False, "msg": "Stock y costo deben ser numericos."}), 400
-
-    if not nombre:
-        return jsonify({"ok": False, "msg": "El nombre del insumo es requerido."}), 400
-    if unidad not in {"Gr", "Ml", "Un"}:
-        return jsonify({"ok": False, "msg": "Unidad invalida. Usa Gr, Ml o Un."}), 400
-    if stock < 0 or costo < 0:
-        return jsonify({"ok": False, "msg": "Stock y costo no pueden ser negativos."}), 400
-
-    try:
-        proveedor_id = _parse_proveedor_id(data.get("id_proveedor"))
-        new_id = create_insumo(int(session["id_tienda"]), int(session["id_usuario"]), nombre, unidad, stock, costo, proveedor_id)
-        return jsonify({"ok": True, "id": new_id})
-    except InventoryNotFoundError as exc:
-        return jsonify({"ok": False, "msg": str(exc)}), 404
-    except ValueError as exc:
-        return jsonify({"ok": False, "msg": str(exc)}), 400
-    except Exception:
-        return jsonify({"ok": False, "msg": "No se pudo crear el insumo."}), 500
-
-
-@inventory_api_bp.route("/api/insumos/<int:id_insumo>", methods=["PUT"])
-@inventory_api_bp.route("/inventario/api/insumos/<int:id_insumo>", methods=["PUT"])
-@login_required
-@roles_required("Admin", "Master")
-def api_insumos_update(id_insumo: int):
-    data = request.get_json(silent=True) or {}
-    nombre = str(data.get("nombre", "")).strip()
-    unidad = str(data.get("unidad_medida", "Un")).strip() or "Un"
-
-    try:
-        stock = float(data.get("stock_actual", 0) or 0)
-        costo = float(data.get("costo_unitario", 0) or 0)
-    except (TypeError, ValueError):
-        return jsonify({"ok": False, "msg": "Stock y costo deben ser numericos."}), 400
-
-    if not nombre:
-        return jsonify({"ok": False, "msg": "El nombre del insumo es requerido."}), 400
-    if unidad not in {"Gr", "Ml", "Un"}:
-        return jsonify({"ok": False, "msg": "Unidad invalida. Usa Gr, Ml o Un."}), 400
-    if stock < 0 or costo < 0:
-        return jsonify({"ok": False, "msg": "Stock y costo no pueden ser negativos."}), 400
-
-    try:
-        proveedor_id = _parse_proveedor_id(data.get("id_proveedor"))
-        update_insumo(
-            int(session["id_tienda"]),
-            int(session["id_usuario"]),
-            int(id_insumo),
-            nombre,
-            unidad,
-            stock,
-            costo,
-            proveedor_id,
-        )
-        return jsonify({"ok": True})
-    except InventoryNotFoundError as exc:
-        return jsonify({"ok": False, "msg": str(exc)}), 404
-    except ValueError as exc:
-        return jsonify({"ok": False, "msg": str(exc)}), 400
-    except Exception:
-        return jsonify({"ok": False, "msg": "No se pudo actualizar el insumo."}), 500
-
-
-@inventory_api_bp.route("/api/insumos/<int:id_insumo>", methods=["DELETE"])
-@inventory_api_bp.route("/inventario/api/insumos/<int:id_insumo>", methods=["DELETE"])
-@login_required
-@roles_required("Admin", "Master")
-def api_insumos_delete(id_insumo: int):
-    try:
-        delete_insumo(int(session["id_tienda"]), int(session["id_usuario"]), int(id_insumo))
-        return jsonify({"ok": True})
-    except InventoryNotFoundError as exc:
-        return jsonify({"ok": False, "msg": str(exc)}), 404
-    except Exception:
-        return jsonify({"ok": False, "msg": "No se pudo eliminar el insumo."}), 500

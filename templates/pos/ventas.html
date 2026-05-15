@@ -44,21 +44,10 @@
         <i class="fa-solid fa-cash-register"></i>
         <span>Caja</span>
       </a>
-      {% if session.get('es_restaurante') %}
-      <a href="/inventario" class="nav-link{% if request.path == '/inventario' %} active{% endif %}">
-        <i class="fa-solid fa-utensils"></i>
-        <span>Menu y Platos</span>
-      </a>
-      <a href="/inventario/insumos" class="nav-link{% if request.path == '/inventario/insumos' %} active{% endif %}">
-        <i class="fa-solid fa-boxes-stacked"></i>
-        <span>Insumos (Despensa)</span>
-      </a>
-      {% else %}
       <a href="/inventario" class="nav-link{% if request.path == '/inventario' %} active{% endif %}">
         <i class="fa-solid fa-boxes-stacked"></i>
         <span>Inventario</span>
       </a>
-      {% endif %}
       <a href="{{ url_for('sales_bp.fiados') }}" class="nav-link">
         <i class="fa-solid fa-handshake-simple"></i>
         <span>Fiados</span>

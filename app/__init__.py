@@ -84,7 +84,13 @@ def create_app() -> Flask:
 
     @app.get("/")
     def index():
-        return redirect(url_for("auth.login"))
+        # La raíz siempre dirige a la landing pública; desde ahí el
+        # usuario decide iniciar sesión o crear cuenta.
+        return redirect(url_for("landing"))
+
+    @app.get("/landing")
+    def landing():
+        return render_template("landing.html")
 
     @app.get("/health")
     def health() -> tuple[dict, int]:

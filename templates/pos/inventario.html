@@ -30,65 +30,7 @@
 <body>
 
 <div class="app-shell">
-  <aside class="sidebar" role="navigation" aria-label="Menu principal">
-
-    <div class="sidebar-logo">
-      <div class="logo-text">
-        <span class="jem">jem</span><span class="pos">POS</span>
-      </div>
-      <div class="sub">Punto de Venta</div>
-    </div>
-
-    <nav class="sidebar-nav">
-      <a href="{{ url_for('sales_bp.turno') }}" class="nav-link">
-        <i class="fa-solid fa-business-time"></i>
-        <span>Mi Turno</span>
-      </a>
-      <a href="{{ url_for('core_bp.dashboard_page') }}" class="nav-link">
-        <i class="fa-solid fa-gauge-high"></i>
-        <span>{% if session.get('rol') == 'Admin' %}Panel de Control{% else %}Inicio{% endif %}</span>
-      </a>
-      <a href="{{ url_for('sales_bp.caja') }}" class="nav-link">
-        <i class="fa-solid fa-cash-register"></i>
-        <span>Caja</span>
-      </a>
-      <a href="{{ url_for('inventory_bp.inventario_page') }}" class="nav-link active" aria-current="page">
-        <i class="fa-solid fa-boxes-stacked"></i>
-        <span>Inventario</span>
-      </a>
-      <a href="{{ url_for('sales_bp.fiados') }}" class="nav-link">
-        <i class="fa-solid fa-handshake-simple"></i>
-        <span>Fiados</span>
-      </a>
-      <a href="{{ url_for('sales_bp.ventas') }}" class="nav-link">
-        <i class="fa-solid fa-file-invoice-dollar"></i>
-        <span>Ventas</span>
-      </a>
-      <a href="{{ url_for('sales_bp.gastos') }}" class="nav-link">
-        <i class="fa-solid fa-receipt"></i>
-        <span>Gastos</span>
-      </a>
-      {% if (session.get('rol') or '')|lower == 'admin' %}
-      <a href="/perfil" class="nav-link">
-        <i class="fa-solid fa-circle-user"></i>
-        <span>Mi Perfil</span>
-      </a>
-      {% endif %}
-    </nav>
-
-    <a href="{{ url_for('auth.logout') }}" class="sidebar-logout no-underline">
-      <img src="/static/img/leave.png" alt="" />
-      Cerrar sesion
-    </a>
-    <div class="sidebar-footer">
-      <div class="avatar">{{ avatar_iniciales }}</div>
-      <div class="user-info">
-        <div class="user-name">{{ nombre_completo }}</div>
-        <div class="user-role">{{ rol }}</div>
-      </div>
-    </div>
-
-  </aside>
+  {% include "pos/_nav.html" %}
   <div class="inv-main">
     <header class="inv-topbar">
 
@@ -105,40 +47,72 @@
         </button>
       </div>
 
-      <!-- Buscador -->
-      <div class="inv-search-wrap">
-        <i class="fa-solid fa-magnifying-glass"></i>
-        <input
-          type="search"
-          id="inv-search"
-          class="inv-search"
-          placeholder="Buscar por nombre o categoria..."
-          autocomplete="off"
-          aria-label="Buscar productos"
-        />
+      <!-- Pestanas: Productos / Proveedores -->
+      <div class="inv-tabs" role="tablist" aria-label="Secciones de inventario">
+        <button type="button" class="inv-tab is-active" data-tab="productos" role="tab" aria-selected="true">
+          <i class="fa-solid fa-boxes-stacked" aria-hidden="true"></i> Productos
+        </button>
+        <button type="button" class="inv-tab" data-tab="proveedores" role="tab" aria-selected="false">
+          <i class="fa-solid fa-truck-field" aria-hidden="true"></i> Proveedores
+        </button>
+      </div>
+
+      <!-- Buscador + escaner (id en la fila: proveedores.js la oculta completa) -->
+      <div class="inv-search-row" id="inv-search-wrap" role="search">
+        <div class="inv-search-wrap">
+          <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+          <input
+            type="search"
+            id="inv-search"
+            class="inv-search"
+            placeholder="Buscar por nombre, categoría o código"
+            autocomplete="off"
+            aria-label="Buscar productos por nombre, categoría o código de barras"
+          />
+        </div>
+        <button type="button" class="icon-btn" id="inv-btn-scan" aria-label="Escanear código de barras para buscar un producto">
+          <i class="fa-solid fa-camera" aria-hidden="true"></i>
+        </button>
       </div>
 
     </header>
     <div class="inv-body" data-fab-scroll-container>
-      <div class="cards-list" id="cards-list" aria-label="Lista de productos">
-        <!-- Generado por JS -->
+      <!-- ===== Vista Productos ===== -->
+      <div id="view-productos">
+        <div class="cards-list" id="cards-list" aria-label="Lista de productos">
+          <!-- Generado por JS -->
+        </div>
+        <div class="table-wrap">
+          <table class="inv-table" aria-label="Inventario de productos">
+            <thead id="inv-thead">
+              <tr>
+                <th class="th-sortable" data-col="name">Producto&nbsp;<span class="sort-icon-wrap"><i class="fa-solid fa-sort sort-icon"></i></span></th>
+                <th class="th-sortable" data-col="category">Categoria&nbsp;<span class="sort-icon-wrap"><i class="fa-solid fa-sort sort-icon"></i></span></th>
+                <th class="th-sortable" data-col="cost">Precio costo&nbsp;<span class="sort-icon-wrap"><i class="fa-solid fa-sort sort-icon"></i></span></th>
+                <th class="th-sortable" data-col="sale">Precio venta&nbsp;<span class="sort-icon-wrap"><i class="fa-solid fa-sort sort-icon"></i></span></th>
+                <th class="th-sortable" data-col="stock">Stock&nbsp;<span class="sort-icon-wrap"><i class="fa-solid fa-sort sort-icon"></i></span></th>
+                <th>Acciones</th>
+              </tr>
+            </thead>
+            <tbody id="table-body">
+              <!-- Generado por JS -->
+            </tbody>
+          </table>
+        </div>
       </div>
-      <div class="table-wrap">
-        <table class="inv-table" aria-label="Inventario de productos">
-          <thead id="inv-thead">
-            <tr>
-              <th class="th-sortable" data-col="name">Producto&nbsp;<span class="sort-icon-wrap"><i class="fa-solid fa-sort sort-icon"></i></span></th>
-              <th class="th-sortable" data-col="category">Categoria&nbsp;<span class="sort-icon-wrap"><i class="fa-solid fa-sort sort-icon"></i></span></th>
-              <th class="th-sortable" data-col="cost">Precio costo&nbsp;<span class="sort-icon-wrap"><i class="fa-solid fa-sort sort-icon"></i></span></th>
-              <th class="th-sortable" data-col="sale">Precio venta&nbsp;<span class="sort-icon-wrap"><i class="fa-solid fa-sort sort-icon"></i></span></th>
-              <th class="th-sortable" data-col="stock">Stock&nbsp;<span class="sort-icon-wrap"><i class="fa-solid fa-sort sort-icon"></i></span></th>
-              <th>Acciones</th>
-            </tr>
-          </thead>
-          <tbody id="table-body">
-            <!-- Generado por JS -->
-          </tbody>
-        </table>
+
+      <!-- ===== Vista Proveedores ===== -->
+      <div id="view-proveedores" hidden>
+        <div class="prov-head">
+          <h2 class="prov-head-title">Proveedores</h2>
+          <button class="btn-add" id="btn-add-prov" type="button">
+            <i class="fa-solid fa-plus"></i>
+            <span>Anadir proveedor</span>
+          </button>
+        </div>
+        <div class="prov-cards" id="prov-list" aria-label="Lista de proveedores">
+          <!-- Generado por JS -->
+        </div>
       </div>
 
     </div>
@@ -146,42 +120,11 @@
 
   </div>
   <!-- /inv-main -->
-  <nav class="bottom-bar" role="navigation" aria-label="Navegacion principal">
-    <a href="{{ url_for('sales_bp.ventas') }}" class="bottom-btn{% if request.path.startswith('/pos/ventas') %} active{% endif %}"{% if request.path.startswith('/pos/ventas') %} aria-current="page"{% endif %} aria-label="Ventas">
-      <i class="fa-solid fa-file-invoice-dollar"></i>
-      <span>Ventas</span>
-    </a>
-
-    <a href="{{ url_for('sales_bp.caja') }}" class="bottom-btn{% if request.path.startswith('/pos/caja') %} active{% endif %}"{% if request.path.startswith('/pos/caja') %} aria-current="page"{% endif %} aria-label="Caja">
-      <i class="fa-solid fa-cash-register"></i>
-      <span>Caja</span>
-    </a>
-
-    <a href="/inventario" class="bottom-btn{% if request.path.startswith('/inventario') %} active{% endif %}"{% if request.path.startswith('/inventario') %} aria-current="page"{% endif %} aria-label="Inventario">
-      <i class="fa-solid fa-boxes-stacked"></i>
-      <span>Inventario</span>
-    </a>
-
-    <button type="button" class="bottom-btn bottom-more-toggle{% if request.path.startswith('/pos/turno') or request.path == '/perfil' %} active{% endif %}" aria-label="Mas opciones" aria-controls="bottom-more-panel" aria-expanded="false">
-      <i class="fa-solid fa-ellipsis"></i>
-      <span>Mas</span>
-    </button>
-  </nav>
-
-  <div id="bottom-more-panel" class="bottom-more-panel" hidden>
-    <a href="{{ url_for('sales_bp.turno') }}" class="bottom-more-link{% if request.path.startswith('/pos/turno') %} active{% endif %}">
-      <i class="fa-solid fa-business-time"></i>
-      <span>Mi Turno</span>
-    </a>
-    <a href="/perfil" class="bottom-more-link{% if request.path == '/perfil' %} active{% endif %}">
-      <i class="fa-solid fa-circle-user"></i>
-      <span>Mi Perfil</span>
-    </a>
-  </div>
 
 </div>
 <!-- /app-shell -->
-     MODAL - ANADIR / EDITAR PRODUCTO
+
+<!-- MODAL - ANADIR / EDITAR PRODUCTO -->
 <div class="modal-backdrop" id="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
   <div class="modal-card">
 
@@ -200,6 +143,17 @@
     <div class="modal-field">
       <label for="f-name">Nombre del producto</label>
       <input type="text" id="f-name" placeholder="Ej. Coca-Cola 350ml" autocomplete="off" maxlength="80" />
+    </div>
+
+    <!-- Codigo de barras -->
+    <div class="modal-field">
+      <label for="f-barcode">Código de barras <span class="gast-optional">(opcional)</span></label>
+      <div class="input-with-btn">
+        <input type="text" id="f-barcode" placeholder="Escanéalo o escríbelo" autocomplete="off" maxlength="80" enterkeyhint="next" />
+        <button type="button" class="icon-btn" id="f-barcode-scan" aria-label="Escanear código de barras del producto">
+          <i class="fa-solid fa-camera" aria-hidden="true"></i>
+        </button>
+      </div>
     </div>
 
     <!-- Categoria -->
@@ -251,9 +205,15 @@
     </div>
 
     <!-- Stock -->
-    <div class="modal-field" id="stock-field">
-      <label for="f-stock">Stock inicial</label>
-      <input type="number" id="f-stock" inputmode="numeric" min="0" step="1" placeholder="Ej. 50" autocomplete="off" />
+    <div class="modal-field-row">
+      <div class="modal-field" id="stock-field">
+        <label for="f-stock">Stock inicial</label>
+        <input type="number" id="f-stock" inputmode="numeric" min="0" step="1" placeholder="Ej. 50" autocomplete="off" />
+      </div>
+      <div class="modal-field">
+        <label for="f-stock-min">Alerta de stock</label>
+        <input type="number" id="f-stock-min" inputmode="numeric" min="0" step="1" placeholder="Ej. 5" autocomplete="off" />
+      </div>
     </div>
 
     <div class="modal-footer">
@@ -268,7 +228,8 @@
 
 <!-- Toast -->
 <div class="inv-toast" id="inv-toast" role="status" aria-live="polite"></div>
-     MODAL - ANADIR STOCK
+
+<!-- MODAL - ANADIR STOCK -->
 <div class="modal-backdrop" id="modal-stock" role="dialog" aria-modal="true" aria-labelledby="stock-modal-title">
   <div class="modal-card">
 
@@ -313,7 +274,8 @@
 
   </div>
 </div>
-     MODAL - CONFIRMAR ELIMINACION
+
+<!-- MODAL - CONFIRMAR ELIMINACION -->
 <div class="modal-backdrop" id="modal-confirm" role="dialog" aria-modal="true" aria-labelledby="confirm-modal-title">
   <div class="modal-card">
 
@@ -343,11 +305,86 @@
   </div>
 </div>
 
+<!-- MODAL - CREAR / EDITAR PROVEEDOR -->
+<div class="modal-backdrop" id="modal-proveedor" role="dialog" aria-modal="true" aria-labelledby="prov-modal-title">
+  <div class="modal-card">
+    <div class="modal-header">
+      <span class="modal-title" id="prov-modal-title">Anadir Proveedor</span>
+      <button class="modal-close" id="prov-modal-close" type="button" aria-label="Cerrar">
+        <img src="/static/img/equis.png" alt="Cerrar" />
+      </button>
+    </div>
+
+    <div id="prov-error" class="hidden modal-inline-error" role="alert">
+      <i class="fa-solid fa-circle-exclamation"></i><span id="prov-error-text"></span>
+    </div>
+
+    <div class="modal-field">
+      <label for="prov-nombre">Nombre del proveedor</label>
+      <input type="text" id="prov-nombre" placeholder="Ej. Distribuidora XYZ" autocomplete="off" maxlength="150" />
+    </div>
+
+    <div class="modal-field">
+      <label for="prov-tel1">Telefono 1</label>
+      <input type="tel" id="prov-tel1" inputmode="numeric" placeholder="Ej. 3001234567"
+             autocomplete="off" maxlength="20" oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,20)" />
+    </div>
+
+    <div class="modal-field">
+      <label for="prov-tel2">Telefono 2 <span class="gast-optional">(opcional)</span></label>
+      <input type="tel" id="prov-tel2" inputmode="numeric" placeholder="Ej. 6012345678"
+             autocomplete="off" maxlength="20" oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,20)" />
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn-modal-cancel" id="prov-cancel" type="button">Cancelar</button>
+      <button class="btn-modal-save"   id="prov-save"   type="button">
+        <i class="fa-solid fa-floppy-disk"></i>&nbsp; Guardar
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL - VER PROVEEDOR (productos asociados) -->
+<div class="modal-backdrop" id="modal-prov-view" role="dialog" aria-modal="true" aria-labelledby="pv-title">
+  <div class="modal-card modal-card-lg">
+    <div class="modal-header">
+      <span class="modal-title" id="pv-title">Proveedor</span>
+      <button class="modal-close" id="pv-close" type="button" aria-label="Cerrar">
+        <img src="/static/img/equis.png" alt="Cerrar" />
+      </button>
+    </div>
+
+    <div class="pv-contact" id="pv-contact"></div>
+
+    <!-- Filtro por categoria -->
+    <div class="pv-filters" id="pv-filters" aria-label="Filtrar por categoria"></div>
+
+    <!-- Lista paginada de productos -->
+    <div class="pv-products" id="pv-products"></div>
+
+    <!-- Paginacion -->
+    <div class="pv-pager" id="pv-pager" hidden>
+      <button type="button" class="pv-pager-btn" id="pv-prev" aria-label="Pagina anterior">
+        <i class="fa-solid fa-chevron-left"></i>
+      </button>
+      <span class="pv-pager-info" id="pv-pageinfo">1 / 1</span>
+      <button type="button" class="pv-pager-btn" id="pv-next" aria-label="Pagina siguiente">
+        <i class="fa-solid fa-chevron-right"></i>
+      </button>
+    </div>
+  </div>
+</div>
+
+{% include "pos/_scanner_dialog.html" %}
+
 <!-- Scripts -->
 <script src="/static/js/cop-format.js"></script>
 <script src="/static/js/toast.js"></script>
 <script src="/static/js/fab-scroll.js"></script>
+<script src="/static/js/barcode-scanner.js"></script>
 <script src="/static/js/inventario.js"></script>
+<script src="/static/js/proveedores.js"></script>
 
   <!-- RBAC + Suscripcion -->
   <div id="app-context"

@@ -5,6 +5,7 @@ import re
 from datetime import date, datetime, timedelta
 
 from flask import Blueprint, jsonify, redirect, render_template, request, session, url_for
+from werkzeug.security import generate_password_hash
 
 from app.services.auth_service import (
     first_password_policy_error,
@@ -19,7 +20,7 @@ from app.services.sales_service import (
 )
 from app.utils.decorators import login_required, roles_required
 from app.utils.helpers import avatar_iniciales, fmt_money, only_digits
-from app.utils.validation import parse_bool, parse_int, sanitize_optional_text, sanitize_text
+from app.utils.validation import parse_int, sanitize_optional_text, sanitize_text
 from database import get_db
 
 core_bp = Blueprint("core_bp", __name__)
@@ -168,7 +169,7 @@ def _registrar_auditoria(id_tienda, id_usuario, accion, detalles) -> None:
             pass
 
 
-def _dashboard_period_bounds(raw_filter: str):
+def _dashboard_period_bounds(raw_filter: str, fecha: str | None = None):
     filtro = (raw_filter or "hoy").strip().lower()
     aliases = {
         "hoy": "dia",
@@ -177,13 +178,27 @@ def _dashboard_period_bounds(raw_filter: str):
         "anio": "anio",
         "año": "anio",
         "year": "anio",
+        "3_meses": "tres_meses",
+        "6_meses": "seis_meses",
+        "semestre": "seis_meses",
     }
     filtro = aliases.get(filtro, filtro)
-    if filtro not in ("dia", "semana", "mes", "semestre", "anio"):
+    if filtro not in ("dia", "ayer", "semana", "mes", "tres_meses", "seis_meses", "anio", "todas"):
         filtro = "dia"
 
     now = datetime.now()
     today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+
+    # Fecha concreta (input date): ignora el rango y muestra ese dia
+    if fecha:
+        try:
+            day = datetime.strptime(fecha, "%Y-%m-%d")
+        except ValueError:
+            day = None
+        if day is not None:
+            since = day.replace(hour=0, minute=0, second=0, microsecond=0)
+            until = since + timedelta(days=1)
+            return "fecha", since, until, since - timedelta(days=1), since, "dia anterior"
 
     if filtro == "dia":
         since = today_start
@@ -191,6 +206,31 @@ def _dashboard_period_bounds(raw_filter: str):
         prev_since = since - timedelta(days=1)
         prev_until = since
         badge_label = "ayer"
+    elif filtro == "ayer":
+        since = today_start - timedelta(days=1)
+        until = today_start
+        prev_since = since - timedelta(days=1)
+        prev_until = since
+        badge_label = "dia anterior"
+    elif filtro == "tres_meses":
+        since = today_start - timedelta(days=90)
+        until = now
+        prev_since = since - timedelta(days=90)
+        prev_until = since
+        badge_label = "periodo anterior"
+    elif filtro == "seis_meses":
+        since = today_start - timedelta(days=180)
+        until = now
+        prev_since = since - timedelta(days=180)
+        prev_until = since
+        badge_label = "periodo anterior"
+    elif filtro == "todas":
+        # ponytail: 'todas' acotado a 2 años de barras diarias; pasar a rollup mensual si las tiendas envejecen
+        since = today_start - timedelta(days=730)
+        until = now
+        prev_since = since
+        prev_until = since
+        badge_label = "historico"
     elif filtro == "semana":
         since = today_start - timedelta(days=today_start.weekday())
         until = now
@@ -200,14 +240,6 @@ def _dashboard_period_bounds(raw_filter: str):
         badge_label = "periodo anterior"
     elif filtro == "mes":
         since = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-        until = now
-        span = max(until - since, timedelta(days=1))
-        prev_since = since - span
-        prev_until = since
-        badge_label = "periodo anterior"
-    elif filtro == "semestre":
-        month = 1 if now.month <= 6 else 7
-        since = now.replace(month=month, day=1, hour=0, minute=0, second=0, microsecond=0)
         until = now
         span = max(until - since, timedelta(days=1))
         prev_since = since - span
@@ -224,8 +256,8 @@ def _dashboard_period_bounds(raw_filter: str):
     return filtro, since, until, prev_since, prev_until, badge_label
 
 
-def _build_dashboard_data(id_tienda: int, raw_filter: str) -> dict:
-    filtro, since, until, prev_since, prev_until, badge_label = _dashboard_period_bounds(raw_filter)
+def _build_dashboard_data(id_tienda: int, raw_filter: str, fecha: str | None = None) -> dict:
+    filtro, since, until, prev_since, prev_until, badge_label = _dashboard_period_bounds(raw_filter, fecha)
 
     conn = get_db()
     try:
@@ -287,13 +319,34 @@ def _build_dashboard_data(id_tienda: int, raw_filter: str) -> dict:
         else:
             ventas_badge = {"up": True, "text": "Sin datos anteriores"}
 
+        # 10 registros = 2 paginas de 5 en el frontend
         top_vendidos = [
             {
                 "name": r["name"],
                 "value": f"{int(float(r['total'] or 0))} und",
                 "total": float(r["total"] or 0),
             }
-            for r in get_top_vendidos(id_tienda, since, until, limit=5)
+            for r in get_top_vendidos(id_tienda, since, until, limit=10)
+        ]
+
+        cur.execute(
+            "SELECT p.nombre, SUM(dv.cantidad) AS total "
+            "FROM detalle_ventas dv "
+            "INNER JOIN ventas v ON dv.id_venta = v.id_venta "
+            "INNER JOIN productos p ON dv.id_producto = p.id_producto AND p.id_tienda = v.id_tienda "
+            "WHERE v.id_tienda=%s AND v.estado_venta='Pagada' "
+            "AND v.fecha_creacion >= %s AND v.fecha_creacion < %s "
+            "GROUP BY dv.id_producto, p.nombre "
+            "ORDER BY total ASC LIMIT 10",
+            (id_tienda, since, until),
+        )
+        top_menos_vendidos = [
+            {
+                "name": r["nombre"] or "Producto",
+                "value": f"{int(float(r['total'] or 0))} und",
+                "total": float(r["total"] or 0),
+            }
+            for r in cur.fetchall()
         ]
 
         cur.execute(
@@ -305,7 +358,7 @@ def _build_dashboard_data(id_tienda: int, raw_filter: str) -> dict:
             "WHERE v.id_tienda=%s AND v.estado_venta='Pagada' "
             "AND v.fecha_creacion >= %s AND v.fecha_creacion < %s "
             "GROUP BY dv.id_producto, p.nombre "
-            "ORDER BY rent DESC LIMIT 5",
+            "ORDER BY rent DESC LIMIT 10",
             (id_tienda, since, until),
         )
         top_rentables = [
@@ -350,27 +403,34 @@ def _build_dashboard_data(id_tienda: int, raw_filter: str) -> dict:
                 }
             )
 
+        # Rendimiento del personal: siempre "hoy", independiente del filtro de periodo.
+        today0 = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        today1 = today0 + timedelta(days=1)
         cur.execute(
-            "SELECT t.id_turno, u.nombre_completo, t.monto_inicial, "
-            "COALESCE((SELECT SUM(v.total_final) FROM ventas v "
-            "         WHERE v.id_turno=t.id_turno AND v.id_tienda=t.id_tienda "
-            "           AND v.estado_venta='Pagada' AND v.metodo_pago='Efectivo'),0) AS ventas_efectivo, "
-            "COALESCE((SELECT SUM(g.monto) FROM gastos_caja g "
-            "         WHERE g.id_turno=t.id_turno AND g.id_tienda=t.id_tienda),0) AS gastos_turno "
-            "FROM turnos_caja t "
-            "INNER JOIN usuarios u ON u.id_usuario=t.id_usuario_apertura "
-            "WHERE t.id_tienda=%s AND t.estado_turno='Abierto' "
-            "ORDER BY t.fecha_apertura DESC LIMIT 5",
-            (id_tienda,),
+            "SELECT u.id_usuario, u.nombre_completo, "
+            "COALESCE((SELECT COUNT(*) FROM ventas v WHERE v.id_cajero=u.id_usuario AND v.id_tienda=u.id_tienda "
+            "          AND v.estado_venta='Pagada' AND v.fecha_creacion >= %s AND v.fecha_creacion < %s),0) AS ventas_count, "
+            "COALESCE((SELECT SUM(v.total_final) FROM ventas v WHERE v.id_cajero=u.id_usuario AND v.id_tienda=u.id_tienda "
+            "          AND v.estado_venta='Pagada' AND v.metodo_pago='Efectivo' AND v.fecha_creacion >= %s AND v.fecha_creacion < %s),0) AS efectivo_hoy, "
+            "COALESCE((SELECT SUM(g.monto) FROM gastos_caja g WHERE g.id_usuario=u.id_usuario AND g.id_tienda=u.id_tienda "
+            "          AND g.fecha_creacion >= %s AND g.fecha_creacion < %s),0) AS gastos_hoy, "
+            "EXISTS(SELECT 1 FROM turnos_caja t WHERE t.id_usuario_apertura=u.id_usuario AND t.id_tienda=u.id_tienda "
+            "       AND t.estado_turno='Abierto') AS en_turno "
+            "FROM usuarios u "
+            "WHERE u.id_tienda=%s AND u.estado_activo=1 AND u.rol IN ('Admin','Cajero') "
+            "ORDER BY en_turno DESC, ventas_count DESC LIMIT 20",
+            (today0, today1, today0, today1, today0, today1, id_tienda),
         )
         cajeros_abiertos = []
         for r in cur.fetchall():
-            total_turno = float(r["monto_inicial"] or 0) + float(r["ventas_efectivo"] or 0) - float(r["gastos_turno"] or 0)
+            balance = float(r["efectivo_hoy"] or 0) - float(r["gastos_hoy"] or 0)
             cajeros_abiertos.append(
                 {
                     "name": r["nombre_completo"],
-                    "value": fmt_money(total_turno),
-                    "id_turno": r["id_turno"],
+                    "value": fmt_money(balance),
+                    "balance": balance,
+                    "ventas_count": int(r["ventas_count"] or 0),
+                    "status": "En turno" if r["en_turno"] else "Fuera de turno",
                 }
             )
     finally:
@@ -397,6 +457,7 @@ def _build_dashboard_data(id_tienda: int, raw_filter: str) -> dict:
             },
             "stock_alertas": stock_alertas,
             "top_vendidos": top_vendidos,
+        "top_menos_vendidos": top_menos_vendidos,
         "top_rentables": top_rentables,
         "cajeros_abiertos": cajeros_abiertos,
         "deudores": deudores,
@@ -561,8 +622,6 @@ def api_master_tiendas_create():
             raise ValueError("El telefono no puede superar 25 digitos.")
         telefono = telefono_digits or None
         owner_id = parse_int(data.get("owner_id"), "Admin dueno", min_value=1)
-        es_restaurante_raw = data.get("es_restaurante")
-        es_restaurante = parse_bool(es_restaurante_raw if es_restaurante_raw is not None else False)
     except ValueError as exc:
         return jsonify({"ok": False, "msg": str(exc)}), 400
 
@@ -582,9 +641,9 @@ def api_master_tiendas_create():
             nit = owner.get("cc")
 
         cur.execute(
-            "INSERT INTO tiendas (nombre_negocio, nit, telefono, estado_suscripcion, es_restaurante) "
-            "VALUES (%s, %s, %s, 'activa', %s)",
-            (nombre, nit, telefono, 1 if es_restaurante else 0),
+            "INSERT INTO tiendas (nombre_negocio, nit, telefono, estado_suscripcion) "
+            "VALUES (%s, %s, %s, 'activa')",
+            (nombre, nit, telefono),
         )
         id_tienda = cur.lastrowid
 
@@ -740,8 +799,6 @@ def api_crear_usuario():
     correo = str(data.get("correo", "")).strip().lower()
     password = str(data.get("password", ""))
     confirm = str(data.get("confirm_password", ""))
-    cedula_raw = str(data.get("cedula", "") or "").strip()
-    telefono_raw = str(data.get("telefono", "") or "").strip()
     rol_sesion = session["rol"]
 
     if rol_sesion == "Admin":
@@ -751,23 +808,8 @@ def api_crear_usuario():
         nuevo_rol = str(data.get("rol", "Cajero"))
         if nuevo_rol not in ("Master", "Admin", "Cajero"):
             return jsonify({"ok": False, "msg": "Rol invalido."}), 400
-        nombre_negocio = None
+        # Usuario se crea sin tienda; el vinculo tienda-dueno se hace en el modal Crear Tienda.
         id_tienda = None
-        if nuevo_rol == "Admin":
-            try:
-                nombre_negocio = sanitize_text(data.get("nombre_negocio"), "Nombre del negocio", max_len=150)
-            except ValueError as exc:
-                return jsonify({"ok": False, "msg": str(exc)}), 400
-        elif nuevo_rol == "Cajero":
-            try:
-                id_tienda = int(data.get("id_tienda"))
-            except (ValueError, TypeError):
-                return jsonify({"ok": False, "msg": "Debes seleccionar una tienda valida."}), 400
-        else:
-            try:
-                id_tienda = int(data.get("id_tienda", session["id_tienda"]))
-            except (ValueError, TypeError):
-                return jsonify({"ok": False, "msg": "ID de tienda invalido."}), 400
 
     if not correo or len(correo) > 150 or not is_valid_email(correo):
         return jsonify({"ok": False, "msg": "El correo no es valido."}), 400
@@ -790,28 +832,12 @@ def api_crear_usuario():
         if cur.fetchone():
             return jsonify({"ok": False, "msg": "Ya existe un usuario con ese correo."}), 409
 
-        if rol_sesion == "Master" and nuevo_rol == "Admin" and nombre_negocio:
-            cur.execute(
-                "INSERT INTO tiendas (nombre_negocio, estado_suscripcion) VALUES (%s, 'activa')",
-                (nombre_negocio,),
-            )
-            id_tienda = cur.lastrowid
-
         clave_hash = generate_password_hash(password)
-        import mysql.connector.errors as _mc_err
-
-        try:
-            cur.execute(
-                "INSERT INTO usuarios (id_tienda, nombre_completo, correo, clave_hash, rol, cedula, telefono) "
-                "VALUES (%s, %s, %s, %s, %s, %s, %s)",
-                (id_tienda, nombre, correo, clave_hash, nuevo_rol, cedula_digits, telefono_digits),
-            )
-        except _mc_err.ProgrammingError:
-            cur.execute(
-                "INSERT INTO usuarios (id_tienda, nombre_completo, correo, clave_hash, rol) "
-                "VALUES (%s, %s, %s, %s, %s)",
-                (id_tienda, nombre, correo, clave_hash, nuevo_rol),
-            )
+        cur.execute(
+            "INSERT INTO usuarios (id_tienda, nombre_completo, correo, clave_hash, rol) "
+            "VALUES (%s, %s, %s, %s, %s)",
+            (id_tienda, nombre, correo, clave_hash, nuevo_rol),
+        )
         conn.commit()
     finally:
         conn.close()
@@ -824,7 +850,8 @@ def api_crear_usuario():
 @roles_required("Admin", "Master")
 def api_dashboard():
     filtro = request.args.get("filter") or request.args.get("filtro") or request.args.get("period") or "hoy"
-    data = _build_dashboard_data(session["id_tienda"], filtro)
+    fecha = request.args.get("fecha") or None
+    data = _build_dashboard_data(session["id_tienda"], filtro, fecha)
 
     return jsonify(
         {
@@ -836,6 +863,7 @@ def api_dashboard():
             "fiados": data["kpis"]["fiados"],
             "ventasBadge": data["kpis"]["ventas_badge"],
             "vendidos": data["top_vendidos"],
+            "menosVendidos": data["top_menos_vendidos"],
             "rentables": data["top_rentables"],
             "cajeros": data["cajeros_abiertos"],
             "deudores": data["deudores"],

@@ -4,15 +4,36 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <!-- Content-Security-Policy: mitigación básica de XSS. Como se entrega
+       vía <meta>, el navegador ignora frame-ancestors/report-to aquí; si
+       se necesita protección anti-clickjacking real, debe añadirse
+       X-Frame-Options / CSP también como cabecera HTTP (app/__init__.py). -->
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
+
   <title>jemPOS — Punto de venta y contabilidad en la nube para tu negocio</title>
   <meta name="description"
         content="jemPOS es el sistema POS y de contabilidad en la nube para MiPyMEs: vende desde tu celular, controla inventario en tiempo real, gestiona tus finanzas y supervisa a tu equipo.">
+  <meta name="robots" content="index, follow">
   <meta name="theme-color" content="#3b82f6">
+  <link rel="canonical" href="{{ url_for('landing', _external=True) }}">
 
-  <!-- Open Graph básico para compartir en redes -->
+  <!-- Open Graph: previsualización al compartir en redes sociales -->
   <meta property="og:title" content="jemPOS — Tu negocio en la palma de tu mano">
   <meta property="og:description" content="POS, inventario, contabilidad y gestión de personal en una sola app en la nube.">
   <meta property="og:type" content="website">
+  <meta property="og:site_name" content="jemPOS">
+  <meta property="og:locale" content="es_CO">
+  <meta property="og:url" content="{{ url_for('landing', _external=True) }}">
+  <!-- TODO: generar y subir esta imagen (1200x630) antes de publicar -->
+  <meta property="og:image" content="{{ url_for('static', filename='img/og-cover.jpg', _external=True) }}">
+
+  <!-- Twitter Card: mismo propósito que Open Graph, para X/Twitter -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="jemPOS — Tu negocio en la palma de tu mano">
+  <meta name="twitter:description" content="POS, inventario, contabilidad y gestión de personal en una sola app en la nube.">
+  <meta name="twitter:image" content="{{ url_for('static', filename='img/og-cover.jpg', _external=True) }}">
 
   <link rel="stylesheet" href="/static/css/landing.css">
 </head>
@@ -30,7 +51,7 @@
       <a class="header__brand" href="{{ url_for('landing') }}" aria-label="jemPOS, inicio">
         <span class="header__logo" aria-hidden="true">
           <!-- Isotipo: recibo + check, dibujado en SVG inline -->
-          <svg viewBox="0 0 32 32" width="28" height="28" role="img" aria-hidden="true">
+          <svg viewBox="0 0 32 32" width="28" height="28">
             <rect x="6" y="3" width="20" height="26" rx="4" fill="currentColor" opacity="0.15"/>
             <rect x="6" y="3" width="20" height="26" rx="4" fill="none" stroke="currentColor" stroke-width="2"/>
             <path d="M11 11h10M11 16h6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
@@ -56,7 +77,7 @@
         </ul>
         <div class="header__auth">
           <!-- Botón de inicio de sesión: entra al flujo de rutas actual -->
-          <a class="btn btn--ghost btn--sm" href="{{ url_for('auth.login') }}">Iniciar sesión</a>
+          <a class="btn btn--inverse btn--sm" href="{{ url_for('auth.login') }}">Iniciar sesión</a>
           <a class="btn btn--primary btn--sm" href="{{ url_for('auth.registro') }}">Prueba gratis</a>
         </div>
       </div>
@@ -74,8 +95,8 @@
         <div class="hero__copy reveal">
           <p class="hero__eyebrow">POS + Contabilidad en la nube</p>
           <h1 class="hero__title" id="hero-titulo">
-            Tu negocio completo,<br>
-            <span class="hero__title-accent">en la palma de tu mano.</span>
+            Tu negocio merece,<br>
+            <span class="hero__title-accent">dejar el cuaderno atrás.</span>
           </h1>
           <p class="hero__subtitle">
             jemPOS convierte tu celular en una caja registradora, un contador y un
@@ -83,7 +104,7 @@
             financiera de tu negocio en tiempo real — sin instalaciones ni conocimientos técnicos.
           </p>
           <div class="hero__actions">
-            <a class="btn btn--primary btn--lg" href="{{ url_for('auth.registro') }}">Iniciar prueba gratis</a>
+            <a class="btn btn--primary btn--lg" href="{{ url_for('auth.registro') }}">Solicitar prueba gratis</a>
             <a class="btn btn--ghost btn--lg" href="#ventajas">Ver demo</a>
           </div>
           <ul class="hero__badges" role="list">
@@ -155,7 +176,7 @@
       <div class="tour__sticky">
         <header class="tour__header reveal">
           <p class="tour__eyebrow">¿Por qué jemPOS?</p>
-          <h2 class="tour__title" id="tour-titulo">Cuatro razones para dar el salto</h2>
+          <h2 class="tour__title hero__title-accent" id="tour-titulo">Cuatro razones para dar el salto</h2>
         </header>
 
         <div class="tour__viewport" data-tour-viewport>
@@ -280,24 +301,11 @@
     <section class="pricing" id="precios" aria-labelledby="precios-titulo">
       <header class="pricing__header reveal">
         <p class="pricing__eyebrow">Planes simples, sin letra pequeña</p>
-        <h2 class="pricing__title" id="precios-titulo">Empieza gratis, crece cuando quieras</h2>
+        <h2 class="pricing__title" id="precios-titulo">Elige el plan y haz crecer tu negocio</h2>
         <p class="pricing__subtitle">Todos los planes incluyen actualizaciones automáticas y datos seguros en la nube.</p>
       </header>
 
       <div class="pricing__grid">
-
-        <article class="plan reveal">
-          <h3 class="plan__name">Emprendedor</h3>
-          <p class="plan__price"><span class="plan__amount">Gratis</span></p>
-          <p class="plan__desc">Para validar tu idea y empezar a vender hoy mismo.</p>
-          <ul class="plan__features" role="list">
-            <li>1 usuario</li>
-            <li>Ventas y recibos ilimitados</li>
-            <li>Inventario hasta 50 productos</li>
-            <li>Caja diaria básica</li>
-          </ul>
-          <a class="btn btn--ghost btn--block" href="{{ url_for('auth.registro') }}">Crear cuenta gratis</a>
-        </article>
 
         <article class="plan plan--featured reveal">
           <span class="plan__ribbon">Más popular</span>
@@ -335,7 +343,7 @@
       <div class="cta-final__card">
         <h2 class="cta-final__title" id="cta-final-titulo">Tu negocio merece dejar el cuaderno atrás</h2>
         <p class="cta-final__text">Únete a los negocios que ya venden, cuadran caja y duermen tranquilos con jemPOS.</p>
-        <a class="btn btn--inverse btn--lg" href="{{ url_for('auth.registro') }}">Iniciar prueba gratis</a>
+        <a class="btn btn--inverse btn--lg" href="{{ url_for('auth.registro') }}">Solicitar prueba gratis</a>
       </div>
     </section>
 
@@ -369,12 +377,14 @@
         </ul>
       </nav>
 
+      <!-- Enlaces con href="#" son placeholders: reemplazar por las URLs
+           reales (redes sociales, páginas legales) antes de publicar. -->
       <nav class="footer__col" aria-label="Redes sociales">
         <h3 class="footer__heading">Síguenos</h3>
         <ul role="list">
-          <li><a class="footer__link" href="#" rel="noopener">Instagram</a></li>
-          <li><a class="footer__link" href="#" rel="noopener">Facebook</a></li>
-          <li><a class="footer__link" href="#" rel="noopener">WhatsApp</a></li>
+          <li><a class="footer__link" href="#" rel="noopener noreferrer" target="_blank">Instagram</a></li>
+          <li><a class="footer__link" href="#" rel="noopener noreferrer" target="_blank">Facebook</a></li>
+          <li><a class="footer__link" href="#" rel="noopener noreferrer" target="_blank">WhatsApp</a></li>
         </ul>
       </nav>
     </div>

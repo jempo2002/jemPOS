@@ -299,17 +299,6 @@
         <input id="ct-nit" type="text" placeholder="NIT (opcional)" class="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3" />
         <input id="ct-telefono" type="text" inputmode="numeric" maxlength="10" pattern="[0-9]{0,10}" oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,10)" placeholder="Telefono" class="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3" />
 
-        <label for="ct-es-restaurante" class="flex items-start justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 cursor-pointer">
-          <div>
-            <p class="text-sm font-semibold text-slate-800">Este negocio es de Comidas/Restaurante?</p>
-            <p class="text-xs text-slate-500 mt-1">Activa los modulos de Insumos, Menu y Recetas</p>
-          </div>
-          <span class="relative inline-flex h-6 w-11 shrink-0 items-center rounded-full bg-slate-300 transition peer-checked:bg-blue-600">
-            <input id="ct-es-restaurante" name="es_restaurante" type="checkbox" class="peer sr-only" />
-            <span class="pointer-events-none absolute left-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform peer-checked:translate-x-5"></span>
-          </span>
-        </label>
-
         <div class="relative">
           <input id="ct-owner-search" type="text" placeholder="Buscar Admin dueno..." class="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3" autocomplete="off" />
           <input type="hidden" id="ct-owner-id" />

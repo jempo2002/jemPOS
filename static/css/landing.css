@@ -10,17 +10,30 @@
    ============================================================ */
 
 /* ------------------------------------------------------------
-   1. TOKENS DEL SISTEMA DE DISEÑO (espejo de global.css)
+   1. TOKENS DEL SISTEMA DE DISEÑO (derivado de global.css)
+   ------------------------------------------------------------
+   NOTA DE AUDITORÍA: --color-primary, --color-text-muted y
+   --color-danger se oscurecieron un paso respecto a global.css.
+   Los valores originales (#3b82f6 / #64748b / #ef4444) no alcanzan
+   4.5:1 de contraste WCAG AA para texto normal en varias combinaciones
+   ya usadas en esta página (texto blanco sobre botón primario: 3.68:1;
+   "Stock bajo" en rojo sobre superficie blanca: 3.76:1). Si se quiere
+   la misma paleta en toda la app, conviene portar este ajuste a
+   global.css también.
    ------------------------------------------------------------ */
 :root {
-  --color-primary: #3b82f6;
+  --color-primary: #2563eb;
+  /* Variante clara solo para texto sobre fondos oscuros (.tour__eyebrow):
+     con el primary oscurecido de arriba, el texto sobre --color-secondary
+     cae a 2.83:1; esta variante da 5.75:1. */
+  --color-primary-on-dark: #60a5fa;
   --color-secondary: #1e293b;
   --color-background: #f8fafc;
   --color-surface: #ffffff;
   --color-text: #0f172a;
-  --color-text-muted: #64748b;
+  --color-text-muted: #57667a;
   --color-success: #10b981;
-  --color-danger: #ef4444;
+  --color-danger: #dc2626;
 
   /* Bordes redondeados estilo iOS */
   --radius-sm: 0.75rem;
@@ -141,7 +154,15 @@ a {
     transform 0.15s var(--ease-smooth),
     box-shadow 0.2s var(--ease-smooth),
     background-color 0.2s var(--ease-smooth);
-  /* transform acelerado por hardware para el micro-feedback */
+}
+
+/* will-change solo mientras el botón puede animarse (hover/foco/press):
+   promocionarlo a su propia capa de composición todo el tiempo, en
+   todos los botones de la página, desperdicia memoria de GPU sin
+   necesidad (uso imprudente de will-change). */
+.btn:hover,
+.btn:focus-visible,
+.btn:active {
   will-change: transform;
 }
 
@@ -294,8 +315,8 @@ a {
 }
 
 .header__toggle-bar { top: 50%; transform: translate(-50%, -50%); }
-.header__toggle-bar::before { content: ""; transform: translate(-50%, -7px); }
-.header__toggle-bar::after  { content: ""; transform: translate(-50%, 7px); }
+.header__toggle-bar::before { transform: translate(-50%, -7px); }
+.header__toggle-bar::after  { transform: translate(-50%, 7px); }
 
 /* Estado abierto: la hamburguesa se convierte en una X */
 .header__toggle[aria-expanded="true"] .header__toggle-bar { background: transparent; }
@@ -591,7 +612,9 @@ a {
 }
 
 .tour__eyebrow {
-  color: var(--color-primary);
+  /* Variante clara: el --color-primary base no llega a 4.5:1 sobre el
+     fondo oscuro de esta sección (ver nota de tokens al inicio). */
+  color: var(--color-primary-on-dark);
   font-weight: 700;
   font-size: 0.9rem;
   text-transform: uppercase;
@@ -600,8 +623,7 @@ a {
 
 .tour__title {
   margin-top: 0.4rem;
-  color: #fff;
-  font-size: clamp(1.6rem, 4vw, 2.6rem);
+  font-size: clamp(2rem, 5vw, 3.2rem);
   letter-spacing: -0.02em;
 }
 
@@ -614,7 +636,12 @@ a {
   gap: 1.5rem;
   /* Padding lateral para que la 1.ª y última tarjeta queden centradas */
   padding-inline: max(1.25rem, calc((100vw - 34rem) / 2));
-  /* El translateX lo aplica el JS; la transición la da el lerp en rAF */
+}
+
+/* will-change solo mientras el JS tiene el modo horizontal activo
+   (viewport de escritorio, sin prefers-reduced-motion). Fuera de esa
+   ventana no vale la pena mantener el carril en su propia capa de GPU. */
+.tour__track.is-animating {
   will-change: transform;
 }
 
@@ -676,8 +703,10 @@ a {
 }
 
 .tour-card__title {
-  font-size: 1.45rem;
+  font-size: 1.75rem;
+  font-weight: 800;
   letter-spacing: -0.02em;
+  color: var(--color-primary);
 }
 
 .tour-card__text {
@@ -708,7 +737,6 @@ a {
   height: 1rem;
   border-radius: 50%;
   background: var(--color-success);
-  clip-path: none;
 }
 
 .tour-card__list li::after {
@@ -753,9 +781,20 @@ a {
   transition: width 0.3s var(--ease-smooth), background-color 0.3s;
 }
 
+/* Micro-feedback: en dispositivos con puntero fino, un punto inactivo
+   se aclara al pasar el mouse para dar pista de que es clicable
+   (Nielsen #1: visibilidad del estado del sistema). */
+@media (hover: hover) and (pointer: fine) {
+  .tour__dot:not(.is-active):hover::after {
+    background: rgba(255, 255, 255, 0.6);
+  }
+}
+
 .tour__dot.is-active::after {
   width: 1.7rem;
-  background: var(--color-primary);
+  /* Variante clara: --color-primary base no llega a 3:1 (no-texto)
+     sobre este fondo oscuro. */
+  background: var(--color-primary-on-dark);
 }
 
 /* ------------------------------------------------------------
@@ -794,10 +833,12 @@ a {
 
 .pricing__grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(16.5rem, 1fr));
+  grid-template-columns: repeat(2, 1fr);
   gap: 1.5rem;
   align-items: stretch;
+  max-width: 55rem;
   margin-top: 3rem;
+  margin-inline: auto;
 }
 
 .plan {
@@ -805,7 +846,7 @@ a {
   display: flex;
   flex-direction: column;
   gap: 0.8rem;
-  padding: 2rem 1.7rem;
+  padding: 2.5rem 2rem;
   background: var(--color-surface);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-sm);
@@ -903,7 +944,9 @@ a {
   gap: 1rem;
   padding: 3.5rem 2rem;
   text-align: center;
-  background: linear-gradient(135deg, var(--color-primary), #6366f1);
+  /* #6366f1 original bajaba el texto blanco del subtítulo (opacity 0.9)
+     a 3.94:1 en el extremo del degradado; #4f46e5 mantiene ≥5.4:1 */
+  background: linear-gradient(135deg, var(--color-primary), #4f46e5);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-lg);
   color: #fff;
@@ -982,7 +1025,8 @@ a {
   padding-top: 1.5rem;
   border-top: 1px solid rgba(255, 255, 255, 0.1);
   font-size: 0.85rem;
-  color: rgba(255, 255, 255, 0.45);
+  /* 0.45 medía 4.17:1 (falla AA 4.5:1 para texto normal); 0.64 da ~6.2:1 */
+  color: rgba(255, 255, 255, 0.64);
 }
 
 /* ------------------------------------------------------------
@@ -1091,6 +1135,11 @@ a {
   .tour-card:not(.is-active) .tour-card__inner {
     opacity: 1;
     transform: none;
+  }
+
+  /* La grilla de precios a 2 columnas fijas es demasiado angosta en móvil */
+  .pricing__grid {
+    grid-template-columns: 1fr;
   }
 }
 

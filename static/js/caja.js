@@ -1,7 +1,7 @@
 /* ============================================================
    Ruta: static/js/caja.js
    Pantalla: Caja POS (Pantalla de Ventas)
-   Depende de: cop-format.js (cargado antes en el HTML)
+   Depende de: cop-format.js, toast.js, barcode-scanner.js
    ============================================================ */
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -11,28 +11,26 @@ document.addEventListener('DOMContentLoaded', () => {
     : { 'Content-Type': 'application/json' };
   const cajaApiBase = '/pos/api/caja';
   const ventasApi = '/pos/api/ventas';
+  const clientesApi = '/pos/api/clientes/buscar';
   const userRol = (document.body?.dataset?.userRol || '').toLowerCase();
   const isAdminUser = userRol === 'admin';
   const offlineQueueKey = 'jempos_offline_sales_queue';
   const offlineLogKey = 'jempos_offline_sales_log';
   const maxOfflineLogRows = 8;
+  const SEARCH_DEBOUNCE_MS = 300;
 
   /* ── Estado del carrito ────────────────────────────────────
-     items: Map<productId, { qty, ... }>
+     items: Map<productId, { name, price, qty }>
   ─────────────────────────────────────────────────────────── */
   const cart = new Map();
-  let selectedPayMethod = 'efectivo';   /* metodo de pago activo */
-  const DISCOUNT = 0;                   /* descuento fijo demo (sin logica de UI aun) */
+  let selectedPayMethod = 'efectivo';
 
   /* ── Referencias DOM ─────────────────────────────────────── */
-  const cartSection    = document.getElementById('cart-section');
-  const cartEmpty       = document.getElementById('cart-empty');
-  const cartList        = document.getElementById('cart-list');
-
-  const subtotalEl     = document.getElementById('val-subtotal');
-  const discountEl     = document.getElementById('val-discount');
+  const cartEmpty      = document.getElementById('cart-empty');
+  const cartList       = document.getElementById('cart-list');
   const totalEl        = document.getElementById('val-total');
   const btnCobrar      = document.getElementById('btn-cobrar');
+  const btnFiar        = document.getElementById('btn-fiar');
   const cashSection    = document.getElementById('cash-section');
   const cashReceived   = document.getElementById('cash-received');
   const changeBlock    = document.getElementById('change-block');
@@ -41,7 +39,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const searchInput    = document.getElementById('search-input');
   const searchWrap     = document.querySelector('.search-wrap');
   const searchDropdown = document.getElementById('search-dropdown');
-  const toast          = document.getElementById('toast');
   const offlineIndicator = document.getElementById('offline-sync-indicator');
   const offlineIndicatorText = document.getElementById('offline-sync-indicator-text');
   const offlineLogBody = document.getElementById('offline-sync-log-body');
@@ -61,92 +58,149 @@ document.addEventListener('DOMContentLoaded', () => {
     }, 0);
   }
 
+  /* ══════════════════════════════════════════════════════════
+     PETICIONES DE BUSQUEDA
+     debounce: espera a que el usuario deje de teclear.
+     getJson:  aborta la peticion anterior del mismo tipo, asi una
+               respuesta lenta nunca pisa resultados mas nuevos.
+     ══════════════════════════════════════════════════════════ */
+
+  function debounce(fn, wait) {
+    let timer;
+    const debounced = (...args) => {
+      clearTimeout(timer);
+      timer = setTimeout(() => fn(...args), wait);
+    };
+    debounced.cancel = () => clearTimeout(timer);
+    return debounced;
+  }
+
+  const inflight = {};
+
+  async function getJson(key, url) {
+    inflight[key]?.abort();
+    const controller = new AbortController();
+    inflight[key] = controller;
+    const res = await fetch(url, { signal: controller.signal });
+    if (res.status === 401) {
+      window.location.href = '/login';
+      throw new Error('Sesion expirada.');
+    }
+    return res.json();
+  }
+
+  function cancelRequest(key) {
+    inflight[key]?.abort();
+  }
+
+  const isAbort = (err) => err?.name === 'AbortError';
 
   /* ── Busqueda de productos (dropdown) ─────────────────────── */
-  let searchTimeout = null;
   let searchResults = [];
 
+  async function searchProducts(query) {
+    const data = await getJson('productos', `${cajaApiBase}/productos?q=${encodeURIComponent(query)}`);
+    return data.ok ? data.productos || [] : [];
+  }
+
   function hideSearchDropdown() {
-    if (!searchDropdown) return;
     searchDropdown.classList.add('hidden');
     searchDropdown.innerHTML = '';
   }
 
   function renderSearchDropdown(items) {
-    if (!searchDropdown) return;
-    if (!items.length) {
-      searchDropdown.innerHTML = '<div class="search-empty">Sin resultados</div>';
-      searchDropdown.classList.remove('hidden');
-      return;
-    }
-
-    searchDropdown.innerHTML = items.map((p, idx) => `
-      <div class="search-item" role="option" data-index="${idx}">
-        <span class="search-item-name">${escapeHtml(p.name)}</span>
-        <span class="search-item-price">$${COP.format(p.price)}</span>
-      </div>
-    `).join('');
+    searchDropdown.innerHTML = items.length
+      ? items.map((p, idx) => `
+          <button type="button" class="search-item" data-index="${idx}">
+            <span class="search-item-name">${escapeHtml(p.name)}</span>
+            <span class="search-item-price">${money(p.price)}</span>
+          </button>`).join('')
+      : '<p class="search-empty">Sin resultados</p>';
     searchDropdown.classList.remove('hidden');
   }
 
+  const liveProductSearch = debounce(async (query) => {
+    try {
+      searchResults = await searchProducts(query);
+      renderSearchDropdown(searchResults);
+    } catch (err) {
+      if (!isAbort(err)) renderSearchDropdown([]);
+    }
+  }, SEARCH_DEBOUNCE_MS);
+
+  function addProduct(p) {
+    addToCart(p.id, 1, p.name, p.price);
+    showToast(`"${p.name}" agregado`, false, 1200);
+    searchInput.value = '';
+    liveProductSearch.cancel();
+    cancelRequest('productos');
+    hideSearchDropdown();
+  }
+
   searchInput.addEventListener('input', () => {
-    clearTimeout(searchTimeout);
     const query = searchInput.value.trim();
     if (!query) {
+      liveProductSearch.cancel();
+      cancelRequest('productos');
       hideSearchDropdown();
       return;
     }
-
-    searchTimeout = setTimeout(async () => {
-      try {
-        const res = await fetch(`${cajaApiBase}/productos?q=` + encodeURIComponent(query));
-        if (res.status === 401) { window.location.href = '/login'; return; }
-        const data = await res.json();
-        if (!data.ok) {
-          renderSearchDropdown([]);
-          return;
-        }
-        searchResults = data.productos || [];
-        renderSearchDropdown(searchResults);
-      } catch (_) {
-        renderSearchDropdown([]);
-      }
-    }, 300);
+    liveProductSearch(query);
   });
 
-  searchInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
+  /* Enter: lectores USB (teclado) escriben el codigo + Enter. */
+  searchInput.addEventListener('keydown', async (e) => {
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    const query = searchInput.value.trim();
+    if (!query) return;
+    liveProductSearch.cancel();
+    try {
+      searchResults = await searchProducts(query);
+    } catch (err) {
+      if (!isAbort(err)) showToast('No se pudo buscar el producto.', true);
+      return;
     }
+    const match = searchResults.find((p) => p.barcode === query)
+      || (searchResults.length === 1 ? searchResults[0] : null);
+    if (match) addProduct(match);
+    else renderSearchDropdown(searchResults);
   });
 
-  if (searchDropdown) {
-    searchDropdown.addEventListener('click', (e) => {
-      const item = e.target.closest('.search-item');
-      if (!item) return;
-      const idx = parseInt(item.dataset.index, 10);
-      const p = searchResults[idx];
-      if (!p) return;
-      addToCart(p.id, 1, p.name, p.price);
-      showToast(`"${p.name}" agregado`);
-      searchInput.value = '';
-      hideSearchDropdown();
-    });
-  }
+  searchDropdown.addEventListener('click', (e) => {
+    const item = e.target.closest('.search-item');
+    const p = item && searchResults[Number(item.dataset.index)];
+    if (p) addProduct(p);
+  });
 
   document.addEventListener('click', (e) => {
-    if (!searchWrap || searchWrap.contains(e.target)) return;
-    hideSearchDropdown();
+    if (!searchWrap.contains(e.target)) hideSearchDropdown();
+  });
+
+  /* ── Escaner de camara ─────────────────────────────────────── */
+  document.getElementById('btn-scan').addEventListener('click', () => {
+    BarcodeScanner.open(async (code) => {
+      try {
+        const match = (await searchProducts(code)).find((p) => p.barcode === code);
+        if (match) addProduct(match);
+        else showToast(`El código ${code} no está registrado en el inventario.`, true, 4000);
+      } catch (err) {
+        if (!isAbort(err)) showToast('No se pudo buscar el producto escaneado.', true);
+      }
+    });
   });
 
   /* ── Metodos de pago ─────────────────────────────────────── */
-  document.querySelectorAll('.pay-method-btn').forEach(btn => {
+  const payMethodButtons = document.querySelectorAll('.pay-method-btn');
+  payMethodButtons.forEach((btn) => {
     btn.addEventListener('click', () => {
-      document.querySelectorAll('.pay-method-btn').forEach(b => b.classList.remove('selected'));
-      btn.classList.add('selected');
+      payMethodButtons.forEach((b) => {
+        b.classList.toggle('selected', b === btn);
+        b.setAttribute('aria-pressed', String(b === btn));
+      });
       selectedPayMethod = btn.dataset.method;
 
-      /* Mostrar calculadora de cambio solo en Efectivo */
+      /* Calculadora de cambio solo en Efectivo */
       const isEfectivo = selectedPayMethod === 'efectivo';
       cashSection.classList.toggle('visible', isEfectivo);
       if (!isEfectivo) {
@@ -158,29 +212,18 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  /* ── Formateo COP del input de efectivo ────────────────── */
+  /* ── Efectivo recibido: formato COP + cambio en tiempo real ── */
   COP.bindInput(cashReceived, { onChange: () => updateChange() });
-
-  /* Calculo de cambio en tiempo real */
-  cashReceived.addEventListener('input', updateChange);
 
   function updateChange() {
     const received = COP.parse(cashReceived.value);
-    const total    = calcTotal();
-
-    if (isNaN(received) || cashReceived.value === '') {
+    if (isNaN(received)) {
       resetChange();
       return;
     }
-
-    const change = received - total;
+    const change = received - calcTotal();
     changeBlock.classList.toggle('negative', change < 0);
-
-    if (change < 0) {
-      valChange.textContent = `-$${COP.format(Math.abs(change))}`;
-    } else {
-      valChange.textContent = `$${COP.format(change)}`;
-    }
+    valChange.textContent = change < 0 ? `-${money(Math.abs(change))}` : money(change);
   }
 
   function resetChange() {
@@ -188,41 +231,226 @@ document.addEventListener('DOMContentLoaded', () => {
     valChange.textContent = '—';
   }
 
-  /* ── Cobrar ──────────────────────────────────────────────── */
+  /* ══════════════════════════════════════════════════════════
+     COBRAR / FIAR
+     ══════════════════════════════════════════════════════════ */
+
+  function buildSalePayload(method) {
+    const total = calcTotal();
+    return { items: cartToArray(), subtotal: total, discount: 0, total, method };
+  }
+
+  /** Envia la venta. Devuelve { ok, offline?, msg? } sin mostrar UI. */
+  async function processSale(payload) {
+    try {
+      const data = await submitSale(payload);
+      if (!data.ok) return { ok: false, msg: data.msg || 'Error al registrar la venta.' };
+      if (Array.isArray(data.stock_alerts) && data.stock_alerts.length) {
+        showStockAlerts(data.stock_alerts);
+      }
+      clearCart();
+      return { ok: true };
+    } catch (error) {
+      const msg = normalizeErrorMessage(error);
+      if (!navigator.onLine || isNetworkLikeError(error)) {
+        enqueueOfflineSale(payload, msg);
+        return { ok: false, offline: true, msg: 'Venta guardada localmente. Se sincronizará al volver internet.' };
+      }
+      return { ok: false, msg };
+    }
+  }
+
   btnCobrar.addEventListener('click', async () => {
     if (cart.size === 0) return;
     btnCobrar.disabled = true;
     const total = calcTotal();
-    const salePayload = {
-      items   : cartToArray(),
-      subtotal: calcSubtotal(),
-      discount: DISCOUNT,
-      total,
-      method  : selectedPayMethod,
-    };
+    const result = await processSale(buildSalePayload(selectedPayMethod));
+    if (result.ok) showToast(`¡Venta de ${money(total)} registrada!`);
+    else showToast(result.msg, true, result.offline ? 4200 : 6000);
+    btnCobrar.disabled = cart.size === 0;
+  });
+
+  /* ── Hoja "Fiar" con live search de clientes ───────────────── */
+  const fiarDialog   = document.getElementById('fiar-dialog');
+  const fiarForm     = document.getElementById('fiar-form');
+  const fiarNombre   = document.getElementById('fiar-nombre');
+  const fiarCedula   = document.getElementById('fiar-cedula');
+  const fiarTelefono = document.getElementById('fiar-telefono');
+  const fiarResults  = document.getElementById('fiar-results');
+  const fiarHint     = document.getElementById('fiar-hint');
+  const fiarTotal    = document.getElementById('fiar-total');
+  const fiarDebt     = document.getElementById('fiar-debt');
+  const fiarDebtPrev = document.getElementById('fiar-debt-prev');
+  const fiarDebtNew  = document.getElementById('fiar-debt-new');
+  const fiarError    = document.getElementById('fiar-error');
+  const fiarSubmit   = document.getElementById('fiar-submit');
+  const FIAR_HINT    = fiarHint.textContent;
+
+  let fiarCliente = null;   /* cliente existente elegido en el live search */
+  let fiarMatches = [];
+
+  btnFiar.addEventListener('click', () => {
+    if (cart.size === 0) return;
+    fiarTotal.textContent = money(calcTotal());
+    renderFiarDebt();
+    setFiarError('');
+    fiarDialog.showModal();
+  });
+
+  document.getElementById('fiar-close').addEventListener('click', () => fiarDialog.close());
+  fiarDialog.addEventListener('click', (e) => {
+    if (e.target === fiarDialog) fiarDialog.close();
+  });
+  fiarDialog.addEventListener('close', () => {
+    searchClientes.cancel();
+    cancelRequest('clientes');
+    hideFiarResults();
+  });
+
+  /* Cedula y telefono: solo digitos (el teclado numerico movil no basta al pegar). */
+  [fiarCedula, fiarTelefono].forEach((input) => {
+    input.addEventListener('input', () => {
+      input.value = input.value.replace(/\D/g, '');
+    });
+  });
+
+  const searchClientes = debounce(async (query) => {
     try {
-      const data = await submitSale(salePayload);
-      if (data.ok) {
-        showToast(`¡Venta de $${COP.format(total)} registrada!`);
-        if (Array.isArray(data.stock_alerts) && data.stock_alerts.length) {
-          showStockAlerts(data.stock_alerts);
-        }
-        clearCart();
-        cashReceived.value = '';
-        resetChange();
-      } else {
-        showToast(data.msg || 'Error al registrar la venta.', true);
-      }
-    } catch (error) {
-      const errorMessage = normalizeErrorMessage(error);
-      if (!navigator.onLine || isNetworkLikeError(error)) {
-        enqueueOfflineSale(salePayload, errorMessage);
-        showToast('Venta guardada localmente. Se sincronizará al volver internet.', true, 4200);
-      } else {
-        showToast(errorMessage, true, 6000);
-      }
+      const data = await getJson('clientes', `${clientesApi}?q=${encodeURIComponent(query)}`);
+      fiarMatches = data.ok ? data.clientes || [] : [];
+      renderFiarResults();
+    } catch (err) {
+      if (!isAbort(err)) hideFiarResults();
     }
-    btnCobrar.disabled = false;
+  }, SEARCH_DEBOUNCE_MS);
+
+  fiarNombre.addEventListener('input', () => {
+    if (fiarCliente) {
+      fiarCliente = null;   /* editar el nombre suelta la seleccion */
+      renderFiarDebt();
+    }
+    const query = fiarNombre.value.trim();
+    if (query.length < 2) {
+      searchClientes.cancel();
+      cancelRequest('clientes');
+      hideFiarResults();
+      return;
+    }
+    searchClientes(query);
+  });
+
+  fiarNombre.addEventListener('keydown', (e) => {
+    if (fiarResults.hidden) return;
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      fiarResults.querySelector('button')?.focus();
+    } else if (e.key === 'Enter') {
+      e.preventDefault();   /* Enter elige el primer resultado en vez de enviar */
+      selectFiarCliente(fiarMatches[0]);
+    }
+  });
+
+  fiarResults.addEventListener('keydown', (e) => {
+    if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+    e.preventDefault();
+    const li = e.target.closest('li');
+    const next = e.key === 'ArrowDown' ? li?.nextElementSibling : li?.previousElementSibling;
+    if (next) next.querySelector('button').focus();
+    else if (e.key === 'ArrowUp') fiarNombre.focus();
+  });
+
+  fiarResults.addEventListener('click', (e) => {
+    const option = e.target.closest('.combo-option');
+    if (option) selectFiarCliente(fiarMatches[Number(option.dataset.index)]);
+  });
+
+  function renderFiarResults() {
+    if (!fiarMatches.length) {
+      hideFiarResults();
+      fiarHint.textContent = 'Cliente nuevo: completa su teléfono para registrarlo.';
+      return;
+    }
+    fiarResults.innerHTML = fiarMatches.map((c, idx) => {
+      const meta = [c.cedula && `CC ${c.cedula}`, c.phone].filter(Boolean).join(' · ');
+      return `
+        <li>
+          <button type="button" class="combo-option" data-index="${idx}">
+            <span class="combo-name">${escapeHtml(c.name)}</span>
+            <span class="combo-debt${c.debt > 0 ? ' has-debt' : ''}">${c.debt > 0 ? money(c.debt) : 'Sin deuda'}</span>
+            <span class="combo-meta">${escapeHtml(meta)}</span>
+          </button>
+        </li>`;
+    }).join('');
+    fiarResults.hidden = false;
+    fiarHint.textContent = `${fiarMatches.length} ${fiarMatches.length === 1 ? 'cliente encontrado' : 'clientes encontrados'}.`;
+  }
+
+  function hideFiarResults() {
+    fiarResults.hidden = true;
+    fiarResults.innerHTML = '';
+  }
+
+  function selectFiarCliente(cliente) {
+    if (!cliente) return;
+    fiarCliente = cliente;
+    fiarNombre.value = cliente.name;
+    fiarCedula.value = cliente.cedula || '';
+    fiarTelefono.value = cliente.phone || '';
+    hideFiarResults();
+    fiarHint.textContent = FIAR_HINT;
+    renderFiarDebt();
+    fiarSubmit.focus();
+  }
+
+  function renderFiarDebt() {
+    fiarDebt.hidden = !fiarCliente;
+    if (!fiarCliente) return;
+    fiarDebtPrev.textContent = money(fiarCliente.debt);
+    fiarDebtNew.textContent = money(fiarCliente.debt + calcTotal());
+  }
+
+  function setFiarError(msg) {
+    fiarError.textContent = msg;
+    fiarError.hidden = !msg;
+  }
+
+  function resetFiarForm() {
+    fiarForm.reset();
+    fiarCliente = null;
+    fiarMatches = [];
+    fiarHint.textContent = FIAR_HINT;
+    renderFiarDebt();
+  }
+
+  /* 'submit' solo llega si la validacion nativa (required/pattern) paso. */
+  fiarForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (cart.size === 0) return;
+
+    const nombre = fiarNombre.value.trim();
+    const total = calcTotal();
+    const payload = {
+      ...buildSalePayload('fiado'),
+      cliente: {
+        id: fiarCliente?.id ?? null,
+        nombre,
+        cedula: fiarCedula.value,
+        telefono: fiarTelefono.value,
+      },
+    };
+
+    fiarSubmit.disabled = true;
+    setFiarError('');
+    const result = await processSale(payload);
+    fiarSubmit.disabled = false;
+
+    if (!result.ok) {
+      setFiarError(result.msg);   /* dentro de la hoja: un toast quedaria detras del modal */
+      return;
+    }
+    fiarDialog.close();
+    resetFiarForm();
+    showToast(`Fiado de ${money(total)} registrado a ${nombre}.`, false, 3200);
   });
 
   /* ══════════════════════════════════════════════════════════
@@ -237,104 +465,66 @@ document.addEventListener('DOMContentLoaded', () => {
       cart.set(productId, { name, price, qty });
       renderItemRow(productId);
     }
-
     updateTotals();
-    updateCartMeta();
   }
 
-  /**
-   * Renderiza la fila HTML de un item del carrito (primera vez).
-   */
   function renderItemRow(productId) {
     const item = cart.get(productId);
-    const row  = document.createElement('div');
-
-    row.classList.add('cart-item');
+    const row = document.createElement('li');
+    row.className = 'cart-item';
     row.id = `cart-item-${productId}`;
-    row.dataset.id = productId;
-    row.innerHTML = buildRowHTML(productId, item);
-
+    row.innerHTML = buildRowHTML(item);
     cartList.appendChild(row);
     bindRowEvents(row, productId);
-
-    /* Ocultar estado vacio */
-    cartEmpty.style.display = 'none';
+    cartEmpty.hidden = true;
   }
 
-  /**
-   * Actualiza los datos de una fila existente sin re-renderizarla.
-   */
+  /** Actualiza cantidad y subtotal de una fila sin re-renderizarla. */
   function updateItemRow(productId) {
     const row = document.getElementById(`cart-item-${productId}`);
     if (!row) return;
-
-    const item     = cart.get(productId);
-    const qtyEl    = row.querySelector('.qty-display');
-    const subEl    = row.querySelector('.item-subtotal');
-
-    qtyEl.value   = item.qty;
-    subEl.textContent = '$' + COP.format(item.price * item.qty);
+    const item = cart.get(productId);
+    row.querySelector('.qty-display').value = item.qty;
+    row.querySelector('.item-subtotal').textContent = money(item.price * item.qty);
   }
 
-  /**
-   * Genera el innerHTML de una fila del carrito (tarjeta apilada).
-   */
-  function buildRowHTML(productId, item) {
-    const unitFmt = COP.format(item.price);
-    const subFmt  = COP.format(item.price * item.qty);
-
+  function buildRowHTML(item) {
+    const name = escapeHtml(item.name);
     return `
-      <div class="item-top-row">
-        <div class="item-icon">
-          <i class="fa-solid fa-box"></i>
-        </div>
-        <div class="item-info">
-          <div class="item-name">${escapeHtml(item.name)}</div>
-          <div class="item-unit-price">$${unitFmt} por unidad</div>
-        </div>
-        <button class="btn-delete" aria-label="Eliminar producto">
-          <img src="/static/img/basura.png" alt="Eliminar" />
+      <span class="item-name">${name}</span>
+      <span class="item-subtotal">${money(item.price * item.qty)}</span>
+      <span class="item-unit-price">${money(item.price)} c/u</span>
+      <div class="item-actions">
+        <button type="button" class="qty-btn minus" aria-label="Quitar una unidad de ${name}">
+          <i class="fa-solid fa-minus" aria-hidden="true"></i>
         </button>
-      </div>
-      <div class="item-bottom-row">
-        <div class="item-controls">
-          <button class="qty-btn minus" aria-label="Disminuir cantidad">
-            <img src="/static/img/menos.png" alt="-" />
-          </button>
-          <input
-            class="qty-display"
-            type="tel"
-            inputmode="numeric"
-            pattern="[0-9]*"
-            value="${item.qty}"
-            aria-label="Cantidad"
-            min="1"
-          />
-          <button class="qty-btn plus" aria-label="Aumentar cantidad">
-            <img src="/static/img/mas.png" alt="+" />
-          </button>
-        </div>
-        <div class="item-subtotal">$${subFmt}</div>
+        <input
+          class="qty-display"
+          type="tel"
+          inputmode="numeric"
+          value="${item.qty}"
+          aria-label="Cantidad de ${name}"
+        />
+        <button type="button" class="qty-btn plus" aria-label="Agregar una unidad de ${name}">
+          <i class="fa-solid fa-plus" aria-hidden="true"></i>
+        </button>
+        <button type="button" class="btn-delete" aria-label="Eliminar ${name} del carrito">
+          <i class="fa-solid fa-trash-can" aria-hidden="true"></i>
+        </button>
       </div>
     `;
   }
 
-  /**
-   * Vincula los eventos de una fila ya renderizada.
-   */
   function bindRowEvents(row, productId) {
-    const minusBtn = row.querySelector('.qty-btn.minus');
-    const plusBtn  = row.querySelector('.qty-btn.plus');
     const qtyInput = row.querySelector('.qty-display');
-    const delBtn   = row.querySelector('.btn-delete');
 
-    plusBtn.addEventListener('click', () => {
+    row.querySelector('.qty-btn.plus').addEventListener('click', () => {
       cart.get(productId).qty++;
       updateItemRow(productId);
       updateTotals();
     });
 
-    minusBtn.addEventListener('click', () => {
+    row.querySelector('.qty-btn.minus').addEventListener('click', () => {
       const item = cart.get(productId);
       if (item.qty <= 1) {
         removeFromCart(productId);
@@ -357,17 +547,14 @@ document.addEventListener('DOMContentLoaded', () => {
       updateTotals();
     });
 
-    /* Solo permite digitos en el input de cantidad */
     qtyInput.addEventListener('input', () => {
-      qtyInput.value = qtyInput.value.replace(/[^\d]/g, '');
+      qtyInput.value = qtyInput.value.replace(/\D/g, '');
     });
 
-    delBtn.addEventListener('click', () => removeFromCart(productId));
+    row.querySelector('.btn-delete').addEventListener('click', () => removeFromCart(productId));
   }
 
-  /**
-   * Elimina un item del carrito con animacion.
-   */
+  /** Elimina un item del carrito con animacion. */
   function removeFromCart(productId) {
     const row = document.getElementById(`cart-item-${productId}`);
     if (!row) return;
@@ -377,59 +564,42 @@ document.addEventListener('DOMContentLoaded', () => {
       row.remove();
       cart.delete(productId);
       updateTotals();
-      updateCartMeta();
-
-      if (cart.size === 0) {
-        cartEmpty.style.display = 'flex';
-      }
+      if (cart.size === 0) cartEmpty.hidden = false;
     }, { once: true });
   }
 
-  /** Vacia el carrito completamente. */
   function clearCart() {
     cart.clear();
     cartList.innerHTML = '';
-    cartEmpty.style.display = 'flex';
+    cartEmpty.hidden = false;
+    cashReceived.value = '';
+    resetChange();
     updateTotals();
-    updateCartMeta();
   }
 
   /* ══════════════════════════════════════════════════════════
      TOTALES
      ══════════════════════════════════════════════════════════ */
 
-  function calcSubtotal() {
-    let sub = 0;
-    cart.forEach(item => { sub += item.price * item.qty; });
-    return sub;
-  }
-
   function calcTotal() {
-    return Math.max(0, calcSubtotal() - DISCOUNT);
+    let total = 0;
+    cart.forEach((item) => { total += item.price * item.qty; });
+    return total;
   }
 
   function updateTotals() {
-    const sub   = calcSubtotal();
     const total = calcTotal();
+    const empty = cart.size === 0;
 
-    subtotalEl.textContent  = '$' + COP.format(sub);
-    discountEl.textContent  = DISCOUNT > 0 ? '-$' + COP.format(DISCOUNT) : '$0';
-    totalEl.textContent     = '$' + COP.format(total);
-
-    btnCobrar.disabled = cart.size === 0;
-    btnCobrar.textContent = cart.size === 0
-      ? 'Cobrar'
-      : `Cobrar  $${COP.format(total)}`;
+    totalEl.textContent = money(total);
+    btnCobrar.disabled = empty;
+    btnFiar.disabled = empty;
+    btnCobrar.textContent = empty ? 'Cobrar' : `Cobrar ${money(total)}`;
 
     /* Recalcular el cambio si el cajero ya digito un monto */
     if (selectedPayMethod === 'efectivo' && cashReceived.value !== '') {
       updateChange();
     }
-  }
-
-  /** Actualiza meta-info del carrito. */
-  function updateCartMeta() {
-    /* badge eliminado — funcion conservada por compatibilidad con llamadas existentes */
   }
 
   async function submitSale(payload) {
@@ -518,6 +688,7 @@ document.addEventListener('DOMContentLoaded', () => {
       offlineLogBody.innerHTML = '<tr class="offline-sync-empty"><td colspan="5">No hay eventos offline pendientes.</td></tr>';
       return;
     }
+    if (pendingCount) document.getElementById('offline-sync-panel').open = true;
 
     offlineLogBody.innerHTML = rows.map((entry) => {
       const saleLabel = entry.sale_label || `#${entry.id}`;
@@ -700,12 +871,8 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function buildOfflineSaleLabel(payload) {
-    try {
-      const total = typeof payload.total === 'number' ? payload.total : Number(payload.total || 0);
-      return `$${COP.format(total)}`;
-    } catch (_) {
-      return 'Venta offline';
-    }
+    const total = Number(payload.total || 0);
+    return payload.method === 'fiado' ? `Fiado ${money(total)}` : money(total);
   }
 
   function generateOfflineId() {
@@ -717,6 +884,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
   /* ── Helpers ─────────────────────────────────────────────── */
 
+  function money(value) {
+    return `$${COP.format(value)}`;
+  }
+
   function cartToArray() {
     return Array.from(cart.entries()).map(([id, item]) => ({
       id,
@@ -727,26 +898,14 @@ document.addEventListener('DOMContentLoaded', () => {
     }));
   }
 
-  let toastTimer;
-
   function showStockAlerts(alerts) {
     alerts.slice(0, 3).forEach((msg, idx) => {
       setTimeout(() => showToast(msg, true, 5000), idx * 5200);
     });
   }
 
-  /**
-   * Muestra un toast de retroalimentacion visual.
-   * @param {string}  msg
-   * @param {boolean} [isError=false]
-   */
   function showToast(msg, isError = false, duration = 2400) {
-    toast.textContent = msg;
-    toast.style.background = isError ? '#EF4444' : '#10B981';
-    toast.classList.add('show');
-
-    clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => toast.classList.remove('show'), duration);
+    JemToast[isError ? 'error' : 'success'](msg, { duration });
   }
 
   function escapeHtml(str) {

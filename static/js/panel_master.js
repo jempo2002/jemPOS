@@ -178,7 +178,6 @@ $('form-crear-tienda').addEventListener('submit', async (e) => {
     nit: $('ct-nit').value.trim(),
     telefono: sanitizePhone($('ct-telefono').value),
     owner_id: $('ct-owner-id').value,
-    es_restaurante: $('ct-es-restaurante').checked,
   };
   if (!payload.nombre_negocio || !payload.owner_id) {
     showInlineError('ct-error', 'Nombre del negocio y dueno son requeridos.');

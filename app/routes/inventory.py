@@ -93,6 +93,7 @@ def api_inventario_create():
         costo = float(fuente.get("costo", 0) or 0)
         venta = float(fuente.get("venta", 0) or 0)
         stock = float(fuente.get("stock", 0) or 0)
+        stock_min = float(fuente.get("stock_min", 0) or 0)
     except (TypeError, ValueError):
         return jsonify({"ok": False, "msg": "Valores numericos invalidos."}), 400
 
@@ -103,7 +104,7 @@ def api_inventario_create():
 
     if not nombre or not categoria:
         return jsonify({"ok": False, "msg": "Nombre y categoria son requeridos."}), 400
-    if costo < 0 or venta < 0 or stock < 0:
+    if costo < 0 or venta < 0 or stock < 0 or stock_min < 0:
         return jsonify({"ok": False, "msg": "Los valores no pueden ser negativos."}), 400
 
     try:
@@ -116,6 +117,8 @@ def api_inventario_create():
             venta,
             stock,
             proveedor_id,
+            stock_min=stock_min,
+            codigo_barras=fuente.get("codigo_barras"),
         )
         return jsonify({"ok": True, "id": new_id})
     except InventoryNotFoundError as exc:
@@ -143,6 +146,7 @@ def api_inventario_update(id_producto: int):
         costo = float(fuente.get("costo", 0) or 0)
         venta = float(fuente.get("venta", 0) or 0)
         stock = float(fuente.get("stock", 0) or 0)
+        stock_min = float(fuente.get("stock_min", 0) or 0)
     except (TypeError, ValueError):
         return jsonify({"ok": False, "msg": "Valores numericos invalidos."}), 400
 
@@ -153,6 +157,8 @@ def api_inventario_update(id_producto: int):
 
     if not nombre or not categoria:
         return jsonify({"ok": False, "msg": "Nombre y categoria son requeridos."}), 400
+    if stock_min < 0:
+        return jsonify({"ok": False, "msg": "Los valores no pueden ser negativos."}), 400
 
     try:
         update_producto(
@@ -165,6 +171,8 @@ def api_inventario_update(id_producto: int):
             venta,
             stock,
             proveedor_id,
+            stock_min=stock_min,
+            codigo_barras=fuente.get("codigo_barras"),
         )
         return jsonify({"ok": True})
     except InventoryNotFoundError as exc:
@@ -242,14 +250,17 @@ def api_proveedores_create():
     empresa = str(data.get("empresa", "")).strip()
     contacto = str(data.get("contacto", "")).strip()
     celular = str(data.get("celular", "")).strip()
+    telefono_2 = str(data.get("telefono_2", "")).strip()
     correo = str(data.get("correo", "")).strip()
     detalles = str(data.get("detalles", "")).strip()
 
     if not empresa:
-        return jsonify({"ok": False, "msg": "La empresa es requerida."}), 400
+        return jsonify({"ok": False, "msg": "El nombre del proveedor es requerido."}), 400
+    if not celular:
+        return jsonify({"ok": False, "msg": "El telefono 1 es requerido."}), 400
 
     try:
-        new_id = create_proveedor(int(session["id_tienda"]), int(session["id_usuario"]), empresa, contacto, celular, correo, detalles)
+        new_id = create_proveedor(int(session["id_tienda"]), int(session["id_usuario"]), empresa, contacto, celular, correo, detalles, telefono_2)
         return jsonify({"ok": True, "id": new_id})
     except ValueError as exc:
         return jsonify({"ok": False, "msg": str(exc)}), 400
@@ -266,11 +277,14 @@ def api_proveedores_update(id_proveedor: int):
     empresa = str(data.get("empresa", "")).strip()
     contacto = str(data.get("contacto", "")).strip()
     celular = str(data.get("celular", "")).strip()
+    telefono_2 = str(data.get("telefono_2", "")).strip()
     correo = str(data.get("correo", "")).strip()
     detalles = str(data.get("detalles", "")).strip()
 
     if not empresa:
-        return jsonify({"ok": False, "msg": "La empresa es requerida."}), 400
+        return jsonify({"ok": False, "msg": "El nombre del proveedor es requerido."}), 400
+    if not celular:
+        return jsonify({"ok": False, "msg": "El telefono 1 es requerido."}), 400
 
     try:
         update_proveedor(
@@ -282,6 +296,7 @@ def api_proveedores_update(id_proveedor: int):
             celular,
             correo,
             detalles,
+            telefono_2,
         )
         return jsonify({"ok": True})
     except InventoryNotFoundError as exc:

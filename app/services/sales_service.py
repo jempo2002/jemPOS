@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from datetime import date, datetime, timedelta
 
+from mysql.connector import IntegrityError
+
 from app.utils.helpers import normalize_payment_method, only_digits
 from app.utils.validation import parse_float, parse_int, sanitize_optional_text, sanitize_text
 from database import get_db
@@ -237,29 +239,35 @@ def get_stock_alerts(id_tienda: int, limit: int = 10) -> list[dict]:
     ]
 
 
+# Saldo pendiente de un cliente `c`: ventas fiadas menos sus abonos.
+_DEUDA_CLIENTE_SQL = """
+  COALESCE((
+    SELECT SUM(
+      GREATEST(
+        v.total_final - COALESCE((
+          SELECT SUM(ab.monto_abonado)
+          FROM abonos_fiados ab
+          WHERE ab.id_venta = v.id_venta
+        ), 0),
+        0
+      )
+    )
+    FROM ventas v
+    WHERE v.id_cliente = c.id_cliente
+      AND v.id_tienda  = c.id_tienda
+      AND v.estado_venta = 'Fiada/Pendiente'
+  ), 0)
+"""
+
+
 def get_fiados_clientes(id_tienda: int) -> list[dict]:
     conn = get_db()
     try:
         cur = conn.cursor(dictionary=True)
         cur.execute(
-            """
+            f"""
             SELECT c.id_cliente, c.nombre, c.telefono,
-              COALESCE((
-                SELECT SUM(
-                  GREATEST(
-                    v.total_final - COALESCE((
-                      SELECT SUM(ab.monto_abonado)
-                      FROM abonos_fiados ab
-                      WHERE ab.id_venta = v.id_venta
-                    ), 0),
-                    0
-                  )
-                )
-                FROM ventas v
-                WHERE v.id_cliente = c.id_cliente
-                  AND v.id_tienda  = c.id_tienda
-                  AND v.estado_venta = 'Fiada/Pendiente'
-              ), 0) AS deuda_total
+              {_DEUDA_CLIENTE_SQL} AS deuda_total
             FROM clientes c
             WHERE c.id_tienda = %s AND c.estado_activo = 1
             ORDER BY c.nombre
@@ -279,6 +287,104 @@ def get_fiados_clientes(id_tienda: int) -> list[dict]:
         }
         for f in filas
     ]
+
+
+def buscar_clientes_fiado(id_tienda: int, q: str, limit: int = 8) -> list[dict]:
+    """Live search de clientes por nombre, cedula o telefono, con su deuda actual."""
+    q = str(q or "").strip()[:60]
+    if len(q) < 2:
+        return []
+
+    like = f"%{q}%"
+    conn = get_db()
+    try:
+        cur = conn.cursor(dictionary=True)
+        cur.execute(
+            f"""
+            SELECT c.id_cliente, c.nombre, c.cedula, c.telefono,
+              {_DEUDA_CLIENTE_SQL} AS deuda_total
+            FROM clientes c
+            WHERE c.id_tienda = %s AND c.estado_activo = 1
+              AND (c.nombre LIKE %s OR c.cedula LIKE %s OR c.telefono LIKE %s)
+            ORDER BY deuda_total DESC, c.nombre
+            LIMIT %s
+            """,
+            (id_tienda, like, like, like, limit),
+        )
+        filas = cur.fetchall() or []
+    finally:
+        conn.close()
+
+    return [
+        {
+            "id": f["id_cliente"],
+            "name": f["nombre"],
+            "cedula": f.get("cedula") or "",
+            "phone": f.get("telefono") or "",
+            "debt": max(0.0, float(f["deuda_total"] or 0)),
+        }
+        for f in filas
+    ]
+
+
+def _resolver_cliente_fiado(cur, id_tienda: int, cliente) -> int:
+    """Id del cliente de una venta fiada: el seleccionado en el live search
+    (`id`) o uno nuevo. Corre dentro de la transaccion de la venta."""
+    if not isinstance(cliente, dict):
+        raise SalesValidationError("Indica el cliente al que se le fia.")
+    try:
+        nombre = sanitize_text(cliente.get("nombre"), "El nombre del cliente", max_len=150)
+        id_cliente = cliente.get("id") or None
+        if id_cliente is not None:
+            id_cliente = parse_int(id_cliente, "Cliente", min_value=1)
+    except ValueError as exc:
+        _raise_validation(exc)
+    telefono = only_digits(cliente.get("telefono"))
+    cedula = only_digits(cliente.get("cedula")) or None
+    if not 7 <= len(telefono) <= 25:
+        raise SalesValidationError("El telefono debe tener entre 7 y 25 digitos.")
+    if cedula and not 5 <= len(cedula) <= 20:
+        raise SalesValidationError("La cedula debe tener entre 5 y 20 digitos.")
+
+    if id_cliente is None:
+        cur.execute(
+            "SELECT id_cliente, nombre, estado_activo FROM clientes "
+            "WHERE id_tienda = %s AND (telefono = %s OR cedula = %s) LIMIT 1",
+            (id_tienda, telefono, cedula),
+        )
+    else:
+        cur.execute(
+            "SELECT id_cliente, nombre, estado_activo FROM clientes "
+            "WHERE id_cliente = %s AND id_tienda = %s LIMIT 1",
+            (id_cliente, id_tienda),
+        )
+    fila = cur.fetchone()
+
+    if id_cliente is not None and not fila:
+        raise SalesNotFoundError("Cliente no encontrado.")
+    if id_cliente is None and fila and fila["estado_activo"]:
+        # Sin seleccion explicita no se carga deuda a un cliente existente:
+        # un digito mal escrito le sumaria la cuenta a otra persona.
+        raise SalesConflictError(
+            f"{fila['nombre']} ya tiene ese telefono o cedula. Buscalo y seleccionalo en la lista."
+        )
+
+    try:
+        if fila:
+            # Seleccionado (o inactivo con esos datos, que se reactiva).
+            cur.execute(
+                "UPDATE clientes SET telefono = %s, cedula = COALESCE(%s, cedula), estado_activo = 1 "
+                "WHERE id_cliente = %s",
+                (telefono, cedula, fila["id_cliente"]),
+            )
+            return fila["id_cliente"]
+        cur.execute(
+            "INSERT INTO clientes (id_tienda, nombre, cedula, telefono) VALUES (%s, %s, %s, %s)",
+            (id_tienda, nombre, cedula, telefono),
+        )
+        return cur.lastrowid
+    except IntegrityError as exc:
+        raise SalesConflictError("Ese telefono o cedula ya pertenece a otro cliente.") from exc
 
 
 def get_ventas(id_tienda: int, rol: str, id_usuario: int | None, filtro: str | None) -> tuple[list[dict], str]:
@@ -434,16 +540,16 @@ def get_caja_productos(id_tienda: int, q: str) -> list[dict]:
         cur = conn.cursor(dictionary=True)
         if q:
             cur.execute(
-                "SELECT id_producto, nombre, precio_venta, stock_actual "
+                "SELECT id_producto, nombre, codigo_barras, precio_venta, stock_actual "
                 "FROM productos "
                 "WHERE id_tienda = %s AND estado_activo = 1 "
                 "AND (nombre LIKE %s OR codigo_barras = %s) "
-                "ORDER BY nombre LIMIT 20",
-                (id_tienda, f"%{q}%", q),
+                "ORDER BY codigo_barras = %s DESC, nombre LIMIT 20",
+                (id_tienda, f"%{q}%", q, q),
             )
         else:
             cur.execute(
-                "SELECT id_producto, nombre, precio_venta, stock_actual "
+                "SELECT id_producto, nombre, codigo_barras, precio_venta, stock_actual "
                 "FROM productos "
                 "WHERE id_tienda = %s AND estado_activo = 1 "
                 "ORDER BY nombre LIMIT 50",
@@ -457,6 +563,7 @@ def get_caja_productos(id_tienda: int, q: str) -> list[dict]:
         {
             "id": r["id_producto"],
             "name": r["nombre"],
+            "barcode": r.get("codigo_barras") or "",
             "price": float(r["precio_venta"]),
             "stock": r["stock_actual"],
         }
@@ -473,6 +580,7 @@ def registrar_venta(
     subtotal: float,
     monto_total: float,
     descuento: float,
+    cliente: dict | None = None,
 ) -> dict:
     try:
         id_tienda = parse_int(id_tienda, "Tienda", min_value=1)
@@ -490,9 +598,14 @@ def registrar_venta(
             id_cliente = None
     except ValueError as exc:
         _raise_validation(exc)
-    metodo_pago_db = normalize_payment_method(metodo_pago_ui)
+    metodo_pago_db = normalize_payment_method(metodo_pago_ui, allow_fiado=True)
     if not metodo_pago_db:
         raise SalesValidationError("Metodo de pago invalido.")
+    # Venta fiada = deuda del cliente. La columna metodo_pago es NOT NULL; se
+    # guarda 'Efectivo' igual que sumar_fiado, pero no entra dinero a la caja.
+    es_fiado = metodo_pago_db == "fiado"
+    if es_fiado:
+        metodo_pago_db = "Efectivo"
 
     conn = get_db()
     alertas_stock: list[str] = []
@@ -503,6 +616,8 @@ def registrar_venta(
         id_turno = _obtener_turno_abierto(id_tienda, cur)
         if not id_turno:
             raise SalesConflictError("Abre un turno antes de registrar ventas.")
+        if es_fiado:
+            id_cliente = _resolver_cliente_fiado(cur, id_tienda, cliente)
 
         lineas_validas = []
         for item in items:
@@ -590,13 +705,13 @@ def registrar_venta(
             (id_tienda,),
         )
         consecutivo = cur.fetchone()["cnt"]
-        numero_venta = f"V{id_tienda:04d}-{consecutivo + 1:06d}"
+        numero_venta = f"{'F' if es_fiado else 'V'}{id_tienda:04d}-{consecutivo + 1:06d}"
 
         cur.execute(
             "INSERT INTO ventas "
             "(id_tienda, id_turno, id_cajero, id_cliente, numero_venta, "
-            " subtotal, total_final, metodo_pago, estado_venta) "
-            "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,'Pagada')",
+            " subtotal, total_final, metodo_pago, estado_venta, observaciones) "
+            "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
             (
                 id_tienda,
                 id_turno,
@@ -606,6 +721,8 @@ def registrar_venta(
                 subtotal,
                 monto_total,
                 metodo_pago_db,
+                "Fiada/Pendiente" if es_fiado else "Pagada",
+                "Fiado desde caja" if es_fiado else None,
             ),
         )
         id_venta = cur.lastrowid
@@ -657,7 +774,7 @@ def registrar_venta(
                                 f"Stock bajo: {producto_actualizado.get('nombre') or 'Producto'} ({stock_actual} und)."
                             )
 
-        if metodo_pago_db == "Efectivo":
+        if metodo_pago_db == "Efectivo" and not es_fiado:
             cur.execute(
                 "UPDATE turnos_caja "
                 "SET monto_final_esperado = COALESCE(monto_final_esperado, monto_inicial, 0) + %s "
@@ -683,6 +800,7 @@ def registrar_venta(
     return {
         "id_venta": id_venta,
         "numero_venta": numero_venta,
+        "id_cliente": id_cliente,
         "stock_alerts": alertas_stock,
     }
 

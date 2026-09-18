@@ -2,12 +2,14 @@ from __future__ import annotations
 
 from flask import Blueprint, flash, jsonify, render_template, request, session
 
+from app import limiter
 from app.services.sales_service import (
     SalesConflictError,
     SalesNotFoundError,
     SalesValidationError,
     abonar_fiado,
     abrir_turno,
+    buscar_clientes_fiado,
     cerrar_turno,
     crear_cliente_fiado,
     crear_gasto,
@@ -180,6 +182,7 @@ def api_ventas_crear():
             subtotal,
             monto_total,
             descuento,
+            datos.get("cliente"),
         )
         for alerta in resultado.get("stock_alerts", []):
             flash(alerta, "alerta_stock")
@@ -208,6 +211,16 @@ def api_ventas_detalle(id_venta: int):
 @login_required
 def api_fiados_listar():
     return jsonify({"ok": True, "clientes": get_fiados_clientes(int(session["id_tienda"]))})
+
+
+# Live search del modal "Fiar": el cliente hace debounce, pero se fija un
+# limite propio (reemplaza el default global de 50/hora, insuficiente al teclear).
+@sales_api_bp.get("/api/clientes/buscar")
+@login_required
+@limiter.limit("60 per minute")
+def api_clientes_buscar():
+    q = str(request.args.get("q", ""))
+    return jsonify({"ok": True, "clientes": buscar_clientes_fiado(int(session["id_tienda"]), q)})
 
 
 @sales_api_bp.post("/api/fiados")

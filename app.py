@@ -6,7 +6,7 @@ import os
 from datetime import timedelta
 
 from dotenv import load_dotenv
-from flask import Flask, jsonify, redirect, session, url_for
+from flask import Flask, jsonify, redirect, render_template, session, url_for
 from flask_wtf.csrf import CSRFProtect
 
 from app import limiter
@@ -67,13 +67,19 @@ with app.app_context():
 
 @app.route("/")
 def index():
+    # Visitante anónimo: ve la landing pública, no el login directo.
     if "id_usuario" not in session:
-        return redirect(url_for("auth.login"))
+        return redirect(url_for("landing"))
 
     rol = (session.get("rol") or "").strip()
     if rol in {"Admin", "Master"}:
         return redirect(url_for("core_bp.dashboard_page"))
     return redirect(url_for("sales_bp.turno"))
+
+
+@app.route("/landing")
+def landing():
+    return render_template("landing.html")
 
 
 @app.errorhandler(404)

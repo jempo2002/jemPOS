@@ -4,7 +4,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  {% include "_favicon.html" %}
   <title>jemPOS - Gastos</title>
+  <meta name="robots" content="noindex, nofollow">
 
   <!-- Google Fonts: Inter -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -116,7 +118,7 @@
     <div class="gast-modal-header">
       <span class="gast-modal-title" id="modal-gasto-title">Registrar Gasto</span>
       <button class="gast-modal-close" data-close="modal-gasto" type="button" aria-label="Cerrar">
-        <img src="/static/img/equis.png" alt="Cerrar" />
+        <img src="/static/img/equis.png" alt="" aria-hidden="true" width="20" height="20" decoding="async" />
       </button>
     </div>
 
@@ -205,11 +207,11 @@
 </div>
 
 <!-- Scripts -->
-<script src="/static/js/cop-format.js"></script>
-<script src="/static/js/toast.js"></script>
-<script src="/static/js/fab-scroll.js"></script>
-<script src="/static/js/filtros-paginacion.js"></script>
-<script src="/static/js/gastos.js"></script>
+<script src="/static/js/cop-format.js" defer></script>
+<script src="/static/js/toast.js" defer></script>
+<script src="/static/js/fab-scroll.js" defer></script>
+<script src="/static/js/filtros-paginacion.js" defer></script>
+<script src="/static/js/gastos.js" defer></script>
 
   <!-- RBAC + Suscripcion -->
   <div id="app-context"
@@ -217,9 +219,9 @@
        data-subs-alerta='{{ mostrar_alerta_suscripcion | tojson }}'
        data-subs-dias="{{ dias_restantes }}"
        hidden></div>
-  <script src="/static/js/subs-context.js"></script>
-  <script src="/static/js/nav-rbac.js"></script>
-  <script src="/static/js/subs-modal.js"></script>
+  <script src="/static/js/subs-context.js" defer></script>
+  <script src="/static/js/nav-rbac.js" defer></script>
+  <script src="/static/js/subs-modal.js" defer></script>
 
 </body>
 </html>

@@ -37,13 +37,16 @@
   </nav>
 
   <a href="{{ url_for('auth.logout') }}" class="sidebar-logout no-underline">
-    <img src="/static/img/leave.png" alt="" />
+    <img src="/static/img/leave.png" alt="" aria-hidden="true" width="18" height="18" decoding="async" />
     Cerrar sesion
   </a>
 
   <div class="sidebar-footer">
     {% if foto_perfil %}
-    <img src="/static/uploads/perfiles/{{ foto_perfil }}" class="avatar avatar-img" alt="Foto" />
+    {# alt vacio: el nombre y el rol ya van en texto justo al lado, repetirlos
+       en el alt duplica el anuncio del lector de pantalla. #}
+    <img src="/static/uploads/perfiles/{{ foto_perfil }}" class="avatar avatar-img"
+         alt="" aria-hidden="true" width="40" height="40" loading="lazy" decoding="async" />
     {% else %}
     <div class="avatar">{{ avatar_iniciales }}</div>
     {% endif %}

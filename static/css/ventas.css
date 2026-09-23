@@ -43,7 +43,7 @@
 .ventas-caption {
   margin: 0;
   font-size: 0.9rem;
-  color: #64748b;
+  color: #57667A;
   font-weight: 600;
 }
 
@@ -55,7 +55,7 @@
 
 .ventas-filter-form label {
   font-size: 0.85rem;
-  color: #64748b;
+  color: #57667A;
   font-weight: 600;
 }
 
@@ -103,7 +103,7 @@
 
 .venta-hour {
   margin: 0.1rem 0 0;
-  color: #64748b;
+  color: #57667A;
   font-weight: 600;
   font-size: 0.82rem;
 }
@@ -190,7 +190,7 @@
 }
 
 .ventas-table th {
-  color: #64748b;
+  color: #57667A;
   font-size: 0.78rem;
   text-transform: uppercase;
   letter-spacing: 0.03em;
@@ -201,7 +201,7 @@
 .ventas-empty,
 .ventas-empty-row {
   text-align: center;
-  color: #64748b;
+  color: #57667A;
   font-weight: 600;
   padding: 1rem;
 }
@@ -269,7 +269,7 @@
 }
 
 .detalle-table th {
-  color: #64748b;
+  color: #57667A;
   font-size: 0.72rem;
   text-transform: uppercase;
 }

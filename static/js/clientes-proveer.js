@@ -288,7 +288,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const wrap = el.querySelector('.sort-icon-wrap');
       if (!wrap) return;
       wrap.innerHTML = el.dataset.col === sortCol
-        ? `<img src="/static/img/${sortDir === 'asc' ? 'up' : 'down'}.png" class="sort-img" alt="${sortDir}">`
+        ? `<img src="/static/img/${sortDir === 'asc' ? 'up' : 'down'}.png" class="sort-img" alt="" aria-hidden="true" width="13" height="13" decoding="async">`
         : '<i class="fa-solid fa-sort sort-icon"></i>';
     });
     renderClientes();

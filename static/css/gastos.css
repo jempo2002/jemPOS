@@ -141,7 +141,7 @@
 .gast-summary-label {
   font-size: 0.72rem;
   font-weight: 600;
-  color: #94A3B8;
+  color: #57667A;
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
@@ -149,7 +149,7 @@
 .gast-summary-amount {
   font-size: 1.2rem;
   font-weight: 800;
-  color: #EF4444;
+  color: #B91C1C;
   letter-spacing: -0.03em;
   line-height: 1;
 }
@@ -216,7 +216,7 @@
   align-items: center;
   justify-content: center;
   font-size: 1rem;
-  color: #EF4444;
+  color: #B91C1C;
   flex-shrink: 0;
 }
 
@@ -230,7 +230,7 @@
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: #94A3B8;
+  color: #57667A;
   margin-bottom: 0.15rem;
 }
 
@@ -245,7 +245,7 @@
 
 .gast-card-meta {
   font-size: 0.78rem;
-  color: #64748B;
+  color: #57667A;
   margin-top: 0.2rem;
   display: flex;
   align-items: center;
@@ -265,7 +265,7 @@
 }
 .gast-origen-pill.efectivo {
   background: rgba(16,185,129,0.1);
-  color: #059669;
+  color: #047857;
 }
 .gast-origen-pill.banco {
   background: #BFDBFE;
@@ -277,17 +277,17 @@
 }
 
 .gast-muted-text {
-  color: #94A3B8;
+  color: #57667A;
 }
 
 .gast-empty-dash {
-  color: #94A3B8;
+  color: #57667A;
 }
 
 .gast-card-amount {
   font-size: 1.15rem;
   font-weight: 800;
-  color: #EF4444;
+  color: #B91C1C;
   letter-spacing: -0.03em;
   text-align: right;
   flex-shrink: 0;
@@ -307,8 +307,18 @@
     background: #ffffff;
     border: 1.5px solid #E2E8F0;
     border-radius: 1rem;
-    overflow: hidden;
+    /* Con `overflow: hidden` las columnas de la derecha se recortaban entre
+       768 y ~1000px (tablet y ventana a media pantalla) sin dejar forma de
+       alcanzarlas. Ahora la tabla scrollea DENTRO de su tarjeta y nunca la
+       pagina, que es la regla de global.css (body { overflow-x: hidden }):
+       asi la navbar superior no se desplaza con la tabla.
+       overflow-y hidden mantiene el recorte del border-radius. */
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
   }
+
+  .gast-table { min-width: 640px; }
 }
 
 .gast-table {
@@ -327,7 +337,7 @@
   text-align: left;
   font-size: 0.78rem;
   font-weight: 700;
-  color: #64748B;
+  color: #57667A;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   white-space: nowrap;
@@ -352,7 +362,7 @@
 
 .gast-td-fecha {
   font-size: 0.82rem;
-  color: #94A3B8;
+  color: #57667A;
   white-space: nowrap;
 }
 
@@ -361,7 +371,7 @@
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: #64748B;
+  color: #57667A;
 }
 
 .gast-td-desc {
@@ -373,7 +383,7 @@
 .gast-td-monto {
   font-size: 1.1rem;
   font-weight: 800;
-  color: #EF4444;
+  color: #B91C1C;
   letter-spacing: -0.03em;
   text-align: right;
   white-space: nowrap;
@@ -387,7 +397,7 @@
   justify-content: center;
   gap: 0.5rem;
   padding: 3rem 1rem;
-  color: #94A3B8;
+  color: #57667A;
   text-align: center;
 }
 .gast-empty i    { font-size: 2.5rem; opacity: 0.35; }
@@ -460,7 +470,7 @@
   border-radius: 0.5rem;
   border: none;
   background: #F1F5F9;
-  color: #64748B;
+  color: #57667A;
   font-size: 1rem;
   cursor: pointer;
   display: flex;
@@ -539,7 +549,7 @@
   appearance: none;
   -webkit-appearance: none;
 }
-.gast-field input::placeholder { color: #94A3B8; }
+.gast-field input::placeholder { color: #57667A; }
 .gast-field input:focus,
 .gast-select:focus {
   border-color: #3B82F6;
@@ -568,13 +578,13 @@
 .gast-big-input::placeholder {
   font-size: 2.2rem;
   font-weight: 800;
-  color: #CBD5E1 !important;
+  color: #57667A !important;
 }
 
 /* Label opcional */
 .gast-optional {
   font-weight: 400;
-  color: #94A3B8;
+  color: #57667A;
   font-size: 0.78rem;
 }
 
@@ -591,7 +601,7 @@
 }
 .gast-origen-badge.efectivo {
   background: rgba(16,185,129,0.1);
-  color: #059669;
+  color: #047857;
 }
 .gast-origen-badge.banco {
   background: #BFDBFE;
@@ -652,7 +662,7 @@
   vertical-align: middle;
 }
 .sort-icon {
-  color: #94A3B8;
+  color: #57667A;
   font-size: 0.75rem;
   transition: color 0.15s;
 }

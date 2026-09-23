@@ -148,7 +148,7 @@
   margin-top: 0.65rem;
   padding: 0.45rem 0.9rem;
   background: #FEE2E2;
-  color: #DC2626;
+  color: #B91C1C;
   border: 1.5px solid #FECACA;
   border-radius: 0.65rem;
   font-size: 0.8rem;
@@ -251,7 +251,7 @@
 .w-full { width: 100%; }
 .block { display: block; }
 .text-center { text-align: center; }
-.text-red-600 { color: #DC2626; }
+.text-red-600 { color: #B91C1C; }
 .bg-red-50 { background: #FEF2F2; }
 .hover\:bg-red-100:hover { background: #FEE2E2; }
 .border { border-width: 1px; border-style: solid; }
@@ -277,7 +277,7 @@
 .perf-display-role {
   font-size: 0.82rem;
   font-weight: 500;
-  color: #94A3B8;
+  color: #57667A;
   margin-top: 0.2rem;
   text-transform: uppercase;
   letter-spacing: 0.06em;
@@ -309,7 +309,7 @@
 .perf-label {
   font-size: 0.78rem;
   font-weight: 600;
-  color: #64748B;
+  color: #57667A;
   text-transform: uppercase;
   letter-spacing: 0.06em;
   display: flex;
@@ -319,7 +319,7 @@
 
 .perf-label i {
   font-size: 0.8rem;
-  color: #94A3B8;
+  color: #57667A;
 }
 
 /* Wrapper del input (para el icono de candado) */
@@ -353,7 +353,7 @@
 .perf-input-disabled .perf-input {
   padding-right: 2.4rem;
   background: #F8FAFC;
-  color: #94A3B8;
+  color: #57667A;
   cursor: not-allowed;
   border-color: #E2E8F0;
 }
@@ -367,13 +367,13 @@
   position: absolute;
   right: 0.9rem;
   font-size: 0.75rem;
-  color: #CBD5E1;
+  color: #57667A;
   pointer-events: none;
 }
 
 .perf-hint {
   font-size: 0.74rem;
-  color: #94A3B8;
+  color: #57667A;
   padding-left: 0.1rem;
 }
 

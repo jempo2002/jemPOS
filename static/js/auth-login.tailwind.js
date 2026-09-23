@@ -7,7 +7,7 @@ tailwind.config = {
         surface: '#F8FAFC',
         border: '#E2E8F0',
         ink: '#1E293B',
-        muted: '#94A3B8',
+        muted: '#57667A',
       },
       boxShadow: {
         card: '0 2px 24px 0 rgba(15, 23, 42, 0.07)',

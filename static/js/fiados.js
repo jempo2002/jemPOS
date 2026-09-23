@@ -335,7 +335,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!wrap) return;
       if (th.dataset.col === col) {
         const src = `/static/img/${dir === 'asc' ? 'up' : 'down'}.png`;
-        wrap.innerHTML = `<img src="${src}" class="sort-img" alt="${dir}">`;
+        wrap.innerHTML = `<img src="${src}" class="sort-img" alt="" aria-hidden="true" width="13" height="13" decoding="async">`;
       } else {
         wrap.innerHTML = '<i class="fa-solid fa-sort sort-icon"></i>';
       }

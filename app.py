@@ -14,7 +14,11 @@ from app.routes.auth import auth
 from app.routes.cartera import cartera_api_bp, cartera_bp
 from app.routes.core import core_bp
 from app.routes.inventory import inventory_api_bp, inventory_bp
+from app.routes.legal import legal_bp
+from app.routes.seo import seo_bp
 from app.routes.sales import sales_api_bp, sales_bp
+from app.performance import init_compresion
+from app.security import cerrar_sesion_publica, init_security
 from database import init_pool
 
 load_dotenv()
@@ -48,6 +52,8 @@ app.config.update(
 
 csrf = CSRFProtect(app)
 limiter.init_app(app)
+init_security(app)
+init_compresion(app)
 
 app.register_blueprint(auth)
 app.register_blueprint(core_bp)
@@ -55,6 +61,8 @@ app.register_blueprint(cartera_bp)
 app.register_blueprint(cartera_api_bp)
 app.register_blueprint(inventory_bp)
 app.register_blueprint(inventory_api_bp)
+app.register_blueprint(legal_bp)
+app.register_blueprint(seo_bp)
 app.register_blueprint(sales_bp)
 app.register_blueprint(sales_api_bp)
 
@@ -70,24 +78,17 @@ with app.app_context():
 
 @app.route("/")
 def index():
-    # Visitante anónimo: ve la landing pública, no el login directo.
-    if "id_usuario" not in session:
-        return redirect(url_for("landing"))
-
-    rol = (session.get("rol") or "").strip()
-    if rol in {"Admin", "Master"}:
-        return redirect(url_for("core_bp.dashboard_page"))
-    return redirect(url_for("sales_bp.turno"))
+    # La raíz es pública: destruye la sesión y manda a la landing. Antes
+    # reenviaba al dashboard si había sesión, lo que mantenía vivas sesiones
+    # que el usuario creía cerradas.
+    cerrar_sesion_publica()
+    return redirect(url_for("landing"))
 
 
 @app.route("/landing")
 def landing():
+    cerrar_sesion_publica()
     return render_template("landing.html")
-
-
-@app.errorhandler(404)
-def not_found(_err):
-    return jsonify({"ok": False, "msg": "Ruta no encontrada."}), 404
 
 
 @app.errorhandler(500)

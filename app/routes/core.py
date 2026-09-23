@@ -18,7 +18,7 @@ from app.services.sales_service import (
     get_stock_alerts,
     get_top_vendidos,
 )
-from app.utils.decorators import login_required, roles_required
+from app.utils.decorators import _is_api_request, login_required, roles_required
 from app.utils.helpers import avatar_iniciales, fmt_money, only_digits
 from app.utils.validation import parse_int, sanitize_optional_text, sanitize_text
 from database import get_db
@@ -909,3 +909,31 @@ def api_perfil_update():
     )
     session["nombre_completo"] = nombre
     return jsonify({"ok": True, "msg": "Perfil actualizado."})
+
+
+# ══════════════════════════════════════════════════════════════
+# PAGINA 404
+# ══════════════════════════════════════════════════════════════
+
+@core_bp.app_errorhandler(404)
+def pagina_no_encontrada(_err):
+    """404 con la piel del sitio para navegadores, JSON para el frontend.
+
+    Se registra con `app_errorhandler` (no `errorhandler`) para que cubra toda
+    la aplicacion y no solo este blueprint. Asi queda una sola definicion que
+    heredan los dos bootstraps: core_bp ya se registra en `app/__init__.py` y
+    en `app.py`, y no hay que duplicar nada.
+
+    La distincion importa: `fetch` de las vistas POS espera JSON y hace
+    `response.json()`. Si a una peticion de API se le devolviera el HTML de la
+    pagina 404, el frontend reventaria con un error de parseo en lugar de
+    mostrar el aviso del toast. `_is_api_request` es el mismo criterio que ya
+    usan los decoradores de sesion, para que todo el proyecto clasifique igual.
+
+    Devuelve la tupla (plantilla, 404) a proposito: sin el codigo explicito
+    Flask responderia 200 y los rastreadores indexarian la pagina de error como
+    si fuera contenido valido (lo que Google llama "soft 404").
+    """
+    if _is_api_request():
+        return jsonify({"ok": False, "msg": "Ruta no encontrada."}), 404
+    return render_template("404.html"), 404

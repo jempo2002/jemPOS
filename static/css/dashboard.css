@@ -30,7 +30,7 @@
 .dash-subtitle {
   margin: 0.28rem 0 0;
   font-size: 0.85rem;
-  color: #64748B;
+  color: #57667A;
 }
 
 /* ---------- Contenedor maestro ---------- */
@@ -108,7 +108,7 @@
 .dash-subcard-label {
   margin: 0;
   font-size: 0.78rem;
-  color: #64748B;
+  color: #57667A;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   font-weight: 700;
@@ -224,7 +224,7 @@
 .dash-pager-info {
   font-size: 0.78rem;
   font-weight: 600;
-  color: #64748B;
+  color: #57667A;
   min-width: 3rem;
   text-align: center;
 }
@@ -301,7 +301,7 @@
   border-radius: 0.7rem;
   padding: 0.7rem;
   font-size: 0.82rem;
-  color: #94A3B8;
+  color: #57667A;
   text-align: center;
 }
 
@@ -357,8 +357,8 @@
   font-weight: 600;
 }
 
-.dash-staff-status.is-on { color: #16A34A; }
-.dash-staff-status.is-off { color: #94A3B8; }
+.dash-staff-status.is-on { color: #15803D; }
+.dash-staff-status.is-off { color: #57667A; }
 
 .dash-staff-balance {
   flex: 0 0 auto;
@@ -372,13 +372,13 @@
   letter-spacing: -0.02em;
 }
 
-.dash-staff-amount.is-pos { color: #16A34A; }
-.dash-staff-amount.is-neg { color: #DC2626; }
+.dash-staff-amount.is-pos { color: #15803D; }
+.dash-staff-amount.is-neg { color: #B91C1C; }
 
 .dash-staff-count {
   margin: 0.1rem 0 0;
   font-size: 0.72rem;
-  color: #94A3B8;
+  color: #57667A;
 }
 
 /* ---------- Boton primario ---------- */
@@ -465,7 +465,7 @@
 .dash-modal-sub {
   margin: 0.35rem 0 0;
   font-size: 0.83rem;
-  color: #64748B;
+  color: #57667A;
 }
 
 .dash-modal-form {

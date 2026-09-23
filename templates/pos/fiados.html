@@ -3,7 +3,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  {% include "_favicon.html" %}
   <title>jemPOS - Cartera</title>
+  <meta name="robots" content="noindex, nofollow">
 
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -157,7 +159,7 @@
     <div class="fiad-modal-header">
       <span class="fiad-modal-title" id="modal-add-title">Nuevo Cliente</span>
       <button class="fiad-modal-close" data-close="modal-add" type="button" aria-label="Cerrar">
-        <img src="/static/img/equis.png" alt="Cerrar" />
+        <img src="/static/img/equis.png" alt="" aria-hidden="true" width="20" height="20" decoding="async" />
       </button>
     </div>
     <div class="fiad-modal-body">
@@ -187,7 +189,7 @@
     <div class="fiad-modal-header">
       <span class="fiad-modal-title" id="modal-abono-title">Registrar Abono</span>
       <button class="fiad-modal-close" data-close="modal-abono" type="button" aria-label="Cerrar">
-        <img src="/static/img/equis.png" alt="Cerrar" />
+        <img src="/static/img/equis.png" alt="" aria-hidden="true" width="20" height="20" decoding="async" />
       </button>
     </div>
     <div class="fiad-modal-body">
@@ -227,7 +229,7 @@
     <div class="fiad-modal-header">
       <span class="fiad-modal-title" id="modal-sumar-title">Sumar a la Deuda</span>
       <button class="fiad-modal-close" data-close="modal-sumar" type="button" aria-label="Cerrar">
-        <img src="/static/img/equis.png" alt="Cerrar" />
+        <img src="/static/img/equis.png" alt="" aria-hidden="true" width="20" height="20" decoding="async" />
       </button>
     </div>
     <div class="fiad-modal-body">
@@ -260,7 +262,7 @@
     <div class="fiad-modal-header">
       <span class="fiad-modal-title" id="modal-confirm-title">Confirmar</span>
       <button class="fiad-modal-close" data-close="modal-confirm" type="button" aria-label="Cerrar">
-        <img src="/static/img/equis.png" alt="Cerrar" />
+        <img src="/static/img/equis.png" alt="" aria-hidden="true" width="20" height="20" decoding="async" />
       </button>
     </div>
     <div class="fiad-modal-body">
@@ -280,7 +282,7 @@
     <div class="fiad-modal-header">
       <span class="fiad-modal-title" id="modal-cxp-title">Nueva Obligacion</span>
       <button class="fiad-modal-close" data-close="modal-cxp" type="button" aria-label="Cerrar">
-        <img src="/static/img/equis.png" alt="Cerrar" />
+        <img src="/static/img/equis.png" alt="" aria-hidden="true" width="20" height="20" decoding="async" />
       </button>
     </div>
     <div class="fiad-modal-body">
@@ -331,7 +333,7 @@
     <div class="fiad-modal-header">
       <span class="fiad-modal-title" id="modal-cxp-pay-title">Aprobar Pago</span>
       <button class="fiad-modal-close" data-close="modal-cxp-pay" type="button" aria-label="Cerrar">
-        <img src="/static/img/equis.png" alt="Cerrar" />
+        <img src="/static/img/equis.png" alt="" aria-hidden="true" width="20" height="20" decoding="async" />
       </button>
     </div>
     <div class="fiad-modal-body">
@@ -371,19 +373,19 @@
 </div>
 {% endif %}
 
-<script src="/static/js/logout.js"></script>
-<script src="/static/js/cop-format.js"></script>
-<script src="/static/js/toast.js"></script>
-<script src="/static/js/fab-scroll.js"></script>
+<script src="/static/js/logout.js" defer></script>
+<script src="/static/js/cop-format.js" defer></script>
+<script src="/static/js/toast.js" defer></script>
+<script src="/static/js/fab-scroll.js" defer></script>
 <div id="app-context"
   data-user-rol="{{ rol }}"
   data-subs-alerta='{{ mostrar_alerta_suscripcion | tojson }}'
   data-subs-dias="{{ dias_restantes }}"
   hidden></div>
-<script src="/static/js/subs-context.js"></script>
-<script src="/static/js/fiados.js"></script>
-<script src="/static/js/nav-rbac.js"></script>
-<script src="/static/js/subs-modal.js"></script>
+<script src="/static/js/subs-context.js" defer></script>
+<script src="/static/js/fiados.js" defer></script>
+<script src="/static/js/nav-rbac.js" defer></script>
+<script src="/static/js/subs-modal.js" defer></script>
 
 </body>
 </html>

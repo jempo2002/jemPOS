@@ -1,0 +1,101 @@
+{# Ruta: templates/legal/politica_privacidad.html — contenido de relleno, ver base_legal.html #}
+{% extends "legal/base_legal.html" %}
+
+{% block titulo_pagina %}Politica de privacidad — jemPOS, punto de venta y gestion integral{% endblock %}
+{% block meta_descripcion %}Politica de privacidad y tratamiento de datos de jemPOS, el sistema de punto de venta y gestion integral para MiPyMEs: que datos recogemos, con que finalidad y como ejercer tus derechos.{% endblock %}
+{% block titulo %}Politica de privacidad{% endblock %}
+
+{% block contenido %}
+  <section class="legal__section" aria-labelledby="responsable">
+    <h2 class="legal__h2" id="responsable">1. Responsable del tratamiento</h2>
+    <p class="legal__p">
+      Lorem ipsum dolor sit amet, consectetur adipiscing elit. Responsable:
+      <strong>[RAZON SOCIAL]</strong>, NIT <strong>[NIT]</strong>, con domicilio
+      en <strong>[DIRECCION]</strong>. Canal de atencion:
+      <strong>[CORREO]</strong>.
+    </p>
+  </section>
+
+  <section class="legal__section" aria-labelledby="datos">
+    <h2 class="legal__h2" id="datos">2. Datos que recogemos</h2>
+    <p class="legal__p">
+      Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. A
+      titulo enunciativo, la plataforma trata las siguientes categorias:
+    </p>
+    <ul class="legal__list">
+      <li><strong>Identificacion:</strong> nombre, correo electronico y telefono.</li>
+      <li><strong>Negocio:</strong> razon social, NIT y datos de la tienda.</li>
+      <li><strong>Operacion:</strong> ventas, inventario, gastos y cartera registrados por el usuario.</li>
+      <li><strong>Tecnicos:</strong> cookie de sesion y registros de auditoria de la propia plataforma.</li>
+    </ul>
+  </section>
+
+  <section class="legal__section" aria-labelledby="finalidad">
+    <h2 class="legal__h2" id="finalidad">3. Finalidad y base legal</h2>
+    <p class="legal__p">
+      Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut
+      aliquip ex ea commodo consequat. Los datos se tratan para prestar el
+      servicio contratado, atender soporte y cumplir obligaciones legales.
+    </p>
+    <h3 class="legal__h3">3.1. Conservacion</h3>
+    <p class="legal__p">
+      Duis aute irure dolor in reprehenderit in voluptate velit esse cillum
+      dolore eu fugiat nulla pariatur.
+    </p>
+  </section>
+
+  <section class="legal__section" aria-labelledby="cookies">
+    <h2 class="legal__h2" id="cookies">4. Cookies y almacenamiento local</h2>
+    <p class="legal__p">
+      Excepteur sint occaecat cupidatat non proident. jemPOS usa unicamente
+      cookies propias y tecnicamente necesarias:
+    </p>
+    <ul class="legal__list">
+      <li><strong>Cookie de sesion:</strong> mantiene la autenticacion mientras usas la plataforma. Se elimina al cerrar sesion.</li>
+      <li><strong>Token CSRF:</strong> protege los formularios frente a peticiones falsificadas.</li>
+      <li><strong>Almacenamiento local:</strong> recuerda que aceptaste este aviso y preferencias de la interfaz. No sale de tu navegador.</li>
+    </ul>
+    <p class="legal__p">
+      No utilizamos cookies de publicidad ni de analitica de terceros.
+    </p>
+  </section>
+
+  <section class="legal__section" aria-labelledby="terceros">
+    <h2 class="legal__h2" id="terceros">5. Destinatarios y encargados</h2>
+    <p class="legal__p">
+      At vero eos et accusamus et iusto odio dignissimos ducimus qui blanditiis
+      praesentium voluptatum deleniti atque corrupti. No se cede informacion a
+      terceros salvo obligacion legal o proveedores de alojamiento y correo que
+      actuan como encargados.
+    </p>
+  </section>
+
+  <section class="legal__section" aria-labelledby="derechos">
+    <h2 class="legal__h2" id="derechos">6. Tus derechos</h2>
+    <p class="legal__p">
+      Nam libero tempore, cum soluta nobis est eligendi optio cumque nihil
+      impedit. Puedes ejercer los derechos de acceso, rectificacion,
+      actualizacion, supresion y revocacion escribiendo a
+      <strong>[CORREO]</strong>.
+    </p>
+    <ul class="legal__list">
+      <li>Acceso y conocimiento de tus datos.</li>
+      <li>Rectificacion y actualizacion.</li>
+      <li>Supresion, cuando no exista deber legal de conservarlos.</li>
+      <li>Revocacion de la autorizacion otorgada.</li>
+    </ul>
+  </section>
+
+  <section class="legal__section" aria-labelledby="seguridad">
+    <h2 class="legal__h2" id="seguridad">7. Seguridad de la informacion</h2>
+    <p class="legal__p">
+      Omnis voluptas assumenda est, omnis dolor repellendus. Las contrasenas se
+      almacenan con funciones de hash, el trafico viaja cifrado por HTTPS y los
+      accesos quedan registrados en la auditoria interna.
+    </p>
+    <p class="legal__p">
+      Consulta tambien nuestro
+      <a class="legal__link" href="{{ url_for('legal_bp.aviso_legal') }}">aviso legal</a>.
+    </p>
+  </section>
+{% endblock %}

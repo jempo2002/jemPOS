@@ -3,7 +3,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Historial de Ventas</title>
+  {% include "_favicon.html" %}
+  <title>jemPOS - Historial de Ventas</title>
+  <meta name="robots" content="noindex, nofollow">
 
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -80,7 +82,7 @@
       </div>
       <div id="modal-detalle" class="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
         <div class="bg-white rounded-[2rem] p-6 w-full max-w-md shadow-2xl relative max-h-[90vh] overflow-y-auto">
-          <img src="/static/img/equis.png" alt="Cerrar" id="btn-cerrar-modal" class="absolute right-4 top-4 h-6 w-6 cursor-pointer" />
+          <img src="/static/img/equis.png" alt="" aria-hidden="true" width="24" height="24" decoding="async" id="btn-cerrar-modal" class="absolute right-4 top-4 h-6 w-6 cursor-pointer" />
 
           <div id="ticket-content" class="pr-6">
             <h2 class="text-lg font-bold text-gray-800">Detalle del Ticket <span id="ticket-numero">-</span></h2>
@@ -103,19 +105,19 @@
 
 </div>
 
-<script src="/static/js/logout.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
-<script src="/static/js/toast.js"></script>
-<script src="/static/js/filtros-paginacion.js"></script>
-<script src="/static/js/ventas.js"></script>
+<script src="/static/js/logout.js" defer></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" defer></script>
+<script src="/static/js/toast.js" defer></script>
+<script src="/static/js/filtros-paginacion.js" defer></script>
+<script src="/static/js/ventas.js" defer></script>
 <div id="app-context"
      data-user-rol="{{ rol }}"
      data-subs-alerta='{{ mostrar_alerta_suscripcion | tojson }}'
      data-subs-dias="{{ dias_restantes }}"
      hidden></div>
-<script src="/static/js/subs-context.js"></script>
-<script src="/static/js/nav-rbac.js"></script>
-<script src="/static/js/subs-modal.js"></script>
+<script src="/static/js/subs-context.js" defer></script>
+<script src="/static/js/nav-rbac.js" defer></script>
+<script src="/static/js/subs-modal.js" defer></script>
 
 </body>
 </html>

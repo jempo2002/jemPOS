@@ -1201,3 +1201,250 @@ a {
     transition: none;
   }
 }
+
+/* ============================================================
+   PAGINAS LEGALES (aviso legal / politica de privacidad)
+   Reutilizan los tokens y el header/footer del landing.
+   ============================================================ */
+.legal {
+  /* El header es fijo: se deja aire para que no tape el titulo */
+  padding: 6.5rem 1.25rem 3rem;
+}
+
+.legal__inner {
+  max-width: 48rem;   /* ~75 caracteres por linea: lectura comoda */
+  margin: 0 auto;
+}
+
+.legal__title {
+  margin: 0 0 0.35rem;
+  font-size: clamp(1.75rem, 5vw, 2.5rem);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--color-secondary);
+  line-height: 1.15;
+}
+
+.legal__meta {
+  margin: 0 0 1.75rem;
+  font-size: 0.875rem;
+  color: var(--color-text-muted);
+}
+
+/* Banda de borrador: el texto es de relleno y hay que decirlo */
+.legal__aviso {
+  margin: 0 0 2.25rem;
+  padding: 0.9rem 1.1rem;
+  background: rgba(220, 38, 38, 0.07);
+  border: 1px solid rgba(220, 38, 38, 0.25);
+  border-radius: var(--radius-md);
+  font-size: 0.9rem;
+  line-height: 1.55;
+  color: var(--color-danger);
+}
+
+.legal__section {
+  margin-bottom: 2.25rem;
+}
+
+.legal__h2 {
+  margin: 0 0 0.75rem;
+  font-size: 1.2rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--color-secondary);
+  /* scroll-margin: al saltar por ancla, el header fijo no tapa el titulo */
+  scroll-margin-top: 6rem;
+}
+
+.legal__h3 {
+  margin: 1.5rem 0 0.6rem;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--color-secondary);
+  scroll-margin-top: 6rem;
+}
+
+.legal__p {
+  margin: 0 0 1rem;
+  font-size: 1rem;
+  line-height: 1.7;
+  color: var(--color-text);
+}
+
+.legal__list {
+  margin: 0 0 1rem;
+  padding-left: 1.25rem;
+  list-style: disc;
+}
+
+.legal__list li {
+  margin-bottom: 0.5rem;
+  font-size: 1rem;
+  line-height: 1.65;
+  color: var(--color-text);
+}
+
+.legal__link {
+  color: var(--color-primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.legal__link:hover {
+  color: var(--color-secondary);
+}
+
+@media (min-width: 768px) {
+  .legal { padding: 7.5rem 2rem 4rem; }
+}
+
+/* ============================================================
+   AVISO DE COOKIES
+   Barra inferior discreta. Oculta por CSS (no por JS) cuando
+   cookies.js encuentra la aceptacion guardada, para que no
+   parpadee en la primera pintada.
+   ============================================================ */
+.cookies {
+  position: fixed;
+  left: 1rem;
+  right: 1rem;
+  /* Respeta la barra de gestos de iOS */
+  bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.85rem;
+  padding: 1rem 1.15rem;
+  background: var(--color-surface);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  animation: cookies-entrada 0.28s ease-out;
+}
+
+/* Marca que pone cookies.js en <html> cuando ya se acepto */
+[data-cookies-ok] .cookies {
+  display: none;
+}
+
+@keyframes cookies-entrada {
+  from { opacity: 0; transform: translateY(0.75rem); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cookies { animation: none; }
+}
+
+.cookies__texto {
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.55;
+  color: var(--color-text-muted);
+}
+
+.cookies__enlace {
+  color: var(--color-primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  white-space: nowrap;
+}
+
+.cookies__enlace:hover {
+  color: var(--color-secondary);
+}
+
+.cookies__btn {
+  flex-shrink: 0;
+  /* 44px: minimo tactil del sistema de diseno */
+  min-height: 44px;
+  padding: 0.6rem 1.5rem;
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #ffffff;
+  background: var(--color-primary);
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.12s ease;
+}
+
+.cookies__btn:hover { background: var(--color-secondary); }
+.cookies__btn:active { transform: scale(0.97); }
+
+.cookies__btn:focus-visible {
+  outline: 3px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+/* A partir de tablet: una sola linea, boton a la derecha */
+@media (min-width: 640px) {
+  .cookies {
+    left: 50%;
+    right: auto;
+    transform: translateX(-50%);
+    width: min(56rem, calc(100% - 2rem));
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1.5rem;
+    padding: 0.9rem 1.25rem;
+  }
+
+  /* La animacion no puede pisar el translateX que centra la barra */
+  @keyframes cookies-entrada-centrada {
+    from { opacity: 0; transform: translateX(-50%) translateY(0.75rem); }
+    to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+  }
+
+  .cookies { animation-name: cookies-entrada-centrada; }
+}
+
+/* El aviso de cookies es fijo y se apoya en el borde inferior: se deja aire al
+   final del pie para que no tape el copyright ni los enlaces legales mientras
+   el visitante no lo acepta. Incondicional a proposito: evita el salto de
+   layout que produciria quitar el relleno al aceptar, y :has() todavia no es
+   fiable en los WebView Android antiguos del publico objetivo. */
+.footer {
+  padding-bottom: 7rem;
+}
+
+@media (min-width: 640px) {
+  .footer { padding-bottom: 6rem; }
+}
+
+/* ── Pagina 404 ───────────────────────────────────────────────
+   Reutiliza el layout .legal (mismo ancho de lectura y el mismo hueco
+   superior para el header fijo). Solo se anaden las piezas propias del
+   error. */
+
+.error404__codigo {
+  margin: 0 0 0.25rem;
+  font-size: clamp(3.5rem, 14vw, 6rem);
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.04em;
+  /* Decorativo: el mensaje real lo da el <h1>, y el lector de pantalla ya
+     omite este parrafo por su aria-hidden. Al ser decoracion no necesita
+     llegar a 4.5:1, pero se deja en un azul con 4.6:1 sobre blanco para que
+     siga siendo legible con poca luz o en una pantalla barata. */
+  color: var(--color-primary);
+  opacity: 0.85;
+}
+
+.error404__texto {
+  margin: 0 0 1.75rem;
+  font-size: 1.0625rem;
+  line-height: 1.6;
+  color: var(--color-text-muted);
+}
+
+.error404__acciones {
+  display: flex;
+  flex-wrap: wrap;   /* en movil estrecho los botones se apilan solos */
+  gap: 0.75rem;
+  margin-bottom: 2.5rem;
+}

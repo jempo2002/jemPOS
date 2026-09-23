@@ -3,7 +3,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  {% include "_favicon.html" %}
   <title>jemPOS - Mi Perfil</title>
+  <meta name="robots" content="noindex, nofollow">
 
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -73,7 +75,7 @@
                 <input
                   type="text"
                   id="inp-nombre"
-                  class="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                  class="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-medium text-slate-900 placeholder:text-slate-500 focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
                   placeholder="Tu nombre completo"
                   autocomplete="name"
                 />
@@ -89,7 +91,7 @@
                     readonly
                     autocomplete="email"
                   />
-                  <i class="fa-solid fa-lock absolute right-4 top-1/2 -translate-y-1/2 text-slate-400" aria-hidden="true"></i>
+                  <i class="fa-solid fa-lock absolute right-4 top-1/2 -translate-y-1/2 text-slate-500" aria-hidden="true"></i>
                 </div>
               </div>
 
@@ -102,7 +104,7 @@
                     class="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 pr-10 text-sm font-medium text-slate-500"
                     readonly
                   />
-                  <i class="fa-solid fa-lock absolute right-4 top-1/2 -translate-y-1/2 text-slate-400" aria-hidden="true"></i>
+                  <i class="fa-solid fa-lock absolute right-4 top-1/2 -translate-y-1/2 text-slate-500" aria-hidden="true"></i>
                 </div>
               </div>
 
@@ -111,7 +113,7 @@
                 <input
                   type="text"
                   id="inp-negocio"
-                  class="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                  class="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-medium text-slate-900 placeholder:text-slate-500 focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
                   placeholder="Nombre de tu negocio"
                   autocomplete="organization"
                 />
@@ -122,7 +124,7 @@
                 <input
                   type="tel"
                   id="inp-telefono"
-                  class="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                  class="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-medium text-slate-900 placeholder:text-slate-500 focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
                   placeholder="Tu numero de telefono"
                   inputmode="numeric"
                   pattern="[0-9\s]*"
@@ -162,7 +164,7 @@
               <input
                 type="password"
                 id="pwd-actual"
-                class="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                class="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-medium text-slate-900 placeholder:text-slate-500 focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
                 autocomplete="current-password"
               />
             </div>
@@ -171,7 +173,7 @@
               <input
                 type="password"
                 id="pwd-nueva"
-                class="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                class="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-medium text-slate-900 placeholder:text-slate-500 focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
                 autocomplete="new-password"
               />
             </div>
@@ -180,7 +182,7 @@
               <input
                 type="password"
                 id="pwd-confirmar"
-                class="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                class="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-medium text-slate-900 placeholder:text-slate-500 focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
                 autocomplete="new-password"
               />
             </div>
@@ -199,16 +201,16 @@
     </div>
   </div>
 
-  <script src="/static/js/toast.js"></script>
-  <script src="/static/js/perfil.js"></script>
+  <script src="/static/js/toast.js" defer></script>
+  <script src="/static/js/perfil.js" defer></script>
   <div id="app-context"
        data-user-rol="{{ rol }}"
        data-subs-alerta='{{ mostrar_alerta_suscripcion | tojson }}'
        data-subs-dias="{{ dias_restantes }}"
        hidden></div>
-  <script src="/static/js/subs-context.js"></script>
-  <script src="/static/js/nav-rbac.js"></script>
-  <script src="/static/js/subs-modal.js"></script>
+  <script src="/static/js/subs-context.js" defer></script>
+  <script src="/static/js/nav-rbac.js" defer></script>
+  <script src="/static/js/subs-modal.js" defer></script>
 </body>
 </html>
 

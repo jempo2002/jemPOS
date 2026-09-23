@@ -12,7 +12,7 @@
   --color-background: #f8fafc;
   --color-surface: #ffffff;
   --color-text: #0f172a;
-  --color-text-muted: #64748b;
+  --color-text-muted: #57667A;
   --color-success: #10b981;
   --color-danger: #ef4444;
 
@@ -248,7 +248,7 @@ input[type="reset"] {
 .jem-pager-btn:hover:not(:disabled) { background: #DBEAFE; }
 
 .jem-pager-btn:disabled {
-  color: #94A3B8;
+  color: #57667A;
   background: #F8FAFC;
   border-color: #E2E8F0;
   cursor: not-allowed;

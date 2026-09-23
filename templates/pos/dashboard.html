@@ -3,7 +3,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  {% include "_favicon.html" %}
   <title>jemPOS - Resumen Financiero</title>
+  <meta name="robots" content="noindex, nofollow">
 
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -199,16 +201,16 @@
   </div>
 </div>
 
-<script src="/static/js/logout.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script src="/static/js/dashboard.js"></script>
+<script src="/static/js/logout.js" defer></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
+<script src="/static/js/dashboard.js" defer></script>
 <div id="app-context"
      data-user-rol="{{ rol }}"
      data-subs-alerta='{{ mostrar_alerta_suscripcion | tojson }}'
      data-subs-dias="{{ dias_restantes }}"
      hidden></div>
-<script src="/static/js/subs-context.js"></script>
-<script src="/static/js/nav-rbac.js"></script>
-<script src="/static/js/subs-modal.js"></script>
+<script src="/static/js/subs-context.js" defer></script>
+<script src="/static/js/nav-rbac.js" defer></script>
+<script src="/static/js/subs-modal.js" defer></script>
 </body>
 </html>

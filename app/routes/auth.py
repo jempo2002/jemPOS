@@ -8,6 +8,7 @@ from itsdangerous import BadSignature, SignatureExpired
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from app import limiter
+from app.security import cerrar_sesion_publica
 from app.services.auth_service import (
     create_reset_token,
     decode_reset_token,
@@ -29,9 +30,12 @@ LOGIN_RATE_LIMIT = "5 per minute"
 @limiter.limit(LOGIN_RATE_LIMIT, methods=["POST"])
 def login():
     if request.method == "GET":
-        if "id_usuario" in session:
-            redirect_url = resolve_post_login_redirect(session.get("rol", ""))
-            return redirect(redirect_url)
+        # Ruta publica: abrir el login destruye cualquier sesion activa en vez
+        # de reenviar al dashboard. Quien llega aqui quiere autenticarse, y
+        # dejar la sesion anterior viva permitia seguir usandola con el boton
+        # "atras". El POST de abajo crea la sesion nueva desde cero.
+        # Se usa el helper para no borrar los flashes que trae el redirect.
+        cerrar_sesion_publica()
         return render_template("auth/login.html")
 
     data = request.get_json(silent=True) if request.is_json else request.form

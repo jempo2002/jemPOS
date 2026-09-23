@@ -4,7 +4,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  {% include "_favicon.html" %}
   <title>jemPOS - Caja</title>
+  <meta name="robots" content="noindex, nofollow">
   <meta name="description" content="Caja de jemPOS: busca o escanea productos, cobra en efectivo, Nequi o tarjeta y registra fiados." />
   <meta name="csrf-token" content="{{ csrf_token() }}" />
 
@@ -31,7 +33,7 @@
       </div>
       {% endfor %}
     </div>
-    <script src="/static/js/flash-auto-dismiss.js"></script>
+    <script src="/static/js/flash-auto-dismiss.js" defer></script>
   {% endif %}
 {% endwith %}
 
@@ -211,10 +213,10 @@
 
 {% include "pos/_scanner_dialog.html" %}
 
-<script src="/static/js/cop-format.js"></script>
-<script src="/static/js/toast.js"></script>
-<script src="/static/js/barcode-scanner.js"></script>
-<script src="/static/js/caja.js"></script>
+<script src="/static/js/cop-format.js" defer></script>
+<script src="/static/js/toast.js" defer></script>
+<script src="/static/js/barcode-scanner.js" defer></script>
+<script src="/static/js/caja.js" defer></script>
 
 <!-- RBAC + Suscripcion -->
 <div id="app-context"
@@ -222,9 +224,9 @@
      data-subs-alerta='{{ mostrar_alerta_suscripcion | tojson }}'
      data-subs-dias="{{ dias_restantes }}"
      hidden></div>
-<script src="/static/js/subs-context.js"></script>
-<script src="/static/js/nav-rbac.js"></script>
-<script src="/static/js/subs-modal.js"></script>
+<script src="/static/js/subs-context.js" defer></script>
+<script src="/static/js/nav-rbac.js" defer></script>
+<script src="/static/js/subs-modal.js" defer></script>
 
 </body>
 </html>

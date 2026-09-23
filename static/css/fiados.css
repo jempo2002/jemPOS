@@ -133,7 +133,7 @@
   font-size: 0.82rem;
   font-weight: 700;
   font-family: inherit;
-  color: #64748B;
+  color: #57667A;
   background: transparent;
   border: none;
   border-radius: 0.65rem;
@@ -195,14 +195,14 @@
 
 .fiad-stat-label {
   font-size: 0.75rem;
-  color: #94A3B8;
+  color: #57667A;
   font-weight: 500;
 }
 
 .fiad-stat-value {
   font-size: 1.1rem;
   font-weight: 800;
-  color: #EF4444;
+  color: #B91C1C;
   letter-spacing: -0.02em;
 }
 
@@ -219,7 +219,7 @@
   left: 0.9rem;
   top: 50%;
   transform: translateY(-50%);
-  color: #94A3B8;
+  color: #57667A;
   font-size: 0.95rem;
   pointer-events: none;
 }
@@ -235,7 +235,7 @@
   outline: none;
   transition: border-color 0.2s, box-shadow 0.2s;
 }
-.fiad-search::placeholder { color: #94A3B8; }
+.fiad-search::placeholder { color: #57667A; }
 .fiad-search:focus {
   border-color: #3B82F6;
   box-shadow: 0 0 0 3px rgba(59,130,246,0.12);
@@ -322,7 +322,7 @@
 
 .fiad-card-phone {
   font-size: 0.83rem;
-  color: #64748B;
+  color: #57667A;
   margin-top: 0.1rem;
 }
 
@@ -336,13 +336,13 @@
   display: inline-block;
   font-size: 1.3rem;
   font-weight: 800;
-  color: #EF4444;
+  color: #B91C1C;
   letter-spacing: -0.03em;
   line-height: 1;
 }
 
 .fiad-debt-tag.at-zero {
-  color: #10B981;
+  color: #047857;
   font-size: 0.9rem;
   font-weight: 700;
   background: rgba(16,185,129,0.1);
@@ -352,7 +352,7 @@
 
 .fiad-debt-sublabel {
   font-size: 0.72rem;
-  color: #94A3B8;
+  color: #57667A;
   margin-top: 0.15rem;
   text-align: right;
 }
@@ -428,21 +428,21 @@
 /* Abonar — verde */
 .fiad-action-btn.btn-abonar {
   background: rgba(16,185,129,0.1);
-  color: #059669;
+  color: #047857;
 }
 .fiad-action-btn.btn-abonar:hover { background: rgba(16,185,129,0.2); }
 
 /* Sumar deuda — rojo */
 .fiad-action-btn.btn-sumar {
   background: rgba(239,68,68,0.12);
-  color: #DC2626;
+  color: #B91C1C;
 }
 .fiad-action-btn.btn-sumar:hover { background: rgba(239,68,68,0.22); }
 
 /* Borrar / anular — neutro, para no competir con las acciones frecuentes */
 .fiad-action-btn.btn-borrar {
   background: #F1F5F9;
-  color: #64748B;
+  color: #57667A;
 }
 .fiad-action-btn.btn-borrar:hover { background: #E2E8F0; color: #B91C1C; }
 
@@ -497,7 +497,7 @@
   text-align: left;
   font-size: 0.78rem;
   font-weight: 700;
-  color: #64748B;
+  color: #57667A;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   white-space: nowrap;
@@ -529,7 +529,7 @@
 }
 
 .fiad-td-phone {
-  color: #64748B;
+  color: #57667A;
   font-size: 0.9rem;
 }
 
@@ -538,12 +538,12 @@
   font-size: 1.25rem;
   font-weight: 800;
   letter-spacing: -0.03em;
-  color: #EF4444;
+  color: #B91C1C;
 }
 .fiad-td-debt.at-zero {
   font-size: 0.85rem;
   font-weight: 700;
-  color: #10B981;
+  color: #047857;
   background: rgba(16,185,129,0.1);
   padding: 0.25rem 0.65rem;
   border-radius: 9999px;
@@ -558,7 +558,7 @@
   justify-content: center;
   gap: 0.5rem;
   padding: 3rem 1rem;
-  color: #94A3B8;
+  color: #57667A;
   text-align: center;
 }
 .fiad-empty i    { font-size: 2.5rem; opacity: 0.35; }
@@ -633,7 +633,7 @@
   border-radius: 0.5rem;
   border: none;
   background: #F1F5F9;
-  color: #64748B;
+  color: #57667A;
   font-size: 1rem;
   cursor: pointer;
   display: flex;
@@ -687,14 +687,14 @@
 
 .fiad-debt-label {
   font-size: 0.8rem;
-  color: #94A3B8;
+  color: #57667A;
   font-weight: 500;
 }
 
 .fiad-debt-amount {
   font-size: 1.5rem;
   font-weight: 800;
-  color: #EF4444;
+  color: #B91C1C;
   letter-spacing: -0.03em;
 }
 
@@ -724,7 +724,7 @@
   box-sizing: border-box;
   transition: border-color 0.2s, box-shadow 0.2s;
 }
-.fiad-field input::placeholder { color: #94A3B8; }
+.fiad-field input::placeholder { color: #57667A; }
 .fiad-field input:focus {
   border-color: #3B82F6;
   box-shadow: 0 0 0 3px rgba(59,130,246,0.12);
@@ -786,7 +786,7 @@
   margin: 0;
   font-size: 0.8rem;
   font-weight: 600;
-  color: #DC2626;
+  color: #B91C1C;
 }
 
 .fiad-field-error.hidden { display: none !important; }
@@ -801,7 +801,7 @@
 .fiad-confirm-text {
   margin: 0;
   font-size: 0.9rem;
-  color: #64748B;
+  color: #57667A;
   line-height: 1.45;
 }
 
@@ -843,7 +843,7 @@
 .fiad-kpi-label {
   font-size: 0.7rem;
   font-weight: 500;
-  color: #94A3B8;
+  color: #57667A;
 }
 
 .fiad-kpi-value {
@@ -872,7 +872,7 @@
   letter-spacing: 0.04em;
 }
 
-.fiad-section-title i { color: #94A3B8; font-size: 0.8rem; }
+.fiad-section-title i { color: #57667A; font-size: 0.8rem; }
 
 .fiad-toplist {
   list-style: none;
@@ -915,12 +915,12 @@
   display: block;
   font-size: 0.72rem;
   font-weight: 500;
-  color: #94A3B8;
+  color: #57667A;
 }
 
 .fiad-toplist-empty {
   justify-content: center;
-  color: #94A3B8;
+  color: #57667A;
   font-weight: 500;
 }
 
@@ -936,13 +936,13 @@
 .fiad-big-input::placeholder {
   font-size: 2rem;
   font-weight: 800;
-  color: #CBD5E1 !important;
+  color: #57667A !important;
 }
 
 /* Label opcional */
 .fiad-optional {
   font-weight: 400;
-  color: #94A3B8;
+  color: #57667A;
   font-size: 0.78rem;
 }
 
@@ -950,13 +950,13 @@
 .fiad-preview {
   font-size: 0.85rem;
   font-weight: 600;
-  color: #059669;
+  color: #047857;
   min-height: 1.2em;
   margin: 0;
   text-align: center;
 }
 
-.fiad-preview-danger { color: #DC2626; }
+.fiad-preview-danger { color: #B91C1C; }
 
 .fiad-picker-card {
   max-width: 460px;
@@ -965,7 +965,7 @@
 .fiad-picker-help {
   margin: 0;
   font-size: 0.88rem;
-  color: #64748B;
+  color: #57667A;
 }
 
 .fiad-picker-list {
@@ -997,12 +997,12 @@
 .fiad-picker-item-debt {
   font-size: 0.86rem;
   font-weight: 700;
-  color: #DC2626;
+  color: #B91C1C;
 }
 
 .fiad-picker-empty {
   text-align: center;
-  color: #64748B;
+  color: #57667A;
   font-size: 0.88rem;
   padding: 0.75rem 0.5rem;
   background: #F8FAFC;
@@ -1101,7 +1101,7 @@
   vertical-align: middle;
 }
 .sort-icon {
-  color: #94A3B8;
+  color: #57667A;
   font-size: 0.75rem;
   transition: color 0.15s;
 }

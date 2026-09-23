@@ -156,7 +156,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const q = filterValue.trim().toLowerCase();
     const filtered = categoryOptions.filter(opt => opt.toLowerCase().includes(q));
     if (!filtered.length) {
-      fCategoryDropdown.innerHTML = '<div class="p-3" style="color:#94A3B8;">Sin coincidencias</div>';
+      fCategoryDropdown.innerHTML = '<div class="p-3" style="color:#57667A;">Sin coincidencias</div>';
       fCategoryDropdown.classList.remove('hidden');
       return;
     }
@@ -261,7 +261,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const wrap = th.querySelector('.sort-icon-wrap');
       if (th.dataset.col === col) {
         const src = `/static/img/${dir === 'asc' ? 'up' : 'down'}.png`;
-        wrap.innerHTML = `<img src="${src}" class="sort-img" alt="${dir}">`;
+        wrap.innerHTML = `<img src="${src}" class="sort-img" alt="" aria-hidden="true" width="13" height="13" decoding="async">`;
       } else {
         wrap.innerHTML = '<i class="fa-solid fa-sort sort-icon"></i>';
       }
@@ -353,7 +353,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const addStockButton = p.es_preparado
       ? ''
       : `<button class="action-btn add" data-action="addstock" aria-label="Anadir stock">
-            <img src="/static/img/mas.png" alt="Anadir" />
+            <img src="/static/img/mas.png" alt="" aria-hidden="true" width="18" height="18" decoding="async" />
           </button>`;
     return `
       <div class="card-top">
@@ -364,11 +364,11 @@ document.addEventListener('DOMContentLoaded', () => {
         </div>
         <div class="card-actions">
           <button class="action-btn edit" data-action="edit" aria-label="Editar">
-            <img src="/static/img/editar.png" alt="Editar" />
+            <img src="/static/img/editar.png" alt="" aria-hidden="true" width="18" height="18" decoding="async" />
           </button>
           ${addStockButton}
           <button class="action-btn del" data-action="del" aria-label="Eliminar">
-            <img src="/static/img/basura.png" alt="Eliminar" />
+            <img src="/static/img/basura.png" alt="" aria-hidden="true" width="18" height="18" decoding="async" />
           </button>
         </div>
       </div>
@@ -393,7 +393,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const addStockButton = p.es_preparado
       ? ''
       : `<button class="action-btn add" data-action="addstock" aria-label="Anadir stock">
-            <img src="/static/img/mas.png" alt="Anadir" />
+            <img src="/static/img/mas.png" alt="" aria-hidden="true" width="18" height="18" decoding="async" />
           </button>`;
     return `
       <td>
@@ -409,11 +409,11 @@ document.addEventListener('DOMContentLoaded', () => {
       <td>
         <div class="td-actions">
           <button class="action-btn edit" data-action="edit" aria-label="Editar">
-            <img src="/static/img/editar.png" alt="Editar" />
+            <img src="/static/img/editar.png" alt="" aria-hidden="true" width="18" height="18" decoding="async" />
           </button>
           ${addStockButton}
           <button class="action-btn del" data-action="del" aria-label="Eliminar">
-            <img src="/static/img/basura.png" alt="Eliminar" />
+            <img src="/static/img/basura.png" alt="" aria-hidden="true" width="18" height="18" decoding="async" />
           </button>
         </div>
       </td>`;

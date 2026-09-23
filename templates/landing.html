@@ -4,6 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  {% include "_favicon.html" %}
 
   <!-- Content-Security-Policy: mitigación básica de XSS. Como se entrega
        vía <meta>, el navegador ignora frame-ancestors/report-to aquí; si
@@ -35,6 +36,26 @@
   <meta name="twitter:description" content="POS, inventario, contabilidad y gestión de personal en una sola app en la nube.">
   <meta name="twitter:image" content="{{ url_for('static', filename='img/og-cover.jpg', _external=True) }}">
 
+  <!-- ============================================================
+       DATOS ESTRUCTURADOS (JSON-LD)
+       SoftwareApplication (el producto) + Organization (quien lo publica),
+       enlazados por @id. El contenido lo genera
+       app/routes/seo.py::datos_estructurados_landing() y Jinja lo serializa
+       con `tojson`, que escapa comillas y < > &: escribir el JSON a mano en la
+       plantilla es lo que rompe estos bloques.
+
+       La CSP de arriba no lo bloquea: un bloque ld+json no es codigo
+       ejecutable, son datos, asi que script-src no le aplica.
+
+       Sin escribir la etiqueta literal dentro de este comentario: cualquier
+       herramienta que busque el bloque por texto encontraria el comentario
+       primero.
+       ============================================================ -->
+  <script type="application/ld+json">{{ jsonld_landing() | tojson }}</script>
+
+  <!-- Sin defer: cookies.js marca <html data-cookies-ok> antes del primer
+       frame para que el aviso no parpadee a quien ya lo acepto. -->
+  <script src="/static/js/cookies.js"></script>
   <link rel="stylesheet" href="/static/css/landing.css">
 </head>
 <body>
@@ -371,25 +392,20 @@
       <nav class="footer__col" aria-label="Legal">
         <h3 class="footer__heading">Legal</h3>
         <ul role="list">
-          <li><a class="footer__link" href="#">Términos y condiciones</a></li>
-          <li><a class="footer__link" href="#">Política de privacidad</a></li>
-          <li><a class="footer__link" href="#">Tratamiento de datos</a></li>
+          <li><a class="footer__link" href="{{ url_for('legal_bp.aviso_legal') }}">Aviso legal</a></li>
+          <li><a class="footer__link" href="{{ url_for('legal_bp.politica_privacidad') }}">Política de privacidad</a></li>
+          <li><a class="footer__link" href="{{ url_for('legal_bp.politica_privacidad') }}#cookies">Cookies</a></li>
         </ul>
       </nav>
 
-      <!-- Enlaces con href="#" son placeholders: reemplazar por las URLs
-           reales (redes sociales, páginas legales) antes de publicar. -->
-      <nav class="footer__col" aria-label="Redes sociales">
-        <h3 class="footer__heading">Síguenos</h3>
-        <ul role="list">
-          <li><a class="footer__link" href="#" rel="noopener noreferrer" target="_blank">Instagram</a></li>
-          <li><a class="footer__link" href="#" rel="noopener noreferrer" target="_blank">Facebook</a></li>
-          <li><a class="footer__link" href="#" rel="noopener noreferrer" target="_blank">WhatsApp</a></li>
-        </ul>
-      </nav>
+      {# La columna "Siguenos" se quito: sus tres enlaces apuntaban a un
+         ancla vacia, es decir no llevaban a ninguna parte. Se vuelve a anadir
+         cuando existan los perfiles reales de Instagram, Facebook y WhatsApp. #}
     </div>
     <p class="footer__copy">© 2026 jemPOS. Todos los derechos reservados.</p>
   </footer>
+
+  {% include "_cookies.html" %}
 
   <script src="/static/js/landing.js" defer></script>
 </body>

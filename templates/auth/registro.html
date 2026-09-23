@@ -4,8 +4,11 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  {% include "_favicon.html" %}
   <title>jemPOS - Registra tu negocio</title>
-
+  <meta name="description" content="Crea tu cuenta gratis en jemPOS y empieza a vender hoy: punto de venta, control de inventario, cartera y reportes contables en un solo sistema.">
+  <meta name="robots" content="index, follow">
+  <meta name="theme-color" content="#3b82f6">
   <!-- Google Fonts: Inter -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -24,7 +27,12 @@
   />
 
   <!-- Estilos propios -->
-  <link rel="stylesheet" href="/static/css/registro.css" />
+  {# login.css, no un registro.css: ese archivo nunca existio (daba 404 en cada
+     carga) y esta pantalla usa exactamente las cinco clases que login.css
+     define: .field-input, .btn-primary, .toggle-pwd, .field-error-msg y
+     .animate-fade-up. Sin el enlace correcto esos componentes se pintaban sin
+     estilo. Es la misma hoja que carga login.html, no se duplica nada. #}
+  <link rel="stylesheet" href="/static/css/login.css" />
   <link rel="stylesheet" href="/static/css/global.css" />
 </head>
 
@@ -205,11 +213,13 @@
           />
           <span class="text-xs text-muted leading-relaxed">
             Acepto los
-            <a href="#" class="text-brand-500 font-medium underline underline-offset-2 hover:text-brand-600">
+            <a href="{{ url_for('legal_bp.aviso_legal') }}" target="_blank" rel="noopener"
+               class="text-brand-500 font-medium underline underline-offset-2 hover:text-brand-600">
               Terminos y Condiciones
             </a>
             y la
-            <a href="#" class="text-brand-500 font-medium underline underline-offset-2 hover:text-brand-600">
+            <a href="{{ url_for('legal_bp.politica_privacidad') }}" target="_blank" rel="noopener"
+               class="text-brand-500 font-medium underline underline-offset-2 hover:text-brand-600">
               Politica de Privacidad
             </a>
             de jemPOS.
@@ -239,7 +249,7 @@
   </div><!-- /max-w-md -->
 
   <!-- JS propio (al final del body) -->
-  <script src="/static/js/registro.js"></script>
+  <script src="/static/js/registro.js" defer></script>
 
 </body>
 </html>

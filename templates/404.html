@@ -1,0 +1,47 @@
+{# Ruta: templates/404.html
+   Pagina de error 404.
+
+   Extiende legal/base_legal.html porque ese layout ya trae todo lo que esta
+   pagina necesita y nada mas: header fijo con la marca, footer con los enlaces
+   reales, banner de cookies, landing.css y las etiquetas del <head>. Crear un
+   layout nuevo solo para el error habria duplicado esos cinco bloques.
+
+   Sobreescribe `encabezado` completo para no heredar la fecha de actualizacion
+   ni la banda de "Borrador", que solo tienen sentido en un texto legal. #}
+{% extends "legal/base_legal.html" %}
+
+{% block titulo_pagina %}Pagina no encontrada (404) — jemPOS{% endblock %}
+
+{% block meta_descripcion %}La pagina que buscas no existe o cambio de direccion. Vuelve al inicio de jemPOS, el sistema de punto de venta y gestion integral para tu negocio.{% endblock %}
+
+{# La pagina de error no se indexa. El codigo 404 ya se lo dice al rastreador,
+   pero la etiqueta lo deja explicito y cubre el caso de un proxy que
+   reescribiera el estado. #}
+{% block robots %}noindex, follow{% endblock %}
+
+{% block encabezado %}
+<p class="error404__codigo" aria-hidden="true">404</p>
+<h1 class="legal__title">Esta pagina no existe</h1>
+<p class="error404__texto">
+  El enlace que seguiste esta roto o la direccion cambio. No se perdio nada de
+  tu informacion: tu cuenta y tus datos siguen intactos.
+</p>
+
+<div class="error404__acciones">
+  <a class="btn btn--primary" href="{{ url_for('landing') }}">Volver al inicio</a>
+  <a class="btn btn--ghost" href="{{ url_for('auth.login') }}">Iniciar sesion</a>
+</div>
+{% endblock %}
+
+{% block contenido %}
+<section class="legal__section">
+  <h2 class="legal__h2">Quiza buscabas</h2>
+  <ul class="legal__list">
+    <li><a class="legal__link" href="{{ url_for('landing') }}#ventajas">Que incluye jemPOS</a></li>
+    <li><a class="legal__link" href="{{ url_for('landing') }}#precios">Planes y precios</a></li>
+    <li><a class="legal__link" href="{{ url_for('auth.registro') }}">Crear una cuenta</a></li>
+    <li><a class="legal__link" href="{{ url_for('legal_bp.aviso_legal') }}">Aviso legal</a></li>
+    <li><a class="legal__link" href="{{ url_for('legal_bp.politica_privacidad') }}">Politica de privacidad</a></li>
+  </ul>
+</section>
+{% endblock %}

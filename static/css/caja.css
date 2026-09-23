@@ -221,7 +221,7 @@ html, body {
   justify-content: center;
   gap: 0.18rem;
   text-decoration: none;
-  color: #94A3B8;
+  color: #57667A;
   font-size: 0.68rem;
   font-weight: 600;
   transition: color 0.18s;
@@ -236,7 +236,7 @@ html, body {
 .bottom-btn i { font-size: 1.12rem; transition: color 0.18s; }
 
 .bottom-btn.active,
-.bottom-btn.active i { color: #3B82F6; }
+.bottom-btn.active i { color: #1D4ED8; }
 
 .bottom-btn.active::before {
   content: '';
@@ -289,7 +289,7 @@ html, body {
   left: 0.75rem;
   top: 50%;
   transform: translateY(-50%);
-  color: #94A3B8;
+  color: #57667A;
   font-size: 0.85rem;
   pointer-events: none;
 }
@@ -306,7 +306,7 @@ html, body {
   outline: none;
   transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
 }
-.search-input::placeholder { color: #94A3B8; }
+.search-input::placeholder { color: #57667A; }
 .search-input::-webkit-search-cancel-button { -webkit-appearance: none; }
 .search-input:focus {
   border-color: #3B82F6;
@@ -347,12 +347,12 @@ html, body {
 .search-item:focus-visible { background: #F1F5F9; outline: none; }
 
 .search-item-name { font-weight: 600; color: #0F172A; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.search-item-price { font-size: 0.82rem; color: #64748B; flex-shrink: 0; }
+.search-item-price { font-size: 0.82rem; color: #57667A; flex-shrink: 0; }
 
 .search-empty {
   padding: 0.6rem 0.65rem;
   font-size: 0.875rem;
-  color: #94A3B8;
+  color: #57667A;
 }
 
 /* Boton cuadrado de icono (escaner) — compartido con inventario */
@@ -399,7 +399,7 @@ html, body {
   padding: 0.6rem 0.9rem 0.25rem;
   font-size: 0.72rem;
   font-weight: 700;
-  color: #64748B;
+  color: #57667A;
   text-transform: uppercase;
   letter-spacing: 0.06em;
 }
@@ -422,7 +422,7 @@ html, body {
   gap: 0.5rem;
   flex: 1;
   padding: 1.25rem;
-  color: #94A3B8;
+  color: #57667A;
   text-align: center;
   font-size: 0.875rem;
   font-weight: 500;
@@ -482,7 +482,7 @@ html, body {
 .item-unit-price {
   grid-area: unit;
   font-size: 0.75rem;
-  color: #94A3B8;
+  color: #57667A;
 }
 
 .item-actions {
@@ -520,7 +520,7 @@ html, body {
 .qty-btn { background: #F1F5F9; color: #1E293B; }
 .qty-btn:hover { background: #E2E8F0; }
 
-.btn-delete { margin-left: 0.3rem; background: #FEF2F2; color: #DC2626; }
+.btn-delete { margin-left: 0.3rem; background: #FEF2F2; color: #B91C1C; }
 .btn-delete:hover { background: #FEE2E2; }
 
 .qty-display {
@@ -563,7 +563,7 @@ html, body {
 .total-label {
   font-size: 0.75rem;
   font-weight: 700;
-  color: #64748B;
+  color: #57667A;
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
@@ -593,7 +593,7 @@ html, body {
   top: 50%;
   transform: translateY(-50%);
   font-weight: 700;
-  color: #94A3B8;
+  color: #57667A;
   pointer-events: none;
 }
 
@@ -610,7 +610,7 @@ html, body {
   outline: none;
   transition: border-color 0.2s, box-shadow 0.2s;
 }
-.cash-input::placeholder { color: #94A3B8; font-weight: 500; }
+.cash-input::placeholder { color: #57667A; font-weight: 500; }
 .cash-input:focus {
   border-color: #3B82F6;
   background: #fff;
@@ -642,11 +642,11 @@ html, body {
 .change-amount {
   font-size: 1rem;
   font-weight: 800;
-  color: #059669;
+  color: #047857;
   line-height: 1.2;
   font-variant-numeric: tabular-nums;
 }
-.change-block.negative .change-amount { color: #DC2626; }
+.change-block.negative .change-amount { color: #B91C1C; }
 
 /* Metodos de pago: control segmentado estilo iOS */
 .payment-methods {
@@ -674,7 +674,7 @@ html, body {
   cursor: pointer;
   transition: background 0.2s, color 0.2s, box-shadow 0.2s;
 }
-.pay-method-btn i { font-size: 0.85rem; color: #94A3B8; transition: color 0.2s; }
+.pay-method-btn i { font-size: 0.85rem; color: #57667A; transition: color 0.2s; }
 .pay-method-btn:hover { color: #1E293B; }
 
 .pay-method-btn.selected {
@@ -682,7 +682,7 @@ html, body {
   color: #1D4ED8;
   box-shadow: 0 1px 3px rgba(15, 23, 42, 0.12);
 }
-.pay-method-btn.selected i { color: #3B82F6; }
+.pay-method-btn.selected i { color: #1D4ED8; }
 
 /* Cobrar (primario) y Fiar (secundario) */
 .btn-cobrar,
@@ -721,7 +721,7 @@ html, body {
   color: #92400E;
 }
 .btn-fiar:hover:not(:disabled) { background: #FDE68A; }
-.btn-fiar:disabled { background: #F1F5F9; color: #94A3B8; }
+.btn-fiar:disabled { background: #F1F5F9; color: #57667A; }
 
 /* ── Sincronizacion offline (solo admin) ─────────────────── */
 .offline-sync-indicator {
@@ -775,7 +775,7 @@ html, body {
   padding: 0.5rem 0.75rem;
   border-top: 1px solid #E2E8F0;
   font-size: 0.72rem;
-  color: #64748B;
+  color: #57667A;
 }
 
 .offline-sync-count {
@@ -813,7 +813,7 @@ html, body {
   z-index: 1;
 }
 .offline-sync-table tr:last-child td { border-bottom: none; }
-.offline-sync-empty td { padding: 0.85rem; color: #64748B; text-align: center; }
+.offline-sync-empty td { padding: 0.85rem; color: #57667A; text-align: center; }
 
 .offline-sync-status {
   display: inline-flex;
@@ -908,7 +908,7 @@ html, body {
   border: none;
   border-radius: 50%;
   background: #F1F5F9;
-  color: #64748B;
+  color: #57667A;
   font-size: 0.9rem;
   cursor: pointer;
 }
@@ -943,7 +943,7 @@ html, body {
   color: #334155;
 }
 
-.sheet .optional { font-weight: 400; color: #94A3B8; }
+.sheet .optional { font-weight: 400; color: #57667A; }
 
 .sheet .field input {
   width: 100%;
@@ -957,7 +957,7 @@ html, body {
   outline: none;
   transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
 }
-.sheet .field input::placeholder { color: #94A3B8; }
+.sheet .field input::placeholder { color: #57667A; }
 .sheet .field input:focus {
   background: #ffffff;
   border-color: #3B82F6;
@@ -976,7 +976,7 @@ html, body {
 
 .field-hint {
   font-size: 0.75rem;
-  color: #64748B;
+  color: #57667A;
 }
 
 .form-error {
@@ -998,7 +998,7 @@ html, body {
   background: #F8FAFC;
   font-size: 0.8rem;
   font-weight: 600;
-  color: #64748B;
+  color: #57667A;
 }
 .fiar-total strong {
   font-size: 1.35rem;
@@ -1053,12 +1053,12 @@ html, body {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.combo-meta { grid-area: meta; font-size: 0.72rem; color: #94A3B8; }
+.combo-meta { grid-area: meta; font-size: 0.72rem; color: #57667A; }
 .combo-debt {
   grid-area: debt;
   font-size: 0.8rem;
   font-weight: 700;
-  color: #059669;
+  color: #047857;
   font-variant-numeric: tabular-nums;
 }
 .combo-debt.has-debt { color: #B45309; }
@@ -1100,7 +1100,7 @@ html, body {
 .scanner-status {
   min-height: 1.25rem;
   font-size: 0.85rem;
-  color: #64748B;
+  color: #57667A;
   text-align: center;
 }
 .scanner-status.is-error { color: #B91C1C; font-weight: 600; }

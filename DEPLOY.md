@@ -49,7 +49,6 @@ accesibilidad y los flujos de venta y cartera:
 Todos deben terminar en `OK`. Un `AssertionError` aqui es un fallo que se iria
 a produccion.
 
-
 Railway despliega desde una rama. Decide cual:
 
 ```bash
@@ -80,42 +79,64 @@ Railway crea la base `railway` y expone estas variables en el servicio MySQL:
 
 ---
 
-## 4. Cargar el esquema y las migraciones
+## 4. Cargar el esquema y las migraciones  ✅ HECHO
+
+> Estado: la base `railway` ya quedo cargada el 2026-09-23: 17 tablas, 7
+> triggers, 37 claves foraneas y los datos del volcado. Esta seccion queda como
+> referencia para rehacerlo (por ejemplo, al recrear la base o al montar un
+> entorno de pruebas).
 
 El dump `jempos.sql` esta en `.gitignore` (lleva datos reales), asi que se
 importa a mano desde tu maquina usando el proxy publico de Railway.
 
-En el servicio MySQL → pestaña **Variables**, copia `MYSQL_PUBLIC_URL`. Tiene la
+En el servicio MySQL, pestaña **Variables**, copia `MYSQL_PUBLIC_URL`. Tiene la
 forma `mysql://root:CLAVE@HOST.proxy.rlwy.net:PUERTO/railway`.
 
-**Con el cliente `mysql` instalado:**
-
-```bash
-mysql -h HOST.proxy.rlwy.net -P PUERTO -u root -pCLAVE railway < jempos.sql
-```
-
-**Sin cliente `mysql`** (caso comun en Windows), usa el runner del repo, que se
-conecta con las credenciales del entorno. Las variables del shell tienen
-prioridad sobre `.env`, asi que no hace falta tocar tu `.env` local:
+Con el runner del repo, que se conecta con las credenciales del entorno. Las
+variables del shell tienen prioridad sobre `.env`, asi que no hace falta tocar
+tu `.env` local:
 
 ```powershell
 $env:DB_HOST="HOST.proxy.rlwy.net"; $env:DB_PORT="PUERTO"
 $env:DB_USER="root"; $env:DB_PASSWORD="CLAVE"; $env:DB_NAME="railway"
-.venv\Scripts\python.exe scripts\run_migration.py jempos.sql
+.venv/Scripts/python.exe scripts/run_migration.py jempos.sql
 ```
 
-Despues, y en este orden, aplica lo que el dump no trae (es de julio; las
-migraciones son posteriores). El runner es idempotente: repetirlo no rompe nada.
+Despues, en este orden, lo que el dump no trae (es de julio; las migraciones
+son posteriores). El runner es idempotente: repetirlo no rompe nada.
 
 ```powershell
-.venv\Scripts\python.exe scripts\run_migration.py migrations\2026-09-16_clientes_cedula.sql
-.venv\Scripts\python.exe scripts\run_migration.py migrations\2026-09-16_proveedores_telefono2.sql
-.venv\Scripts\python.exe scripts\run_migration.py migrations\2026-09-22_cartera_b2b.sql
-.venv\Scripts\python.exe scripts\run_migration.py scripts\db_indexes.sql
+.venv/Scripts/python.exe scripts/run_migration.py migrations/2026-09-16_clientes_cedula.sql
+.venv/Scripts/python.exe scripts/run_migration.py migrations/2026-09-16_proveedores_telefono2.sql
+.venv/Scripts/python.exe scripts/run_migration.py migrations/2026-09-22_cartera_b2b.sql
+.venv/Scripts/python.exe scripts/run_migration.py scripts/db_indexes.sql
 ```
 
 Cierra la sesion de PowerShell al terminar para no dejar las credenciales de
 produccion en variables de entorno.
+
+### Dos diferencias entre tu MariaDB local y el MySQL de Railway
+
+Railway sirve **MySQL 9.7.2**; en local el proyecto corre sobre **MariaDB**. No
+son intercambiables y dos cosas hubo que corregir para que el mismo SQL sirva
+en ambos:
+
+1. **`DELIMITER` y los triggers.** `jempos.sql` trae 7 triggers envueltos en
+   bloques `DELIMITER $$ ... $$`. `DELIMITER` no es SQL: es una instruccion del
+   cliente `mysql`. `scripts/run_migration.py` ahora la interpreta y corta por
+   el delimitador vigente. Antes partia el archivo por `;` y habria troceado
+   el cuerpo de cada trigger, dejando la base a medio crear.
+2. **`ADD COLUMN IF NOT EXISTS` no existe en MySQL.** Es una extension de
+   MariaDB; MySQL responde error 1064. Las tres migraciones se reescribieron
+   sin ella y con **una clausula por sentencia**. Lo segundo importa: un ALTER
+   con varias clausulas es atomico, asi que si la columna ya existe pero la
+   clave no, el motor rechaza el bloque entero por 1060, el runner lo salta
+   como "ya aplicado" y la clave nunca se crea. La idempotencia la da el
+   runner, que trata 1060/1061/1826 como no-op.
+
+Si mas adelante generas un volcado nuevo, hazlo desde la base de Railway
+(MySQL) y no desde la local (MariaDB), o volveras a encontrarte estas mismas
+diferencias.
 
 ---
 

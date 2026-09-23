@@ -1,7 +1,7 @@
 -- ============================================================
 -- Migracion: Cartera (por cobrar / por pagar) + Clientes B2B
 -- Fecha: 2026-09-22
--- Motor: MariaDB 10.4 (soporta IF NOT EXISTS en ALTER)
+-- Motor: MariaDB y MySQL 8/9
 -- ============================================================
 --
 -- Decisiones:
@@ -34,16 +34,32 @@ CREATE TABLE IF NOT EXISTS `listas_precios` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ── 2) Clientes: tipo B2C/B2B + NIT + lista asignada ────────
+-- Una clausula por sentencia y sin `IF NOT EXISTS`:
+--  * `IF NOT EXISTS` en ADD COLUMN/ADD KEY solo existe en MariaDB; MySQL 8/9
+--    responde error 1064 y la migracion se cae entera.
+--  * Un ALTER con varias clausulas es atomico: si la columna ya existe pero la
+--    clave no, el motor rechaza el bloque por 1060, el runner lo salta como
+--    "ya aplicado" y la clave nunca llega a crearse.
+-- La idempotencia la pone scripts/run_migration.py, que trata 1060 y 1061
+-- como no-op.
 ALTER TABLE `clientes`
-  ADD COLUMN IF NOT EXISTS `tipo` enum('B2C','B2B') NOT NULL DEFAULT 'B2C' AFTER `telefono`,
-  ADD COLUMN IF NOT EXISTS `nit` varchar(30) DEFAULT NULL AFTER `tipo`,
-  ADD COLUMN IF NOT EXISTS `id_lista_precios` bigint(20) UNSIGNED DEFAULT NULL AFTER `nit`,
-  ADD KEY IF NOT EXISTS `idx_clientes_tienda_tipo` (`id_tienda`, `tipo`, `estado_activo`),
-  ADD KEY IF NOT EXISTS `idx_clientes_lista` (`id_lista_precios`);
+  ADD COLUMN `tipo` enum('B2C','B2B') NOT NULL DEFAULT 'B2C' AFTER `telefono`;
+
+ALTER TABLE `clientes`
+  ADD COLUMN `nit` varchar(30) DEFAULT NULL AFTER `tipo`;
+
+ALTER TABLE `clientes`
+  ADD COLUMN `id_lista_precios` bigint(20) UNSIGNED DEFAULT NULL AFTER `nit`;
+
+ALTER TABLE `clientes`
+  ADD KEY `idx_clientes_tienda_tipo` (`id_tienda`, `tipo`, `estado_activo`);
+
+ALTER TABLE `clientes`
+  ADD KEY `idx_clientes_lista` (`id_lista_precios`);
 
 -- FK a la lista: si se borra la lista el cliente queda sin lista, no huerfano.
--- MariaDB 10.4 no acepta IF NOT EXISTS en ADD CONSTRAINT, se ignora el error 1826/121
--- si ya existe (el runner de migraciones lo reporta como no-op).
+-- Ningun motor acepta IF NOT EXISTS en ADD CONSTRAINT; si ya existe, el runner
+-- lo reporta como no-op (errores 1826/121).
 ALTER TABLE `clientes`
   ADD CONSTRAINT `fk_clientes_listas_precios`
   FOREIGN KEY (`id_lista_precios`) REFERENCES `listas_precios` (`id_lista`)

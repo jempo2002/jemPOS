@@ -5,13 +5,18 @@ que asume scripts/README.md. Ejecuta sentencia por sentencia y trata como
 no-op los errores de "ya existe" (duplicate key/column/constraint), asi la
 migracion es idempotente igual que los `IF NOT EXISTS` del propio SQL.
 
+Entiende los bloques `DELIMITER $$ ... $$`, asi que tambien sirve para
+importar un volcado completo con triggers (jempos.sql).
+
     python scripts/run_migration.py migrations/2026-09-22_cartera_b2b.sql
+
+Toma las credenciales del entorno, y las variables del shell tienen prioridad
+sobre el .env: para apuntar a otra base no hace falta tocar el .env local.
 """
 
 from __future__ import annotations
 
 import os
-import re
 import sys
 
 import mysql.connector
@@ -29,12 +34,62 @@ def _ya_aplicada(exc: mysql.connector.Error) -> bool:
 
 
 def _sentencias(sql: str):
-    """Divide en sentencias por ';' al final de linea, ignorando comentarios."""
-    sin_comentarios = re.sub(r"^\s*--.*$", "", sql, flags=re.MULTILINE)
-    for bloque in sin_comentarios.split(";"):
-        limpio = bloque.strip()
-        if limpio:
-            yield limpio
+    """Divide el archivo en sentencias, respetando los bloques DELIMITER.
+
+    Se recorre linea a linea y se corta donde termina el delimitador vigente,
+    en vez de partir el texto por ';'. La diferencia importa con los triggers:
+    su cuerpo lleva ';' dentro (un SET, un SELECT, un SIGNAL), y por eso los
+    volcados los envuelven en `DELIMITER $$ ... $$ DELIMITER ;`. Partiendo por
+    ';' el trigger llegaria al servidor troceado y la importacion fallaria a
+    mitad, dejando la base a medio crear.
+
+    `DELIMITER` no es SQL: es una instruccion del cliente `mysql`. Se
+    interpreta aqui y no se envia al servidor, que la rechazaria.
+
+    ponytail: el corte es por final de linea, no un analizador de SQL. Una
+    sentencia que termine en medio de una linea, o un ';' dentro de una cadena
+    con el delimitador justo al final de la linea, se partirian mal. Los
+    volcados de phpMyAdmin y las migraciones del repo escriben una sentencia
+    por linea o la cierran al final, asi que no se da. Si algun dia hace falta
+    importar SQL escrito a mano de otra procedencia, el reemplazo es
+    sqlparse.split().
+    """
+    delimitador = ";"
+    acumulado: list[str] = []
+
+    def _vaciar():
+        texto = "\n".join(acumulado).strip()
+        acumulado.clear()
+        return texto
+
+    for linea in sql.splitlines():
+        desnuda = linea.strip()
+
+        if desnuda.upper().startswith("DELIMITER "):
+            # Lo que quedara pendiente se cierra antes de cambiar de delimitador.
+            pendiente = _vaciar()
+            if pendiente:
+                yield pendiente
+            delimitador = desnuda.split(None, 1)[1].strip()
+            continue
+
+        # Comentarios de linea completa y lineas en blanco: no aportan nada.
+        # Los comentarios condicionales /*!40101 ... */; si se envian: el
+        # servidor decide si los ejecuta segun su version.
+        if not desnuda or desnuda.startswith("--"):
+            continue
+
+        acumulado.append(linea)
+
+        if desnuda.endswith(delimitador):
+            completo = _vaciar()
+            completo = completo[: -len(delimitador)].strip()
+            if completo:
+                yield completo
+
+    resto = _vaciar()
+    if resto:
+        yield resto
 
 
 def main(ruta: str) -> int:

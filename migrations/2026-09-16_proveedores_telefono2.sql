@@ -1,12 +1,16 @@
 -- ============================================================
 -- Migracion: Proveedores telefono_2 + verificacion FK productos
 -- Fecha: 2026-09-16
--- Motor: MariaDB (soporta IF NOT EXISTS en ALTER)
+-- Motor: MariaDB y MySQL 8/9
 -- ============================================================
+--
+-- Sin `IF NOT EXISTS`: es sintaxis exclusiva de MariaDB (MySQL responde 1064).
+-- La idempotencia la da scripts/run_migration.py, que trata el error 1060
+-- (columna duplicada) como no-op.
 
 -- 1) Telefono secundario (opcional). telefono_1 ya es la columna `celular`.
 ALTER TABLE `proveedores`
-  ADD COLUMN IF NOT EXISTS `telefono_2` varchar(20) DEFAULT NULL AFTER `celular`;
+  ADD COLUMN `telefono_2` varchar(20) DEFAULT NULL AFTER `celular`;
 
 -- 2) FK productos.id_proveedor -> proveedores.id_proveedor
 --    Ya existe en el esquema como `fk_productos_proveedores`

@@ -1,0 +1,15 @@
+<!-- Ruta: templates/pos/_paginador.html
+     Controles Anterior / Siguiente del listado paginado. Los rellena
+     static/js/filtros-paginacion.js con los metadatos que devuelve la API. -->
+<div class="jem-pager hidden" data-jem-pager="{{ filtros_id | default('default') }}">
+  <span class="jem-pager-info" data-jem-pager-info></span>
+  <div class="jem-pager-controls">
+    <button type="button" class="jem-pager-btn" data-jem-prev disabled>
+      <i class="fa-solid fa-chevron-left"></i> Anterior
+    </button>
+    <span class="jem-pager-page" data-jem-pager-page>1 / 1</span>
+    <button type="button" class="jem-pager-btn" data-jem-next disabled>
+      Siguiente <i class="fa-solid fa-chevron-right"></i>
+    </button>
+  </div>
+</div>

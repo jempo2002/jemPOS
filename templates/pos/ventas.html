@@ -43,59 +43,15 @@
             <i class="fa-solid fa-clock"></i> Mostrando ultimas 24 horas
           </div>
           {% else %}
-          <div class="flex flex-wrap items-center gap-2 mb-6">
-            <a href="{{ url_for('sales_bp.ventas', filtro='hoy') }}"
-               class="{% if filtro_activo == 'hoy' %}bg-blue-600 text-white shadow-md rounded-full px-4 py-2 text-sm font-semibold transition{% else %}bg-blue-50 text-blue-700 border border-blue-100 hover:bg-blue-100 rounded-full px-4 py-2 text-sm font-medium transition{% endif %}">
-              Hoy
-            </a>
-            <a href="{{ url_for('sales_bp.ventas', filtro='semana') }}"
-               class="{% if filtro_activo == 'semana' %}bg-blue-600 text-white shadow-md rounded-full px-4 py-2 text-sm font-semibold transition{% else %}bg-blue-50 text-blue-700 border border-blue-100 hover:bg-blue-100 rounded-full px-4 py-2 text-sm font-medium transition{% endif %}">
-              Semana
-            </a>
-            <a href="{{ url_for('sales_bp.ventas', filtro='mes') }}"
-               class="{% if filtro_activo == 'mes' %}bg-blue-600 text-white shadow-md rounded-full px-4 py-2 text-sm font-semibold transition{% else %}bg-blue-50 text-blue-700 border border-blue-100 hover:bg-blue-100 rounded-full px-4 py-2 text-sm font-medium transition{% endif %}">
-              Mes
-            </a>
-            <a href="{{ url_for('sales_bp.ventas', filtro='todas') }}"
-               class="{% if filtro_activo == 'todas' %}bg-blue-600 text-white shadow-md rounded-full px-4 py-2 text-sm font-semibold transition{% else %}bg-blue-50 text-blue-700 border border-blue-100 hover:bg-blue-100 rounded-full px-4 py-2 text-sm font-medium transition{% endif %}">
-              Todas
-            </a>
-          </div>
+          {% with filtros_id='ventas' %}
+            {% include "pos/_filtros.html" %}
+          {% endwith %}
           {% endif %}
 
-          {% if ventas %}
-          <div class="ventas-mobile-only space-y-4">
-            {% for venta in ventas %}
-            {% set estado = venta.estado_venta or 'Pagada' %}
-            <div class="bg-gray-50 rounded-2xl p-5 border border-gray-100 flex flex-col gap-3">
-              <div class="flex items-center justify-between gap-3">
-                <p class="text-sm font-semibold text-gray-800">Venta #{{ venta.id_venta }}</p>
-                {% if estado == 'Pagada' %}
-                <span class="rounded-full px-3 py-1 text-xs font-bold bg-green-100 text-green-800">Pagada</span>
-                {% elif estado == 'Anulada' %}
-                <span class="rounded-full px-3 py-1 text-xs font-bold bg-red-100 text-red-800">Anulada</span>
-                {% elif estado == 'Fiada/Pendiente' %}
-                <span class="rounded-full px-3 py-1 text-xs font-bold bg-orange-100 text-orange-800">Fiada/Pendiente</span>
-                {% else %}
-                <span class="rounded-full px-3 py-1 text-xs font-bold bg-gray-200 text-gray-700">{{ estado }}</span>
-                {% endif %}
-              </div>
+          <!-- Lista renderizada por static/js/ventas.js desde /pos/api/ventas -->
+          <div class="ventas-mobile-only space-y-4" id="ventas-cards"></div>
 
-              <p class="text-sm text-gray-700"><span class="font-semibold text-gray-800">Cliente:</span> {{ venta.nombre_cliente }}</p>
-              <p class="text-lg font-bold text-gray-900">${{ '{:,.0f}'.format(venta.total_final) }}</p>
-              <p class="text-xs text-gray-500">{{ venta.fecha_creacion.strftime('%Y-%m-%d %H:%M') if venta.fecha_creacion else 'Sin fecha' }}</p>
-
-              <button
-                type="button"
-                class="btn-ver-detalle bg-blue-100 text-blue-700 rounded-xl px-4 py-2 text-center font-semibold"
-                data-id="{{ venta.id_venta }}">
-                Ver Detalle
-              </button>
-            </div>
-            {% endfor %}
-          </div>
-
-          <div class="ventas-desktop-only overflow-x-auto">
+          <div class="ventas-desktop-only overflow-x-auto" id="ventas-table-wrap">
             <table class="w-full">
               <thead>
                 <tr class="text-gray-500 uppercase text-xs">
@@ -108,45 +64,18 @@
                   <th class="py-3 text-left">Accion</th>
                 </tr>
               </thead>
-              <tbody>
-                {% for venta in ventas %}
-                {% set estado = venta.estado_venta or 'Pagada' %}
-                <tr class="border-b border-gray-50 hover:bg-gray-50 transition">
-                  <td class="py-4 text-sm font-semibold text-gray-800">#{{ venta.id_venta }}</td>
-                  <td class="py-4 text-sm text-gray-700">{{ venta.fecha_creacion.strftime('%Y-%m-%d %H:%M') if venta.fecha_creacion else 'Sin fecha' }}</td>
-                  <td class="py-4 text-sm text-gray-700">{{ venta.nombre_cliente }}</td>
-                  <td class="py-4 text-sm text-gray-700">{{ venta.nombre_cajero }}</td>
-                  <td class="py-4 text-sm font-bold text-gray-900">${{ '{:,.0f}'.format(venta.total_final) }}</td>
-                  <td class="py-4 text-sm">
-                    {% if estado == 'Pagada' %}
-                    <span class="rounded-full px-3 py-1 text-xs font-bold bg-green-100 text-green-800">Pagada</span>
-                    {% elif estado == 'Anulada' %}
-                    <span class="rounded-full px-3 py-1 text-xs font-bold bg-red-100 text-red-800">Anulada</span>
-                    {% elif estado == 'Fiada/Pendiente' %}
-                    <span class="rounded-full px-3 py-1 text-xs font-bold bg-orange-100 text-orange-800">Fiada/Pendiente</span>
-                    {% else %}
-                    <span class="rounded-full px-3 py-1 text-xs font-bold bg-gray-200 text-gray-700">{{ estado }}</span>
-                    {% endif %}
-                  </td>
-                  <td class="py-4 text-sm">
-                    <button
-                      type="button"
-                      class="btn-ver-detalle bg-blue-100 text-blue-700 rounded-xl px-4 py-2 text-center font-semibold"
-                      data-id="{{ venta.id_venta }}">
-                      Ver Detalle
-                    </button>
-                  </td>
-                </tr>
-                {% endfor %}
-              </tbody>
+              <tbody id="ventas-table-body"></tbody>
             </table>
           </div>
-          {% else %}
-          <div class="bg-white rounded-[2rem] p-12 text-center border border-gray-100 shadow-sm flex flex-col items-center justify-center">
+
+          <div class="hidden p-12 text-center" id="ventas-empty">
             <i class="fa-solid fa-receipt text-6xl text-gray-200 mb-4"></i>
             <p class="font-semibold text-gray-700">No se encontraron ventas para este filtro</p>
           </div>
-          {% endif %}
+
+          {% with filtros_id='ventas' %}
+            {% include "pos/_paginador.html" %}
+          {% endwith %}
         </div>
       </div>
       <div id="modal-detalle" class="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
@@ -176,6 +105,8 @@
 
 <script src="/static/js/logout.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<script src="/static/js/toast.js"></script>
+<script src="/static/js/filtros-paginacion.js"></script>
 <script src="/static/js/ventas.js"></script>
 <div id="app-context"
      data-user-rol="{{ rol }}"

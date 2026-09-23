@@ -3,6 +3,7 @@ from __future__ import annotations
 from flask import Blueprint, flash, jsonify, render_template, request, session
 
 from app import limiter
+from app.services.cartera_service import CATEGORIAS_POR_PAGAR
 from app.services.sales_service import (
     SalesConflictError,
     SalesNotFoundError,
@@ -13,6 +14,7 @@ from app.services.sales_service import (
     cerrar_turno,
     crear_cliente_fiado,
     crear_gasto,
+    delete_cliente_fiado,
     get_caja_productos,
     get_categorias_gastos,
     get_detalle_venta,
@@ -21,6 +23,7 @@ from app.services.sales_service import (
     get_gastos,
     get_turno_estado,
     get_ventas,
+    periodo_bounds,
     registrar_venta,
     sumar_fiado,
 )
@@ -69,25 +72,20 @@ def caja():
 @sales_bp.get("/ventas")
 @login_required
 def ventas():
-    id_tienda = session.get("id_tienda")
-    rol = (session.get("rol") or "").strip()
-    filtro_url = request.args.get("filtro")
-
-    if not id_tienda:
+    # La lista la pide el JS a /pos/api/ventas con capsula, fecha y pagina: asi
+    # cambiar de filtro no recarga la pagina y solo viajan 20 registros.
+    if not session.get("id_tienda"):
         flash("No se encontro la tienda activa en la sesion.", "error")
-        return _render_sales("pos/ventas.html", ventas=[], filtro_activo="mes")
-
-    lista_ventas, filtro = get_ventas(int(id_tienda), rol, session.get("id_usuario"), filtro_url)
-    return _render_sales("pos/ventas.html", ventas=lista_ventas, filtro_activo=filtro)
+    filtro, _desde, _hasta = periodo_bounds(request.args.get("filtro"))
+    return _render_sales("pos/ventas.html", filtro_activo=filtro)
 
 
 @sales_bp.get("/fiados")
 @login_required
 def fiados():
-    return _render_sales(
-        "pos/fiados.html",
-        fiados_clientes=get_fiados_clientes(int(session["id_tienda"])),
-    )
+    # La lista la pide el JS a /pos/api/fiados: no se embebe en el HTML para no
+    # servir la cartera completa a quien solo abre la pagina.
+    return _render_sales("pos/fiados.html", categorias_por_pagar=list(CATEGORIAS_POR_PAGAR))
 
 
 @sales_bp.get("/gastos")
@@ -207,8 +205,11 @@ def api_ventas_detalle(id_venta: int):
         return jsonify({"ok": False, "msg": "Registro no encontrado o acceso denegado"}), 404
 
 
+# Listado de lectura: la pantalla Cartera lo recarga tras cada abono o aumento,
+# y el default global de 50/hora se agota en una jornada normal de cobros.
 @sales_api_bp.get("/api/fiados")
 @login_required
+@limiter.limit("60 per minute")
 def api_fiados_listar():
     return jsonify({"ok": True, "clientes": get_fiados_clientes(int(session["id_tienda"]))})
 
@@ -313,12 +314,77 @@ def api_fiados_abonar(id_cliente: int):
         return jsonify({"ok": False, "msg": "Registro no encontrado o acceso denegado"}), 404
 
 
+# Borrar la deuda de un cliente es una decision contable: solo administrativos.
+@sales_api_bp.delete("/api/fiados/<int:id_cliente>")
+@login_required
+@roles_required("Admin", "Master")
+def api_fiados_eliminar(id_cliente: int):
+    try:
+        delete_cliente_fiado(int(session["id_tienda"]), int(session["id_usuario"]), int(id_cliente))
+        return jsonify({"ok": True})
+    except SalesValidationError as exc:
+        return jsonify({"ok": False, "msg": str(exc)}), 400
+    except SalesNotFoundError:
+        return jsonify({"ok": False, "msg": "Registro no encontrado o acceso denegado"}), 404
+
+
+# Listados paginados: la pantalla los recarga al cambiar de capsula, de fecha o
+# de pagina, asi que llevan limite propio como /api/fiados.
+@sales_api_bp.get("/api/ventas")
+@login_required
+@limiter.limit("60 per minute")
+def api_ventas_listar():
+    try:
+        lista, filtro, meta = get_ventas(
+            int(session["id_tienda"]),
+            (session.get("rol") or "").strip(),
+            session.get("id_usuario"),
+            request.args.get("filtro"),
+            request.args.get("fecha"),
+            request.args.get("page"),
+            request.args.get("limit"),
+        )
+    except SalesValidationError as exc:
+        return jsonify({"ok": False, "msg": str(exc)}), 400
+
+    return jsonify(
+        {
+            "ok": True,
+            "filtro": filtro,
+            "meta": meta,
+            "ventas": [
+                {
+                    "id_venta": v["id_venta"],
+                    "total_final": v["total_final"],
+                    "estado_venta": v["estado_venta"],
+                    "fecha": v["fecha_creacion"].strftime("%Y-%m-%d %H:%M") if v["fecha_creacion"] else "",
+                    "nombre_cliente": v["nombre_cliente"],
+                    "nombre_cajero": v["nombre_cajero"],
+                }
+                for v in lista
+            ],
+        }
+    )
+
+
 @sales_api_bp.get("/api/gastos")
 @login_required
 @roles_required("Admin", "Master", "Cajero")
+@limiter.limit("60 per minute")
 def api_gastos_listar():
-    gastos = get_gastos(int(session["id_tienda"]), int(session["id_usuario"]))
-    return jsonify({"ok": True, "gastos": gastos})
+    try:
+        gastos, filtro, meta, totales = get_gastos(
+            int(session["id_tienda"]),
+            int(session["id_usuario"]),
+            request.args.get("filtro"),
+            request.args.get("fecha"),
+            request.args.get("page"),
+            request.args.get("limit"),
+        )
+    except SalesValidationError as exc:
+        return jsonify({"ok": False, "msg": str(exc)}), 400
+
+    return jsonify({"ok": True, "gastos": gastos, "filtro": filtro, "meta": meta, "totales": totales})
 
 
 @sales_api_bp.post("/api/gastos")

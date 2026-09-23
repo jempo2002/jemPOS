@@ -57,6 +57,10 @@
         </div>
       </div>
 
+      {% with filtros_id='gastos', filtro_activo='mes' %}
+        {% include "pos/_filtros.html" %}
+      {% endwith %}
+
     </header>
     <div class="gast-body" data-fab-scroll-container>
       <div class="gast-cards" id="gast-cards" aria-label="Lista de gastos">
@@ -66,11 +70,11 @@
         <table class="gast-table" aria-label="Historial de gastos">
           <thead id="gast-thead">
             <tr>
-              <th class="th-sortable" data-col="ts">Fecha&nbsp;<span class="sort-icon-wrap"><i class="fa-solid fa-sort sort-icon"></i></span></th>
-              <th class="th-sortable" data-col="category">Categoria&nbsp;<span class="sort-icon-wrap"><i class="fa-solid fa-sort sort-icon"></i></span></th>
-              <th class="th-sortable" data-col="desc">Descripcion&nbsp;<span class="sort-icon-wrap"><i class="fa-solid fa-sort sort-icon"></i></span></th>
-              <th class="th-sortable" data-col="origen">Origen&nbsp;<span class="sort-icon-wrap"><i class="fa-solid fa-sort sort-icon"></i></span></th>
-              <th class="th-sortable th-monto" data-col="amount">Monto&nbsp;<span class="sort-icon-wrap"><i class="fa-solid fa-sort sort-icon"></i></span></th>
+              <th class="th-sortable" title="Ordena la pagina visible" data-col="ts">Fecha&nbsp;<span class="sort-icon-wrap"><i class="fa-solid fa-sort sort-icon"></i></span></th>
+              <th class="th-sortable" title="Ordena la pagina visible" data-col="category">Categoria&nbsp;<span class="sort-icon-wrap"><i class="fa-solid fa-sort sort-icon"></i></span></th>
+              <th class="th-sortable" title="Ordena la pagina visible" data-col="desc">Descripcion&nbsp;<span class="sort-icon-wrap"><i class="fa-solid fa-sort sort-icon"></i></span></th>
+              <th class="th-sortable" title="Ordena la pagina visible" data-col="origen">Origen&nbsp;<span class="sort-icon-wrap"><i class="fa-solid fa-sort sort-icon"></i></span></th>
+              <th class="th-sortable th-monto" title="Ordena la pagina visible" data-col="amount">Monto&nbsp;<span class="sort-icon-wrap"><i class="fa-solid fa-sort sort-icon"></i></span></th>
             </tr>
           </thead>
           <tbody id="gast-table-body">
@@ -78,6 +82,10 @@
           </tbody>
         </table>
       </div>
+
+      {% with filtros_id='gastos' %}
+        {% include "pos/_paginador.html" %}
+      {% endwith %}
 
       <!-- Estado vacio -->
       <div class="gast-empty hidden" id="gast-empty">
@@ -100,7 +108,8 @@
 
 </div>
 <!-- /app-shell -->
-     MODAL - REGISTRAR GASTO
+
+<!-- MODAL - REGISTRAR GASTO -->
 <div class="gast-backdrop hidden" id="modal-gasto" role="dialog" aria-modal="true" aria-labelledby="modal-gasto-title">
   <div class="gast-modal-card">
 
@@ -199,6 +208,7 @@
 <script src="/static/js/cop-format.js"></script>
 <script src="/static/js/toast.js"></script>
 <script src="/static/js/fab-scroll.js"></script>
+<script src="/static/js/filtros-paginacion.js"></script>
 <script src="/static/js/gastos.js"></script>
 
   <!-- RBAC + Suscripcion -->

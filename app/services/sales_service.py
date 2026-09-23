@@ -261,13 +261,21 @@ _DEUDA_CLIENTE_SQL = """
 
 
 def get_fiados_clientes(id_tienda: int) -> list[dict]:
+    """Cuentas por cobrar: deuda por cliente + indicador de mora.
+
+    `dias_mora` son los dias desde la deuda pendiente mas antigua; la vista lo
+    traduce a las etiquetas Al dia / En riesgo / En mora.
+    """
     conn = get_db()
     try:
         cur = conn.cursor(dictionary=True)
         cur.execute(
             f"""
-            SELECT c.id_cliente, c.nombre, c.telefono,
-              {_DEUDA_CLIENTE_SQL} AS deuda_total
+            SELECT c.id_cliente, c.nombre, c.telefono, c.tipo,
+              {_DEUDA_CLIENTE_SQL} AS deuda_total,
+              (SELECT MIN(v.fecha_creacion) FROM ventas v
+                WHERE v.id_cliente = c.id_cliente AND v.id_tienda = c.id_tienda
+                  AND v.estado_venta = 'Fiada/Pendiente') AS deuda_desde
             FROM clientes c
             WHERE c.id_tienda = %s AND c.estado_activo = 1
             ORDER BY c.nombre
@@ -278,15 +286,27 @@ def get_fiados_clientes(id_tienda: int) -> list[dict]:
     finally:
         conn.close()
 
-    return [
-        {
-            "id": f["id_cliente"],
-            "name": f["nombre"],
-            "phone": f["telefono"] or "-",
-            "debt": max(0.0, float(f["deuda_total"] or 0)),
-        }
-        for f in filas
-    ]
+    hoy = date.today()
+    clientes = []
+    for f in filas:
+        desde = f.get("deuda_desde")
+        deuda = max(0.0, float(f["deuda_total"] or 0))
+        if desde and deuda > 0:
+            inicio = desde.date() if isinstance(desde, datetime) else desde
+            dias_mora = max(0, (hoy - inicio).days)
+        else:
+            dias_mora = 0
+        clientes.append(
+            {
+                "id": f["id_cliente"],
+                "name": f["nombre"],
+                "phone": f["telefono"] or "-",
+                "debt": deuda,
+                "tipo": f.get("tipo") or "B2C",
+                "dias_mora": dias_mora,
+            }
+        )
+    return clientes
 
 
 def buscar_clientes_fiado(id_tienda: int, q: str, limit: int = 8) -> list[dict]:
@@ -387,59 +407,153 @@ def _resolver_cliente_fiado(cur, id_tienda: int, cliente) -> int:
         raise SalesConflictError("Ese telefono o cedula ya pertenece a otro cliente.") from exc
 
 
-def get_ventas(id_tienda: int, rol: str, id_usuario: int | None, filtro: str | None) -> tuple[list[dict], str]:
-    filtro_final = "24h" if rol == "Cajero" else (filtro or "mes")
+# ══════════════════════════════════════════════════════════════
+# FILTROS TEMPORALES Y PAGINACION (Ventas y Gastos)
+# ══════════════════════════════════════════════════════════════
+
+PERIODOS = ("hoy", "ayer", "semana", "mes", "todas")
+
+
+def periodo_bounds(filtro: str | None, fecha: str | None = None) -> tuple[str, datetime | None, datetime | None]:
+    """Traduce una capsula de tiempo a un rango [desde, hasta) concreto.
+
+    Los limites se calculan en Python, con la hora local del servidor de la app,
+    y viajan a SQL como parametros. Asi el corte de "hoy" es el del negocio y no
+    depende de CURDATE()/NOW() del motor, que puede estar en otra zona horaria.
+
+    El rango es semiabierto (>= desde AND < hasta) a proposito: con BETWEEN un
+    registro de las 23:59:59.4 se quedaria fuera del dia.
+
+    `fecha` (YYYY-MM-DD) tiene prioridad sobre la capsula y acota a ese dia.
+    """
+    ahora = datetime.now()
+    hoy = ahora.replace(hour=0, minute=0, second=0, microsecond=0)
+    manana = hoy + timedelta(days=1)
+
+    texto_fecha = str(fecha or "").strip()
+    if texto_fecha:
+        if len(texto_fecha) > 10:
+            raise SalesValidationError("Fecha invalida.")
+        try:
+            dia = date.fromisoformat(texto_fecha)
+        except ValueError as exc:
+            raise SalesValidationError("Fecha invalida.") from exc
+        desde = datetime(dia.year, dia.month, dia.day)
+        return "fecha", desde, desde + timedelta(days=1)
+
+    filtro = str(filtro or "").strip().lower()
+    if filtro not in PERIODOS:
+        filtro = "mes"
+
+    if filtro == "todas":
+        return "todas", None, None
+    if filtro == "hoy":
+        return "hoy", hoy, manana
+    if filtro == "ayer":
+        return "ayer", hoy - timedelta(days=1), hoy
+    if filtro == "semana":
+        # Semana corrida desde el lunes, igual que el filtro del dashboard.
+        return "semana", hoy - timedelta(days=hoy.weekday()), manana
+    return "mes", hoy.replace(day=1), manana
+
+
+def paginacion(page, limit, *, defecto: int = 20, maximo: int = 100) -> tuple[int, int]:
+    """Normaliza ?page=&limit= a enteros seguros para LIMIT/OFFSET."""
+    try:
+        page = int(page)
+    except (TypeError, ValueError):
+        page = 1
+    try:
+        limit = int(limit)
+    except (TypeError, ValueError):
+        limit = defecto
+    return max(1, page), min(max(1, limit), maximo)
+
+
+def _meta_paginacion(total: int, page: int, limit: int) -> dict:
+    """Metadatos del paginador, con la pagina acotada al rango real."""
+    paginas = max(1, -(-total // limit))  # techo de total/limit
+    page = min(page, paginas)
+    return {
+        "page": page,
+        "limit": limit,
+        "total": total,
+        "pages": paginas,
+        "offset": (page - 1) * limit,
+        "has_prev": page > 1,
+        "has_next": page < paginas,
+    }
+
+
+def get_ventas(
+    id_tienda: int,
+    rol: str,
+    id_usuario: int | None,
+    filtro: str | None,
+    fecha: str | None = None,
+    page=1,
+    limit=20,
+) -> tuple[list[dict], str, dict]:
+    """Pagina del historial de ventas + filtro aplicado + metadatos del paginador.
+
+    El Cajero sigue viendo solo sus propias ventas de las ultimas 24 horas: las
+    capsulas y el buscador de fecha se ignoran para ese rol.
+    """
+    page, limit = paginacion(page, limit)
+
+    condiciones = ["v.id_tienda = %s"]
+    parametros: list = [id_tienda]
+
+    if rol == "Cajero":
+        filtro_final = "24h"
+        condiciones.append("v.id_cajero = %s")
+        parametros.append(id_usuario)
+        condiciones.append("v.fecha_creacion >= %s")
+        parametros.append(datetime.now() - timedelta(days=1))
+    elif rol in {"Admin", "Master"}:
+        filtro_final, desde, hasta = periodo_bounds(filtro, fecha)
+        if desde is not None:
+            condiciones.append("v.fecha_creacion >= %s AND v.fecha_creacion < %s")
+            parametros.extend([desde, hasta])
+    else:
+        return [], "mes", _meta_paginacion(0, 1, limit)
+
+    where = " AND ".join(condiciones)
 
     conn = get_db()
     try:
         cur = conn.cursor(dictionary=True)
-        consulta = (
+        cur.execute(f"SELECT COUNT(*) AS total FROM ventas v WHERE {where}", tuple(parametros))
+        total = int((cur.fetchone() or {}).get("total") or 0)
+
+        meta = _meta_paginacion(total, page, limit)
+        cur.execute(
             "SELECT v.id_venta, v.total_final, v.estado_venta, v.fecha_creacion, "
             "COALESCE(c.nombre, 'Mostrador') AS nombre_cliente, "
             "u.nombre_completo AS nombre_cajero "
             "FROM ventas v "
             "LEFT JOIN clientes c ON v.id_cliente = c.id_cliente "
             "LEFT JOIN usuarios u ON v.id_cajero = u.id_usuario "
-            "WHERE v.id_tienda = %s "
+            f"WHERE {where} "
+            "ORDER BY v.id_venta DESC LIMIT %s OFFSET %s",
+            tuple(parametros) + (meta["limit"], meta["offset"]),
         )
-        parametros = [id_tienda]
-
-        if rol == "Cajero":
-            filtro_final = "24h"
-            consulta += "AND v.id_cajero = %s "
-            parametros.append(id_usuario)
-            consulta += "AND v.fecha_creacion >= (NOW() - INTERVAL 1 DAY) "
-        elif rol in {"Admin", "Master"}:
-            if filtro_final not in {"hoy", "semana", "mes", "todas"}:
-                filtro_final = "mes"
-            if filtro_final == "hoy":
-                consulta += "AND DATE(v.fecha_creacion) = CURDATE() "
-            elif filtro_final == "semana":
-                consulta += "AND v.fecha_creacion >= (NOW() - INTERVAL 7 DAY) "
-            elif filtro_final == "mes":
-                consulta += "AND YEAR(v.fecha_creacion) = YEAR(CURDATE()) AND MONTH(v.fecha_creacion) = MONTH(CURDATE()) "
-        else:
-            return [], "mes"
-
-        consulta += "ORDER BY v.id_venta DESC"
-        cur.execute(consulta, tuple(parametros))
         filas = cur.fetchall() or []
     finally:
         conn.close()
 
-    lista = []
-    for fila in filas:
-        lista.append(
-            {
-                "id_venta": fila.get("id_venta"),
-                "total_final": float(fila.get("total_final") or 0),
-                "estado_venta": (fila.get("estado_venta") or "Pagada").strip() or "Pagada",
-                "fecha_creacion": fila.get("fecha_creacion"),
-                "nombre_cliente": fila.get("nombre_cliente") or "Mostrador",
-                "nombre_cajero": fila.get("nombre_cajero") or "Sin cajero",
-            }
-        )
-    return lista, filtro_final
+    lista = [
+        {
+            "id_venta": fila.get("id_venta"),
+            "total_final": float(fila.get("total_final") or 0),
+            "estado_venta": (fila.get("estado_venta") or "Pagada").strip() or "Pagada",
+            "fecha_creacion": fila.get("fecha_creacion"),
+            "nombre_cliente": fila.get("nombre_cliente") or "Mostrador",
+            "nombre_cajero": fila.get("nombre_cajero") or "Sin cajero",
+        }
+        for fila in filas
+    ]
+    return lista, filtro_final, meta
 
 
 def get_turno_estado(id_tienda: int) -> dict | None:
@@ -700,6 +814,25 @@ def registrar_venta(
                 }
             )
 
+        # Descuento mayorista B2B: se resuelve en el servidor a partir de la
+        # lista asignada al cliente. El navegador nunca decide el porcentaje.
+        # Import local: cartera_service importa de este modulo.
+        from app.services.cartera_service import descuento_b2b_para_venta
+
+        descuento_b2b = descuento_b2b_para_venta(cur, id_tienda, id_cliente)
+        if descuento_b2b:
+            monto_b2b = round(monto_total * descuento_b2b["pct"] / 100, 2)
+            monto_total = max(0.0, round(monto_total - monto_b2b, 2))
+        else:
+            monto_b2b = 0.0
+
+        notas = []
+        if es_fiado:
+            notas.append("Fiado desde caja")
+        if descuento_b2b:
+            notas.append(f"Mayorista {descuento_b2b['nombre']} -{descuento_b2b['pct']:g}%")
+        observaciones = " | ".join(notas)[:255] or None
+
         cur.execute(
             "SELECT COUNT(*) AS cnt FROM ventas WHERE id_tienda = %s",
             (id_tienda,),
@@ -710,8 +843,9 @@ def registrar_venta(
         cur.execute(
             "INSERT INTO ventas "
             "(id_tienda, id_turno, id_cajero, id_cliente, numero_venta, "
-            " subtotal, total_final, metodo_pago, estado_venta, observaciones) "
-            "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+            " subtotal, tipo_descuento, valor_descuento, descuento_aplicado, "
+            " total_final, metodo_pago, estado_venta, observaciones) "
+            "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
             (
                 id_tienda,
                 id_turno,
@@ -719,10 +853,13 @@ def registrar_venta(
                 id_cliente,
                 numero_venta,
                 subtotal,
+                "PORCENTAJE" if descuento_b2b else "NINGUNO",
+                descuento_b2b["pct"] if descuento_b2b else 0,
+                monto_b2b,
                 monto_total,
                 metodo_pago_db,
                 "Fiada/Pendiente" if es_fiado else "Pagada",
-                "Fiado desde caja" if es_fiado else None,
+                observaciones,
             ),
         )
         id_venta = cur.lastrowid
@@ -802,6 +939,9 @@ def registrar_venta(
         "numero_venta": numero_venta,
         "id_cliente": id_cliente,
         "stock_alerts": alertas_stock,
+        "total_final": monto_total,
+        "descuento_b2b": monto_b2b,
+        "lista_b2b": descuento_b2b["nombre"] if descuento_b2b else "",
     }
 
 
@@ -1062,23 +1202,70 @@ def abonar_fiado(id_tienda: int, id_usuario: int, id_cliente: int, monto: float,
         conn.close()
 
 
-def get_gastos(id_tienda: int, id_usuario: int) -> list[dict]:
+def get_gastos(
+    id_tienda: int,
+    id_usuario: int,
+    filtro: str | None = None,
+    fecha: str | None = None,
+    page=1,
+    limit=20,
+) -> tuple[list[dict], str, dict, dict]:
+    """Pagina de gastos del usuario + filtro, metadatos y totales.
+
+    Los totales de hoy y del mes se calculan en SQL sobre todos los gastos, no
+    sobre la pagina: con paginacion el frontend ya no puede sumarlos.
+    """
+    page, limit = paginacion(page, limit)
+    filtro_final, desde, hasta = periodo_bounds(filtro, fecha)
+
+    # Base = alcance del usuario (no negociable). Periodo = la capsula elegida.
+    where_base = "gc.id_tienda = %s AND gc.id_usuario = %s"
+    params_base: tuple = (id_tienda, id_usuario)
+
+    where = where_base
+    parametros = params_base
+    if desde is not None:
+        where += " AND gc.fecha_creacion >= %s AND gc.fecha_creacion < %s"
+        parametros = params_base + (desde, hasta)
+
+    ahora = datetime.now()
+    inicio_dia = ahora.replace(hour=0, minute=0, second=0, microsecond=0)
+    inicio_mes = inicio_dia.replace(day=1)
+    fin_dia = inicio_dia + timedelta(days=1)
+
     conn = get_db()
     try:
         cur = conn.cursor(dictionary=True)
+        cur.execute(f"SELECT COUNT(*) AS total FROM gastos_caja gc WHERE {where}", parametros)
+        total = int((cur.fetchone() or {}).get("total") or 0)
+
+        meta = _meta_paginacion(total, page, limit)
         cur.execute(
             "SELECT gc.id_gasto, gc.concepto, gc.descripcion, gc.monto, gc.fuente_dinero, "
             "UNIX_TIMESTAMP(gc.fecha_creacion) * 1000 AS ts "
-            "FROM gastos_caja gc "
-            "WHERE gc.id_tienda = %s AND gc.id_usuario = %s "
-            "ORDER BY gc.id_gasto DESC LIMIT 100",
-            (id_tienda, id_usuario),
+            f"FROM gastos_caja gc WHERE {where} "
+            "ORDER BY gc.id_gasto DESC LIMIT %s OFFSET %s",
+            parametros + (meta["limit"], meta["offset"]),
         )
         filas = cur.fetchall() or []
+
+        # Tarjetas de resumen: sobre TODOS los gastos del usuario, sin la capsula,
+        # para que "Gastos de Hoy" no quede en 0 al filtrar por Ayer.
+        cur.execute(
+            "SELECT "
+            "  COALESCE(SUM(CASE WHEN gc.fecha_creacion >= %s AND gc.fecha_creacion < %s "
+            "                    THEN gc.monto ELSE 0 END), 0) AS hoy, "
+            "  COALESCE(SUM(CASE WHEN gc.fecha_creacion >= %s AND gc.fecha_creacion < %s "
+            "                    THEN gc.monto ELSE 0 END), 0) AS mes "
+            "FROM gastos_caja gc "
+            f"WHERE {where_base}",
+            (inicio_dia, fin_dia, inicio_mes, fin_dia) + params_base,
+        )
+        sumas = cur.fetchone() or {}
     finally:
         conn.close()
 
-    return [
+    gastos = [
         {
             "id": r["id_gasto"],
             "category": r["concepto"],
@@ -1089,6 +1276,72 @@ def get_gastos(id_tienda: int, id_usuario: int) -> list[dict]:
         }
         for r in filas
     ]
+    totales = {
+        "hoy": float(sumas.get("hoy") or 0),
+        "mes": float(sumas.get("mes") or 0),
+    }
+    return gastos, filtro_final, meta, totales
+
+
+FUENTES_DINERO = ("Caja Menor", "Caja Fuerte", "Bancos")
+
+
+def insertar_gasto(
+    cur,
+    id_tienda: int,
+    id_usuario: int,
+    concepto: str,
+    descripcion: str | None,
+    metodo_pago: str,
+    fuente_dinero: str,
+    monto: float,
+) -> int:
+    """Inserta el gasto usando el cursor de quien llama, sin commit.
+
+    Existe aparte de crear_gasto para que otra operacion (el pago de una cuenta
+    por pagar) pueda registrar su gasto DENTRO de la misma transaccion: si algo
+    falla despues, el gasto tampoco queda.
+
+    Quien llama valida y sanitiza antes; aqui solo se comprueba la fuente contra
+    el enum de la tabla y se resuelve el turno.
+    """
+    if fuente_dinero not in FUENTES_DINERO:
+        raise SalesValidationError("Fuente de dinero invalida.")
+
+    id_turno = _obtener_turno_abierto(id_tienda, cur)
+
+    if metodo_pago == "Efectivo" and fuente_dinero == "Caja Menor" and not id_turno:
+        raise SalesConflictError("No hay turno activo para cargar gastos de Caja Menor.")
+
+    if not id_turno:
+        cur.execute(
+            "SELECT id_turno FROM turnos_caja "
+            "WHERE id_tienda = %s "
+            "ORDER BY fecha_apertura DESC LIMIT 1",
+            (id_tienda,),
+        )
+        fila_turno = cur.fetchone()
+        if not fila_turno:
+            raise SalesConflictError("No existe ningun turno para registrar el gasto.")
+        id_turno = fila_turno["id_turno"]
+
+    cur.execute(
+        "INSERT INTO gastos_caja "
+        "(id_tienda, id_turno, id_usuario, concepto, descripcion, monto, fuente_dinero) "
+        "VALUES (%s,%s,%s,%s,%s,%s,%s)",
+        (id_tienda, id_turno, id_usuario, concepto, descripcion, monto, fuente_dinero),
+    )
+    nuevo_id = int(cur.lastrowid or 0)
+
+    if metodo_pago == "Efectivo" and fuente_dinero == "Caja Menor":
+        cur.execute(
+            "UPDATE turnos_caja "
+            "SET monto_final_esperado = COALESCE(monto_final_esperado, monto_inicial, 0) - %s "
+            "WHERE id_turno = %s AND id_tienda = %s",
+            (monto, id_turno, id_tienda),
+        )
+
+    return nuevo_id
 
 
 def crear_gasto(
@@ -1106,7 +1359,7 @@ def crear_gasto(
         concepto = sanitize_text(concepto, "La categoria", max_len=150)
         descripcion = sanitize_optional_text(descripcion, "La descripcion", max_len=255)
         fuente_dinero = sanitize_text(fuente_dinero, "Fuente de dinero", max_len=20)
-        if fuente_dinero not in {"Caja Menor", "Caja Fuerte", "Bancos"}:
+        if fuente_dinero not in FUENTES_DINERO:
             raise SalesValidationError("Fuente de dinero invalida.")
         monto = parse_float(monto, "Monto", min_value=0, allow_zero=False)
     except ValueError as exc:
@@ -1114,41 +1367,9 @@ def crear_gasto(
     conn = get_db()
     try:
         cur = conn.cursor(dictionary=True)
-        id_turno = _obtener_turno_abierto(id_tienda, cur)
-
-        if metodo_pago == "Efectivo" and fuente_dinero == "Caja Menor" and not id_turno:
-            raise SalesConflictError("No hay turno activo para cargar gastos de Caja Menor.")
-
-        if not id_turno:
-            cur.execute(
-                "SELECT id_turno FROM turnos_caja "
-                "WHERE id_tienda = %s "
-                "ORDER BY fecha_apertura DESC LIMIT 1",
-                (id_tienda,),
-            )
-            fila_turno = cur.fetchone()
-            if not fila_turno:
-                raise SalesConflictError("No existe ningun turno para registrar el gasto.")
-            id_turno = fila_turno["id_turno"]
-
-        cur.execute(
-            "INSERT INTO gastos_caja "
-            "(id_tienda, id_turno, id_usuario, concepto, descripcion, monto, fuente_dinero) "
-            "VALUES (%s,%s,%s,%s,%s,%s,%s)",
-            (id_tienda, id_turno, id_usuario, concepto, descripcion, monto, fuente_dinero),
+        nuevo_id = insertar_gasto(
+            cur, id_tienda, id_usuario, concepto, descripcion, metodo_pago, fuente_dinero, monto
         )
-        cur.execute("SELECT LAST_INSERT_ID() AS nuevo_id")
-        fila_nuevo_id = cur.fetchone() or {}
-        nuevo_id = int(fila_nuevo_id.get("nuevo_id") or 0)
-
-        if metodo_pago == "Efectivo" and fuente_dinero == "Caja Menor":
-            cur.execute(
-                "UPDATE turnos_caja "
-                "SET monto_final_esperado = COALESCE(monto_final_esperado, monto_inicial, 0) - %s "
-                "WHERE id_turno = %s AND id_tienda = %s",
-                (monto, id_turno, id_tienda),
-            )
-
         conn.commit()
     except Exception:
         conn.rollback()

@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>jemPOS - Clientes a Proveer</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+
+  <link
+    rel="stylesheet"
+    href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
+    crossorigin="anonymous"
+    referrerpolicy="no-referrer"
+  />
+
+  <!-- Misma base visual que Cartera: caja.css (layout) + fiados.css (componentes) -->
+  <link rel="stylesheet" href="/static/css/caja.css" />
+  <link rel="stylesheet" href="/static/css/fiados.css" />
+  <meta name="csrf-token" content="{{ csrf_token() }}" />
+  <link rel="stylesheet" href="/static/css/global.css" />
+</head>
+
+<body>
+<div class="app-shell">
+
+  {% include "pos/_nav.html" %}
+
+  <div class="fiad-main">
+    <header class="fiad-topbar">
+      <div class="fiad-title-row">
+        <div class="fiad-logo" aria-hidden="true">
+          <span class="jem">jem</span><span class="pos">POS</span>
+        </div>
+        <h1 class="fiad-title">Clientes a Proveer</h1>
+      </div>
+
+      <div class="fiad-tabs" role="tablist" aria-label="Secciones B2B">
+        <button class="fiad-tab active" type="button" role="tab" id="tab-btn-clientes"
+                data-tab="clientes" aria-selected="true" aria-controls="panel-clientes">
+          <i class="fa-solid fa-truck-field"></i>
+          <span>Clientes</span>
+        </button>
+        <button class="fiad-tab" type="button" role="tab" id="tab-btn-listas"
+                data-tab="listas" aria-selected="false" aria-controls="panel-listas">
+          <i class="fa-solid fa-tags"></i>
+          <span>Listas Mayoristas</span>
+        </button>
+      </div>
+
+      <div class="fiad-stats">
+        <div class="fiad-stat">
+          <span class="fiad-stat-label">Comprado por B2B</span>
+          <span class="fiad-stat-value fiad-stat-neutral" id="stat-comprado">$0</span>
+        </div>
+        <div class="fiad-stat">
+          <span class="fiad-stat-label">Ticket promedio</span>
+          <span class="fiad-stat-value fiad-stat-neutral" id="stat-ticket">$0</span>
+        </div>
+        <div class="fiad-stat">
+          <span class="fiad-stat-label">Clientes</span>
+          <span class="fiad-stat-value fiad-stat-neutral" id="stat-clientes">0</span>
+        </div>
+      </div>
+
+      <div class="fiad-search-wrap">
+        <i class="fa-solid fa-magnifying-glass"></i>
+        <input
+          type="search"
+          id="b2b-search"
+          class="fiad-search"
+          placeholder="Buscar empresa, NIT o telefono..."
+          autocomplete="off"
+          aria-label="Buscar clientes comerciales"
+        />
+      </div>
+    </header>
+
+    <div class="fiad-body" data-fab-scroll-container>
+
+      <!-- ══════════ CLIENTES COMERCIALES ══════════ -->
+      <section class="fiad-panel" id="panel-clientes" role="tabpanel" aria-labelledby="tab-btn-clientes">
+        <div class="fiad-panel-actions">
+          <button class="btn-new-client" id="btn-new-b2b" type="button">
+            <i class="fa-solid fa-building-circle-check"></i>
+            Nuevo Cliente B2B
+          </button>
+        </div>
+
+        <div class="fiad-cards" id="b2b-cards" aria-label="Clientes comerciales"></div>
+
+        <div class="fiad-table-wrap">
+          <table class="fiad-table" aria-label="Clientes a proveer">
+            <thead id="b2b-thead">
+              <tr>
+                <th class="th-sortable" data-col="name">Cliente&nbsp;<span class="sort-icon-wrap"><i class="fa-solid fa-sort sort-icon"></i></span></th>
+                <th class="th-sortable" data-col="pedidos">Pedidos&nbsp;<span class="sort-icon-wrap"><i class="fa-solid fa-sort sort-icon"></i></span></th>
+                <th class="th-sortable" data-col="ticket_promedio">Ticket prom.&nbsp;<span class="sort-icon-wrap"><i class="fa-solid fa-sort sort-icon"></i></span></th>
+                <th class="th-sortable" data-col="frecuencia_dias">Frecuencia&nbsp;<span class="sort-icon-wrap"><i class="fa-solid fa-sort sort-icon"></i></span></th>
+                <th>Lista mayorista</th>
+                <th>Acciones</th>
+              </tr>
+            </thead>
+            <tbody id="b2b-table-body"></tbody>
+          </table>
+        </div>
+
+        <div class="fiad-empty hidden" id="b2b-empty">
+          <i class="fa-solid fa-truck-field"></i>
+          <p>Sin clientes comerciales</p>
+          <span>Registra los negocios a los que provees para ver su comportamiento de compra.</span>
+        </div>
+      </section>
+
+      <!-- ══════════ LISTAS MAYORISTAS ══════════ -->
+      <section class="fiad-panel hidden" id="panel-listas" role="tabpanel" aria-labelledby="tab-btn-listas">
+        <div class="fiad-panel-actions">
+          <button class="btn-new-client" id="btn-new-lista" type="button">
+            <i class="fa-solid fa-plus"></i>
+            Nueva Lista
+          </button>
+        </div>
+
+        <div class="fiad-cards" id="listas-cards" aria-label="Listas de precios mayoristas"></div>
+
+        <div class="fiad-table-wrap">
+          <table class="fiad-table" aria-label="Listas de precios mayoristas">
+            <thead>
+              <tr>
+                <th>Lista</th>
+                <th>Descuento</th>
+                <th>Se aplica desde</th>
+                <th>Clientes</th>
+                <th>Acciones</th>
+              </tr>
+            </thead>
+            <tbody id="listas-table-body"></tbody>
+          </table>
+        </div>
+
+        <div class="fiad-empty hidden" id="listas-empty">
+          <i class="fa-solid fa-tags"></i>
+          <p>Sin listas mayoristas</p>
+          <span>Crea una lista con su descuento y asignala a tus clientes B2B.</span>
+        </div>
+      </section>
+    </div>
+  </div>
+
+</div>
+
+<!-- ══════════ MODAL — DASHBOARD DEL CLIENTE ══════════ -->
+<div class="fiad-backdrop hidden" id="modal-b2b-detalle" role="dialog" aria-modal="true" aria-labelledby="b2b-detalle-title">
+  <div class="fiad-modal-card fiad-modal-wide">
+    <div class="fiad-modal-header">
+      <span class="fiad-modal-title" id="b2b-detalle-title">Cliente comercial</span>
+      <button class="fiad-modal-close" data-close="modal-b2b-detalle" type="button" aria-label="Cerrar">
+        <img src="/static/img/equis.png" alt="Cerrar" />
+      </button>
+    </div>
+    <div class="fiad-modal-body">
+      <p class="fiad-modal-client-name" id="b2b-detalle-nombre">—</p>
+
+      <div class="fiad-kpis" id="b2b-detalle-kpis"></div>
+
+      <div class="fiad-section">
+        <h3 class="fiad-section-title"><i class="fa-solid fa-ranking-star"></i> Top productos comprados</h3>
+        <ul class="fiad-toplist" id="b2b-detalle-top"></ul>
+      </div>
+
+      <div class="fiad-section">
+        <h3 class="fiad-section-title"><i class="fa-solid fa-tags"></i> Lista mayorista asignada</h3>
+        <div class="fiad-field">
+          <label for="b2b-detalle-lista">Lista de precios</label>
+          <select id="b2b-detalle-lista" class="fiad-select">
+            <option value="">Sin lista (precio normal)</option>
+          </select>
+        </div>
+        <p class="fiad-preview" id="b2b-detalle-lista-hint"></p>
+      </div>
+    </div>
+    <div class="fiad-modal-footer">
+      <button class="btn-fiad-cancel" data-close="modal-b2b-detalle" type="button">Cerrar</button>
+      <button class="btn-fiad-primary" id="btn-b2b-lista-save" type="button"><i class="fa-solid fa-floppy-disk"></i>&nbsp; Guardar lista</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ MODAL — NUEVO / EDITAR CLIENTE B2B ══════════ -->
+<div class="fiad-backdrop hidden" id="modal-b2b" role="dialog" aria-modal="true" aria-labelledby="modal-b2b-title">
+  <div class="fiad-modal-card">
+    <div class="fiad-modal-header">
+      <span class="fiad-modal-title" id="modal-b2b-title">Nuevo Cliente B2B</span>
+      <button class="fiad-modal-close" data-close="modal-b2b" type="button" aria-label="Cerrar">
+        <img src="/static/img/equis.png" alt="Cerrar" />
+      </button>
+    </div>
+    <div class="fiad-modal-body">
+      <div id="b2b-error" class="fiad-modal-error hidden">
+        <i class="fa-solid fa-circle-exclamation"></i><span id="b2b-error-text"></span>
+      </div>
+      <div class="fiad-field">
+        <label for="b2b-nombre">Nombre o razon social</label>
+        <input type="text" id="b2b-nombre" placeholder="Ej. Tienda La Esquina" autocomplete="off" maxlength="150" />
+      </div>
+      <div class="fiad-field">
+        <label for="b2b-telefono">Telefono</label>
+        <input type="tel" id="b2b-telefono" inputmode="numeric" pattern="[0-9]*" placeholder="Ej. 3123456789" autocomplete="off" maxlength="25" />
+      </div>
+      <div class="fiad-field">
+        <label for="b2b-nit">NIT <span class="fiad-optional">(opcional)</span></label>
+        <input type="text" id="b2b-nit" placeholder="Ej. 900123456-7" autocomplete="off" maxlength="30" />
+      </div>
+      <div class="fiad-field">
+        <label for="b2b-lista">Lista mayorista <span class="fiad-optional">(opcional)</span></label>
+        <select id="b2b-lista" class="fiad-select">
+          <option value="">Sin lista (precio normal)</option>
+        </select>
+      </div>
+    </div>
+    <div class="fiad-modal-footer">
+      <button class="btn-fiad-cancel" data-close="modal-b2b" type="button">Cancelar</button>
+      <button class="btn-fiad-primary" id="btn-b2b-confirm" type="button"><i class="fa-solid fa-floppy-disk"></i>&nbsp; Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ MODAL — NUEVA / EDITAR LISTA ══════════ -->
+<div class="fiad-backdrop hidden" id="modal-lista" role="dialog" aria-modal="true" aria-labelledby="modal-lista-title">
+  <div class="fiad-modal-card">
+    <div class="fiad-modal-header">
+      <span class="fiad-modal-title" id="modal-lista-title">Nueva Lista Mayorista</span>
+      <button class="fiad-modal-close" data-close="modal-lista" type="button" aria-label="Cerrar">
+        <img src="/static/img/equis.png" alt="Cerrar" />
+      </button>
+    </div>
+    <div class="fiad-modal-body">
+      <div id="lista-error" class="fiad-modal-error hidden">
+        <i class="fa-solid fa-circle-exclamation"></i><span id="lista-error-text"></span>
+      </div>
+      <div class="fiad-field">
+        <label for="lista-nombre">Nombre de la lista</label>
+        <input type="text" id="lista-nombre" placeholder="Ej. Mayorista Oro" autocomplete="off" maxlength="100" />
+      </div>
+      <div class="fiad-field">
+        <label for="lista-pct">Descuento (%)</label>
+        <input type="number" id="lista-pct" min="0" max="100" step="0.5" inputmode="decimal" placeholder="Ej. 8" />
+      </div>
+      <div class="fiad-field">
+        <label for="lista-min">Aplicar desde el pedido numero <span class="fiad-optional">(0 = siempre)</span></label>
+        <input type="number" id="lista-min" min="0" max="999" step="1" inputmode="numeric" placeholder="0" />
+      </div>
+      <p class="fiad-confirm-text">
+        El descuento se aplica solo en el servidor al cobrar en Caja, cuando el
+        cliente ya acumula los pedidos indicados.
+      </p>
+    </div>
+    <div class="fiad-modal-footer">
+      <button class="btn-fiad-cancel" data-close="modal-lista" type="button">Cancelar</button>
+      <button class="btn-fiad-primary" id="btn-lista-confirm" type="button"><i class="fa-solid fa-floppy-disk"></i>&nbsp; Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ MODAL — CONFIRMAR ══════════ -->
+<div class="fiad-backdrop hidden" id="modal-confirm" role="dialog" aria-modal="true" aria-labelledby="modal-confirm-title">
+  <div class="fiad-modal-card">
+    <div class="fiad-modal-header">
+      <span class="fiad-modal-title" id="modal-confirm-title">Confirmar</span>
+      <button class="fiad-modal-close" data-close="modal-confirm" type="button" aria-label="Cerrar">
+        <img src="/static/img/equis.png" alt="Cerrar" />
+      </button>
+    </div>
+    <div class="fiad-modal-body">
+      <p class="fiad-modal-client-name" id="confirm-target">—</p>
+      <p class="fiad-confirm-text" id="confirm-text">Esta accion no se puede deshacer.</p>
+    </div>
+    <div class="fiad-modal-footer">
+      <button class="btn-fiad-cancel" data-close="modal-confirm" type="button">Cancelar</button>
+      <button class="btn-fiad-danger" id="btn-confirm-yes" type="button"><i class="fa-solid fa-trash-can"></i>&nbsp; Confirmar</button>
+    </div>
+  </div>
+</div>
+
+<script src="/static/js/logout.js"></script>
+<script src="/static/js/cop-format.js"></script>
+<script src="/static/js/toast.js"></script>
+<script src="/static/js/fab-scroll.js"></script>
+<div id="app-context"
+  data-user-rol="{{ rol }}"
+  data-subs-alerta='{{ mostrar_alerta_suscripcion | tojson }}'
+  data-subs-dias="{{ dias_restantes }}"
+  hidden></div>
+<script src="/static/js/subs-context.js"></script>
+<script src="/static/js/clientes-proveer.js"></script>
+<script src="/static/js/nav-rbac.js"></script>
+<script src="/static/js/subs-modal.js"></script>
+
+</body>
+</html>

@@ -245,6 +245,10 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
       const data = await submitSale(payload);
       if (!data.ok) return { ok: false, msg: data.msg || 'Error al registrar la venta.' };
+      if (Number(data.descuento_b2b) > 0) {
+        /* El descuento mayorista lo aplica el servidor: el cajero se entera aqui. */
+        showToast(`Descuento mayorista ${data.lista_b2b || ''}: -${COP.format(data.descuento_b2b)}`.trim(), false, 4000);
+      }
       if (Array.isArray(data.stock_alerts) && data.stock_alerts.length) {
         showStockAlerts(data.stock_alerts);
       }

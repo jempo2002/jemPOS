@@ -71,12 +71,15 @@ def create_app() -> Flask:
     init_pool_from_app(app)
 
     from app.routes.auth import auth
+    from app.routes.cartera import cartera_api_bp, cartera_bp
     from app.routes.core import core_bp
     from app.routes.inventory import inventory_api_bp, inventory_bp
     from app.routes.sales import sales_api_bp, sales_bp
 
     app.register_blueprint(auth)
     app.register_blueprint(core_bp)
+    app.register_blueprint(cartera_bp)
+    app.register_blueprint(cartera_api_bp)
     app.register_blueprint(inventory_bp)
     app.register_blueprint(inventory_api_bp)
     app.register_blueprint(sales_bp)

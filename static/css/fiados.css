@@ -112,6 +112,70 @@
   .btn-new-client { display: inline-flex; }
 }
 
+/* ══════════════════════════════════════════════════════════
+   PESTANAS — Cuentas por Cobrar / Cuentas por Pagar
+   ══════════════════════════════════════════════════════════ */
+.fiad-tabs {
+  display: flex;
+  gap: 0.35rem;
+  background: #F1F5F9;
+  border-radius: 0.8rem;
+  padding: 0.25rem;
+}
+
+.fiad-tab {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.5rem 0.6rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+  font-family: inherit;
+  color: #64748B;
+  background: transparent;
+  border: none;
+  border-radius: 0.65rem;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: background 0.15s, color 0.15s;
+}
+
+.fiad-tab i { font-size: 0.8rem; }
+.fiad-tab:hover { color: #1E293B; }
+
+.fiad-tab.active {
+  background: #FFFFFF;
+  color: #1D4ED8;
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.08);
+}
+
+/* En pantallas angostas el icono sostiene la pestana y el texto se acorta */
+@media (max-width: 400px) {
+  .fiad-tab span { font-size: 0.74rem; }
+}
+
+@media (min-width: 768px) {
+  .fiad-tabs { max-width: 480px; }
+  .fiad-tab { font-size: 0.88rem; }
+}
+
+.fiad-panel.hidden { display: none !important; }
+
+.fiad-panel-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 0.9rem;
+}
+
+/* El boton de la barra de acciones del panel se ve siempre, tambien en movil */
+.fiad-panel-actions .btn-new-client {
+  display: inline-flex !important;
+}
+
 /* ── Stats rapidos ─────────────────────────────────────────── */
 .fiad-stats {
   display: flex;
@@ -193,14 +257,9 @@
    VISTA MOVIL — TARJETAS
    ══════════════════════════════════════════════════════════ */
 .hidden { display: none !important; }
-.block { display: block; }
 
-@media (min-width: 768px) {
-  .md\:hidden { display: none !important; }
-  .md\:block { display: block !important; }
-  .md\:table { display: table !important; }
-}
-
+/* El cambio tarjetas <-> tabla lo hacen las media queries de abajo, no
+   utilidades md:* en el HTML. */
 .fiad-cards {
   display: flex;
   flex-direction: column;
@@ -305,6 +364,46 @@
 }
 
 /* ══════════════════════════════════════════════════════════
+   INDICADORES — mora y etiquetas
+   ══════════════════════════════════════════════════════════ */
+.fiad-mora {
+  display: inline-block;
+  margin-top: 0.3rem;
+  padding: 0.15rem 0.5rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  border-radius: 9999px;
+  white-space: nowrap;
+}
+
+.fiad-mora.ok   { background: rgba(16,185,129,0.12); color: #047857; }
+.fiad-mora.warn { background: rgba(245,158,11,0.16); color: #B45309; }
+.fiad-mora.late { background: rgba(239,68,68,0.14);  color: #B91C1C; }
+
+.fiad-badge {
+  display: inline-block;
+  padding: 0.12rem 0.45rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  border-radius: 0.4rem;
+  background: #F1F5F9;
+  color: #475569;
+  vertical-align: middle;
+}
+
+.fiad-badge-b2b {
+  background: #DBEAFE;
+  color: #1D4ED8;
+}
+
+/* Avatar de una obligacion (no es una persona, es un documento) */
+.fiad-avatar-cxp {
+  background: #E2E8F0;
+  color: #475569;
+  font-size: 0.9rem;
+}
+
+/* ══════════════════════════════════════════════════════════
    BOTONES DE ACCION (compartidos entre tarjeta y tabla)
    ══════════════════════════════════════════════════════════ */
 .fiad-action-btn {
@@ -340,6 +439,13 @@
 }
 .fiad-action-btn.btn-sumar:hover { background: rgba(239,68,68,0.22); }
 
+/* Borrar / anular — neutro, para no competir con las acciones frecuentes */
+.fiad-action-btn.btn-borrar {
+  background: #F1F5F9;
+  color: #64748B;
+}
+.fiad-action-btn.btn-borrar:hover { background: #E2E8F0; color: #B91C1C; }
+
 /* En tabla: botones mas compactos */
 .fiad-table-actions {
   display: flex;
@@ -364,8 +470,15 @@
     background: #ffffff;
     border: 1.5px solid #E2E8F0;
     border-radius: 1rem;
-    overflow: hidden;
+    /* Con 5-6 columnas la tabla no cabe entre 768 y ~1000px: hace scroll
+       dentro de su contenedor, nunca en la pagina (regla de global.css).
+       overflow-y hidden mantiene el recorte del border-radius. */
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
   }
+
+  .fiad-table { min-width: 640px; }
 }
 
 .fiad-table {
@@ -616,6 +729,199 @@
   border-color: #3B82F6;
   box-shadow: 0 0 0 3px rgba(59,130,246,0.12);
   background: #fff;
+}
+
+/* Selects y fecha nativa: mismo aspecto que los inputs del modal */
+.fiad-field select,
+.fiad-field input[type="date"] {
+  width: 100%;
+  padding: 0.7rem 0.9rem;
+  font-size: 1rem;
+  font-family: inherit;
+  color: #1E293B;
+  background: #F8FAFC;
+  border: 1.5px solid #E2E8F0;
+  border-radius: 0.75rem;
+  outline: none;
+  box-sizing: border-box;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.fiad-field select:focus,
+.fiad-field input[type="date"]:focus {
+  border-color: #3B82F6;
+  box-shadow: 0 0 0 3px rgba(59,130,246,0.12);
+  background: #fff;
+}
+
+/* El select nativo pierde la flecha con appearance:none de global.css */
+.fiad-field select {
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2364748B' stroke-width='2.5' stroke-linecap='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.8rem center;
+  background-size: 1rem;
+  padding-right: 2.4rem;
+}
+
+.fiad-field.hidden { display: none !important; }
+
+/* Aviso de error dentro de un modal */
+.fiad-modal-error {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.7rem 0.9rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #B91C1C;
+  background: #FEF2F2;
+  border: 1.5px solid rgba(239,68,68,0.25);
+  border-radius: 0.75rem;
+}
+
+.fiad-modal-error.hidden { display: none !important; }
+
+/* Error a nivel de campo */
+.fiad-field-error {
+  margin: 0;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #DC2626;
+}
+
+.fiad-field-error.hidden { display: none !important; }
+
+.fiad-field input.is-invalid,
+.fiad-field select.is-invalid {
+  border-color: #EF4444;
+  box-shadow: 0 0 0 3px rgba(239,68,68,0.12);
+}
+
+/* Texto explicativo del modal de confirmacion */
+.fiad-confirm-text {
+  margin: 0;
+  font-size: 0.9rem;
+  color: #64748B;
+  line-height: 1.45;
+}
+
+/* ══════════════════════════════════════════════════════════
+   DASHBOARD DEL CLIENTE COMERCIAL (modulo B2B)
+   ══════════════════════════════════════════════════════════ */
+.fiad-modal-wide {
+  max-width: 560px;
+}
+
+/* El dashboard puede crecer: se hace scroll dentro del modal, no en la pagina */
+.fiad-modal-wide .fiad-modal-body {
+  max-height: min(70vh, 640px);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.fiad-kpis {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.6rem;
+}
+
+@media (min-width: 520px) {
+  .fiad-kpis { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+
+.fiad-kpi {
+  background: #F8FAFC;
+  border: 1.5px solid #E2E8F0;
+  border-radius: 0.75rem;
+  padding: 0.6rem 0.7rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.fiad-kpi-label {
+  font-size: 0.7rem;
+  font-weight: 500;
+  color: #94A3B8;
+}
+
+.fiad-kpi-value {
+  font-size: 1rem;
+  font-weight: 800;
+  color: #1E293B;
+  letter-spacing: -0.02em;
+  overflow-wrap: anywhere;
+}
+
+.fiad-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.fiad-section-title {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #475569;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.fiad-section-title i { color: #94A3B8; font-size: 0.8rem; }
+
+.fiad-toplist {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.fiad-toplist li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.7rem;
+  padding: 0.55rem 0.8rem;
+  background: #F8FAFC;
+  border: 1px solid #E2E8F0;
+  border-radius: 0.7rem;
+  font-size: 0.88rem;
+}
+
+.fiad-toplist-name {
+  font-weight: 600;
+  color: #1E293B;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fiad-toplist-meta {
+  flex-shrink: 0;
+  text-align: right;
+  font-weight: 700;
+  color: #1D4ED8;
+}
+
+.fiad-toplist-units {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: #94A3B8;
+}
+
+.fiad-toplist-empty {
+  justify-content: center;
+  color: #94A3B8;
+  font-weight: 500;
 }
 
 /* Input gigante para montos */

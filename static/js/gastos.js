@@ -9,24 +9,48 @@ document.addEventListener('DOMContentLoaded', () => {
     : { 'Content-Type': 'application/json' };
 
   let gastos  = [];
+  let totales = { hoy: 0, mes: 0 };
   let sortCol = null;
   let sortDir = 'asc';
+  /* Numero de peticion: descarta respuestas viejas si el usuario cambia de
+     capsula o de pagina mientras una consulta esta en vuelo. */
+  let peticion = 0;
 
-  /* ── Carga inicial desde API ─────────────────────────────── */
+  /* ── Capsulas + fecha + paginacion (componente compartido) ── */
+  const filtros = window.JemFiltros.init({
+    id: 'gastos',
+    filtro: 'mes',
+    limit: 20,
+    onChange: loadGastos,
+  });
+
+  /* ── Carga paginada desde API ────────────────────────────── */
   async function loadGastos() {
-    const res = await fetch('/pos/api/gastos');
-    if (res.status === 401) { window.location.href = '/login'; return; }
-    const data = await res.json();
-    if (!data.ok) { notify('Error al cargar gastos.', 'error'); return; }
-    gastos = data.gastos;
-    renderAll();
+    const mia = ++peticion;
+    try {
+      const res = await fetch('/pos/api/gastos?' + filtros.query(), {
+        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+      });
+      if (res.status === 401) { window.location.href = '/login'; return; }
+      const data = await res.json();
+      if (mia !== peticion) return;
+      if (!data.ok) { notify(data.msg || 'Error al cargar gastos.', 'error'); return; }
+      gastos = data.gastos || [];
+      /* Los totales llegan del servidor: con 20 filas por pagina el frontend
+         ya no puede sumar los gastos de hoy ni los del mes. */
+      totales = data.totales || totales;
+      filtros.setMeta(data.meta);
+      renderAll();
+    } catch (_) {
+      if (mia === peticion) notify('Sin conexion con el servidor.', 'error');
+    }
   }
-  loadGastos();
 
   /* ── Referencias DOM ─────────────────────────────────────── */
   const cardsEl     = document.getElementById('gast-cards');
   const tableBody   = document.getElementById('gast-table-body');
   const emptyEl     = document.getElementById('gast-empty');
+  const tableWrap   = document.querySelector('.gast-table-wrap');
   const statHoy     = document.getElementById('stat-hoy');
   const statMes     = document.getElementById('stat-mes');
 
@@ -154,23 +178,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const isEmpty = gastos.length === 0;
     emptyEl.classList.toggle('hidden', !isEmpty);
     cardsEl.classList.toggle('hidden', isEmpty);
+    if (tableWrap) tableWrap.classList.toggle('hidden', isEmpty);
 
     updateStats();
   }
 
   function updateStats() {
-    const startOfDay = new Date(); startOfDay.setHours(0,0,0,0);
-    const startOfMonth = new Date(); startOfMonth.setDate(1); startOfMonth.setHours(0,0,0,0);
-
-    const totalHoy = gastos
-      .filter(g => g.ts >= startOfDay.getTime())
-      .reduce((s, g) => s + g.amount, 0);
-    const totalMes = gastos
-      .filter(g => g.ts >= startOfMonth.getTime())
-      .reduce((s, g) => s + g.amount, 0);
-
-    statHoy.textContent = `$${COP.format(totalHoy)}`;
-    statMes.textContent = `$${COP.format(totalMes)}`;
+    statHoy.textContent = `$${COP.format(totales.hoy)}`;
+    statMes.textContent = `$${COP.format(totales.mes)}`;
   }
 
   /* ── HTML tarjeta (movil) ────────────────────────────────── */
@@ -314,6 +329,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!res.ok || !data.ok) { showModalError(data.error || data.msg || 'Error al registrar gasto.'); return; }
 
     closeModal(modalGasto);
+    /* El gasto nuevo es el mas reciente: vuelve a la pagina 1 para verlo. */
+    filtros.estado.page = 1;
     await loadGastos();
     notify(`Gasto de $${COP.format(amount)} registrado`, 'success');
   });
@@ -372,6 +389,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     console[type === 'error' ? 'error' : 'log'](msg);
   }
+
+  /* ── Arranque ────────────────────────────────────────────── */
+  loadGastos();
 
   /* ── Shake (validacion) ──────────────────────────────────── */
   function shake(el) {

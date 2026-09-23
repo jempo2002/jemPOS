@@ -15,16 +15,46 @@ administra el despliegue (tu). Asume un solo servicio web + un MySQL en Railway.
 - `app/security.py` — ProxyFix + Flask-Talisman: en produccion fuerza HTTPS,
   manda HSTS y marca la cookie de sesion como `Secure`.
 - `.gitignore` — `.env`, `jempos.sql` y `flask_session/` nunca se suben.
+- **Contacto real** en una sola fuente, `CONTACTO` en
+  [app/routes/seo.py](app/routes/seo.py): WhatsApp +57 310 615 2268, Instagram
+  @jempos__ y jemposoporte@gmail.com. De ahi salen a la vez el JSON-LD que lee
+  Google (con `sameAs` al perfil de Instagram) y la columna Contacto del footer
+  del landing y de las paginas legales, asi que no pueden desincronizarse.
+- **Imagen de previsualizacion** `static/img/og-cover.jpg` (1200x630): antes
+  `og:image` apuntaba a un archivo inexistente y compartir el enlace por
+  WhatsApp no generaba tarjeta.
+- **Textos legales definitivos**: el aviso legal y la politica de privacidad ya
+  no son Lorem ipsum. Estan redactados para Colombia (Ley 1581 de 2012, Ley
+  1480 de 2011, Ley 527 de 1999) e incluyen la transferencia internacional de
+  datos a Railway y Gmail, que es obligatorio declarar. Falta un dato: ver el
+  paso 8.
 
 ---
 
-## 1. Subir el codigo a GitHub
+## 1. Comprobar en local y subir el codigo a GitHub
+
+Antes de empujar, con MySQL local levantado, pasa los chequeos del repo. Cubren
+sesiones, HTTPS forzado, paginas legales, rastreo, datos estructurados,
+accesibilidad y los flujos de venta y cartera:
+
+```bash
+.venv/Scripts/python.exe scripts/check_produccion.py
+.venv/Scripts/python.exe scripts/check_seo_activos.py
+.venv/Scripts/python.exe scripts/check_rendimiento_ux.py
+.venv/Scripts/python.exe scripts/check_filtros_paginacion.py
+.venv/Scripts/python.exe scripts/check_cartera_b2b.py
+.venv/Scripts/python.exe scripts/check_fiado_caja.py
+```
+
+Todos deben terminar en `OK`. Un `AssertionError` aqui es un fallo que se iria
+a produccion.
+
 
 Railway despliega desde una rama. Decide cual:
 
 ```bash
-git add .python-version requirements.txt DEPLOY.md
-git commit -m "chore: fijar Python 3.13 y agregar cryptography para MySQL 8"
+git add -A
+git commit -m "chore: preparar produccion (Python 3.13, cryptography, contacto real, legales)"
 git push origin v1.1
 ```
 
@@ -152,17 +182,54 @@ Con el dominio ya activo:
   `https://tudominio.com/...`. Si sale `http://` o un host `.railway.app`,
   ProxyFix no esta viendo las cabeceras `X-Forwarded-*`.
 - `https://tudominio.com/sitemap.xml` → las cuatro URLs con tu dominio.
+- `https://tudominio.com/static/img/og-cover.jpg` -> la imagen de
+  previsualizacion (1200x630). Se genera con
+  `python scripts/generar_og_cover.py` y esta versionada; solo hay que volver a
+  correrlo si cambia el texto o el logo.
+- El footer muestra WhatsApp, Instagram y el correo, y los tres enlaces abren.
 - Inicia sesion y entra al POS: valida que la base quedo bien importada.
 
 ---
 
 ## 8. Pendiente antes de anunciar el sitio
 
-- **Datos de contacto falsos en los datos estructurados.**
-  `app/routes/seo.py` publica `CONTACTO_PLACEHOLDER` con
-  `contacto@example.com` y `+57-000-0000000`. Reemplazalos por los reales o
-  Google indexara una ficha con contacto inventado.
+**Unico bloqueante: identificar al responsable del tratamiento.**
+
+La Ley 1581 de 2012 obliga a que el aviso legal y la politica de privacidad
+digan quien responde por los datos. Son cuatro valores que no se pueden deducir
+del codigo, y estan juntos en un solo sitio, `EMPRESA` en
+[app/routes/legal.py](app/routes/legal.py):
+
+```python
+EMPRESA = {
+    "razon_social": "POR DEFINIR",   # tu nombre completo, o la razon social
+    "nit": "POR DEFINIR",            # tu cedula, o el NIT de la empresa
+    "domicilio": "POR DEFINIR",      # direccion de notificaciones
+    "ciudad": "POR DEFINIR",         # define tambien el juez competente
+}
+```
+
+Si operas como persona natural, `razon_social` es tu nombre completo y `nit` tu
+cedula. Si constituiste empresa, los del certificado de Camara de Comercio.
+
+Mientras alguno siga en `POR DEFINIR`, el codigo se protege solo:
+
+- las dos paginas legales se sirven con `<meta name="robots" content="noindex">`,
+- salen del `sitemap.xml`,
+- y muestran un aviso visible de que falta completarlas.
+
+En cuanto rellenes los cuatro valores, las tres cosas se revierten sin tocar
+nada mas. Se hace asi porque un aviso legal a medias que Google alcance a
+indexar queda en su cache y en los resultados semanas despues de corregirlo.
+
+**Despues del despliegue:**
+
 - Da de alta el dominio en Google Search Console y envia el sitemap.
+- Comprueba la tarjeta al compartir en
+  [Facebook Sharing Debugger](https://developers.facebook.com/tools/debug/) y
+  mandandote el enlace por WhatsApp.
+- Valida los datos estructurados en la
+  [prueba de resultados enriquecidos](https://search.google.com/test/rich-results).
 
 ---
 

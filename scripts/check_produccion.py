@@ -154,13 +154,34 @@ print("OK 1: rutas publicas destruyen la sesion, privadas con no-store, flashes 
 # ══════════════════════════════════════════════════════════════
 # 2) PAGINAS LEGALES
 # ══════════════════════════════════════════════════════════════
+from app.routes.legal import empresa_incompleta  # noqa: E402
+
 with app.test_client() as c:
     r, cuerpo = html(c, "/legal/aviso-legal")
     assert r.status_code == 200, r.status_code
     assert "Aviso legal" in cuerpo and "Titularidad del sitio" in cuerpo
     assert "{{" not in cuerpo and "{%" not in cuerpo, "quedo Jinja sin renderizar"
-    assert "Borrador" in cuerpo, "falta el aviso de que el texto es de relleno"
     assert "/legal/politica-privacidad" in cuerpo, "falta el enlace cruzado"
+
+    # El texto ya no es de relleno: si vuelve a aparecer Lorem ipsum es que
+    # alguien restauro una version vieja de la plantilla.
+    for ruta in ("/legal/aviso-legal", "/legal/politica-privacidad"):
+        _r, texto = html(c, ruta)
+        assert "Lorem ipsum" not in texto, f"{ruta} volvio a tener texto de relleno"
+
+    # Mientras falte identificar al responsable del tratamiento (EMPRESA en
+    # app/routes/legal.py), las dos paginas avisan y se sirven sin indexar.
+    # Al completarlo, el aviso desaparece y vuelven a index.
+    for ruta in ("/legal/aviso-legal", "/legal/politica-privacidad"):
+        _r, texto = html(c, ruta)
+        if empresa_incompleta():
+            assert "POR DEFINIR" in texto, f"{ruta} no muestra que faltan datos"
+            assert 'content="noindex, follow"' in texto, (
+                f"{ruta} tiene datos sin completar pero se sirve indexable"
+            )
+        else:
+            assert "POR DEFINIR" not in texto, f"{ruta} conserva marcadores sin rellenar"
+            assert 'content="index, follow"' in texto, f"{ruta} quedo noindex"
 
     r, cuerpo = html(c, "/legal/politica-privacidad")
     assert r.status_code == 200, r.status_code

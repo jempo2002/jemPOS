@@ -31,7 +31,7 @@ os.environ["FLASK_ENV"] = "development"
 from PIL import Image  # noqa: E402
 
 from app import create_app  # noqa: E402
-from app.routes.seo import PAGINAS_PUBLICAS, RUTAS_BLOQUEADAS  # noqa: E402
+from app.routes.seo import RUTAS_BLOQUEADAS, paginas_indexables  # noqa: E402
 
 RAIZ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 app = create_app()
@@ -85,7 +85,10 @@ with app.test_client() as c:
     assert xml.startswith('<?xml version="1.0" encoding="UTF-8"?>'), "falta la declaracion XML"
 
     entradas = raiz.findall(f"{NS}url")
-    assert len(entradas) == len(PAGINAS_PUBLICAS), (len(entradas), len(PAGINAS_PUBLICAS))
+    # paginas_indexables() y no PAGINAS_PUBLICAS: las legales salen del sitemap
+    # mientras se sirvan noindex por datos del responsable sin completar.
+    esperadas = paginas_indexables()
+    assert len(entradas) == len(esperadas), (len(entradas), len(esperadas))
 
     locs = []
     for u in entradas:
@@ -180,9 +183,16 @@ assert "review" not in aplicacion
 
 assert organizacion["contactPoint"]["availableLanguage"] == ["es"]
 assert organizacion["logo"].startswith("http")
-# Los datos de contacto siguen siendo placeholders reservados: avisar, no fallar.
-if "example.com" in organizacion["contactPoint"]["email"]:
-    print("   AVISO: contacto del JSON-LD todavia es placeholder (example.com)")
+# Contacto real, no placeholder: una ficha con example.com o un telefono de
+# relleno indexada es peor que no tener ficha.
+contacto_jsonld = organizacion["contactPoint"]
+assert "example.com" not in contacto_jsonld["email"], contacto_jsonld["email"]
+assert not re.fullmatch(r"\+?57-?0+", contacto_jsonld["telephone"].replace("-", "")), (
+    contacto_jsonld["telephone"]
+)
+# E.164: schema.org y wa.me esperan el indicativo pegado, sin espacios ni guiones.
+assert re.fullmatch(r"\+57\d{10}", contacto_jsonld["telephone"]), contacto_jsonld["telephone"]
+assert organizacion["sameAs"], "falta sameAs con los perfiles oficiales"
 
 print("OK 3: JSON-LD parseable, SoftwareApplication + Organization enlazados, precios coherentes")
 
@@ -217,6 +227,20 @@ with app.test_client() as c:
     assert r.status_code == 200, r.status_code
     manifest = json.loads(r.get_data(as_text=True))
     assert manifest["name"] == "jemPOS" and manifest["icons"], manifest
+
+    # og:image: si apunta a un archivo que no existe, WhatsApp y X comparten el
+    # enlace sin tarjeta. Es un 404 que no se ve en el navegador, solo al
+    # compartir, asi que se comprueba aqui.
+    for ruta_pagina in ("/landing", "/legal/aviso-legal", "/legal/politica-privacidad"):
+        html_pagina = c.get(ruta_pagina).get_data(as_text=True)
+        og = re.search(r'property="og:image" content="([^"]+)"', html_pagina)
+        assert og, f"{ruta_pagina} sin og:image"
+        ruta_img = "/" + og.group(1).split("/", 3)[3]
+        assert c.get(ruta_img).status_code == 200, f"og:image de {ruta_pagina} da 404: {ruta_img}"
+
+    # Open Graph pide 1200x630 para la tarjeta grande.
+    portada = Image.open(os.path.join(RAIZ, "static", "img", "og-cover.jpg"))
+    assert portada.size == (1200, 630), portada.size
 
 # Estos endpoints son cacheables incluso con sesion abierta: el navegador pide
 # /favicon.ico en cada pagina y marcarlo no-store lo hace redescargar siempre.

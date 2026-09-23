@@ -21,7 +21,7 @@ seo_bp = Blueprint("seo_bp", __name__)
 # Fecha que se publica como <lastmod>. Se sube a mano cuando cambia el contenido
 # publico: usar la mtime de los archivos la movería en cada despliegue aunque no
 # hubiera cambiado nada, y eso le enseña al rastreador a desconfiar del dato.
-FECHA_ACTUALIZACION = "2026-09-22"
+FECHA_ACTUALIZACION = "2026-09-23"
 
 # URLs publicas indexables: endpoint -> (prioridad, frecuencia de cambio).
 # La landing va primera y con prioridad 1.0; las legales son contenido estable.
@@ -82,11 +82,32 @@ def robots_txt():
     return Response("\n".join(lineas), mimetype="text/plain")
 
 
+# Endpoints que solo entran al sitemap cuando su contenido esta completo.
+# Las paginas legales se sirven noindex mientras falte identificar al
+# responsable del tratamiento (ver EMPRESA en app/routes/legal.py), y anunciar
+# en el sitemap una URL que lleva noindex es una contradiccion que Search
+# Console reporta como error.
+_ENDPOINTS_LEGALES = ("legal_bp.aviso_legal", "legal_bp.politica_privacidad")
+
+
+def paginas_indexables() -> tuple[tuple[str, str, str], ...]:
+    """PAGINAS_PUBLICAS sin las que de momento se sirven noindex.
+
+    El import va dentro de la funcion a proposito: a nivel de modulo crearia un
+    ciclo si legal.py llegara a necesitar algo de seo.py.
+    """
+    from app.routes.legal import empresa_incompleta
+
+    if not empresa_incompleta():
+        return PAGINAS_PUBLICAS
+    return tuple(p for p in PAGINAS_PUBLICAS if p[0] not in _ENDPOINTS_LEGALES)
+
+
 @seo_bp.get("/sitemap.xml")
 def sitemap_xml():
     """sitemap.xml segun el protocolo sitemaps.org 0.9."""
     urls = []
-    for endpoint, prioridad, frecuencia in PAGINAS_PUBLICAS:
+    for endpoint, prioridad, frecuencia in paginas_indexables():
         # url_for escapa el valor y ProxyFix (app/security.py) garantiza el
         # esquema https detras del proxy: nada de construir URLs a mano.
         loc = url_for(endpoint, _external=True)
@@ -151,25 +172,33 @@ def site_webmanifest():
 # DATOS ESTRUCTURADOS (JSON-LD)
 # ══════════════════════════════════════════════════════════════
 
-# TODO ANTES DE PUBLICAR: reemplazar por los datos reales de contacto.
-# example.com esta reservado por IANA para documentacion y nunca podra ser un
-# dominio real, y el telefono es un patron obviamente falso. Se usan a proposito:
-# si Google llegara a mostrar la ficha antes del reemplazo, no expone a nadie a
-# un numero o correo equivocado.
-CONTACTO_PLACEHOLDER = {
-    "telefono": "+57-000-0000000",
-    "correo": "contacto@example.com",
+# Datos de contacto reales. Fuente unica de verdad: los usan el JSON-LD de esta
+# pagina y el footer del landing (via el context processor de abajo), asi que un
+# cambio de numero o de correo se hace aqui una sola vez.
+#
+# El telefono va en formato E.164 (+57 y 10 digitos, sin espacios ni guiones):
+# es lo que pide schema.org y lo que entiende wa.me. La version con espacios es
+# solo para mostrar.
+CONTACTO = {
+    "telefono": "+573106152268",
+    "telefono_visible": "+57 310 615 2268",
+    "whatsapp": "https://wa.me/573106152268",
+    "correo": "jemposoporte@gmail.com",
+    "instagram": "https://www.instagram.com/jempos__/",
+    "instagram_usuario": "@jempos__",
 }
 
 
 @seo_bp.app_context_processor
 def _inyectar_jsonld():
-    """Expone `jsonld_landing()` a las plantillas.
+    """Expone `jsonld_landing()` y `contacto` a las plantillas.
 
-    Se inyecta como funcion, no como diccionario ya construido: asi solo se
-    calcula en la plantilla que lo usa y no en cada render del area POS.
+    El JSON-LD se inyecta como funcion, no como diccionario ya construido: asi
+    solo se calcula en la plantilla que lo usa y no en cada render del area POS.
+    `contacto` si va como diccionario porque es una constante del modulo: no
+    hay nada que calcular.
     """
-    return {"jsonld_landing": datos_estructurados_landing}
+    return {"jsonld_landing": datos_estructurados_landing, "contacto": CONTACTO}
 
 
 def datos_estructurados_landing() -> list[dict]:
@@ -197,11 +226,14 @@ def datos_estructurados_landing() -> list[dict]:
             "integral en la nube para micro, pequenas y medianas empresas."
         ),
         "areaServed": {"@type": "Country", "name": "Colombia"},
+        # sameAs vincula los perfiles oficiales con esta ficha: es como Google
+        # confirma que la cuenta de Instagram y el sitio son la misma entidad.
+        "sameAs": [CONTACTO["instagram"]],
         "contactPoint": {
             "@type": "ContactPoint",
             "contactType": "customer support",
-            "telephone": CONTACTO_PLACEHOLDER["telefono"],
-            "email": CONTACTO_PLACEHOLDER["correo"],
+            "telephone": CONTACTO["telefono"],
+            "email": CONTACTO["correo"],
             "availableLanguage": ["es"],
         },
     }

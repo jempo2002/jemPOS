@@ -27,14 +27,19 @@
   <meta property="og:site_name" content="jemPOS">
   <meta property="og:locale" content="es_CO">
   <meta property="og:url" content="{{ url_for('landing', _external=True) }}">
-  <!-- TODO: generar y subir esta imagen (1200x630) antes de publicar -->
+  <!-- 1200x630. Se genera con scripts/generar_og_cover.py y se versiona. -->
   <meta property="og:image" content="{{ url_for('static', filename='img/og-cover.jpg', _external=True) }}">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <!-- og:image:alt lo leen los lectores de pantalla de las redes al compartir. -->
+  <meta property="og:image:alt" content="jemPOS: punto de venta, inventario y contabilidad en la nube.">
 
   <!-- Twitter Card: mismo propósito que Open Graph, para X/Twitter -->
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="jemPOS — Tu negocio en la palma de tu mano">
   <meta name="twitter:description" content="POS, inventario, contabilidad y gestión de personal en una sola app en la nube.">
   <meta name="twitter:image" content="{{ url_for('static', filename='img/og-cover.jpg', _external=True) }}">
+  <meta name="twitter:image:alt" content="jemPOS: punto de venta, inventario y contabilidad en la nube.">
 
   <!-- ============================================================
        DATOS ESTRUCTURADOS (JSON-LD)
@@ -398,9 +403,30 @@
         </ul>
       </nav>
 
-      {# La columna "Siguenos" se quito: sus tres enlaces apuntaban a un
-         ancla vacia, es decir no llevaban a ninguna parte. Se vuelve a anadir
-         cuando existan los perfiles reales de Instagram, Facebook y WhatsApp. #}
+      {# Columna de contacto. Los valores salen de CONTACTO en app/routes/seo.py,
+         el mismo diccionario que alimenta el JSON-LD: asi el telefono que ve el
+         visitante y el que lee Google no pueden quedar desincronizados.
+
+         rel="me" en Instagram: declara que ese perfil es de esta misma entidad
+         y respalda el sameAs de los datos estructurados.
+         rel="noopener": sin el, la pestana que se abre puede manipular esta
+         mediante window.opener. #}
+      <nav class="footer__col" aria-label="Contacto">
+        <h3 class="footer__heading">Contacto</h3>
+        <ul role="list">
+          <li>
+            <a class="footer__link" href="{{ contacto.whatsapp }}"
+               target="_blank" rel="noopener">WhatsApp {{ contacto.telefono_visible }}</a>
+          </li>
+          <li>
+            <a class="footer__link" href="{{ contacto.instagram }}"
+               target="_blank" rel="me noopener">Instagram {{ contacto.instagram_usuario }}</a>
+          </li>
+          <li>
+            <a class="footer__link" href="mailto:{{ contacto.correo }}">{{ contacto.correo }}</a>
+          </li>
+        </ul>
+      </nav>
     </div>
     <p class="footer__copy">© 2026 jemPOS. Todos los derechos reservados.</p>
   </footer>

@@ -1,97 +1,185 @@
-{# Ruta: templates/legal/politica_privacidad.html — contenido de relleno, ver base_legal.html #}
+{# Ruta: templates/legal/politica_privacidad.html
+   Texto definitivo, alineado con la Ley 1581 de 2012 y el Decreto 1074 de 2015.
+   Los datos del responsable salen de EMPRESA y CONTACTO
+   (app/routes/legal.py y app/routes/seo.py): no se escriben aqui a mano. #}
 {% extends "legal/base_legal.html" %}
 
 {% block titulo_pagina %}Politica de privacidad — jemPOS, punto de venta y gestion integral{% endblock %}
-{% block meta_descripcion %}Politica de privacidad y tratamiento de datos de jemPOS, el sistema de punto de venta y gestion integral para MiPyMEs: que datos recogemos, con que finalidad y como ejercer tus derechos.{% endblock %}
+{% block meta_descripcion %}Politica de tratamiento de datos personales de jemPOS: quien es el responsable, que datos recogemos, con que finalidad, cuanto los conservamos y como ejercer tus derechos de habeas data.{% endblock %}
 {% block titulo %}Politica de privacidad{% endblock %}
 
 {% block contenido %}
   <section class="legal__section" aria-labelledby="responsable">
     <h2 class="legal__h2" id="responsable">1. Responsable del tratamiento</h2>
     <p class="legal__p">
-      Lorem ipsum dolor sit amet, consectetur adipiscing elit. Responsable:
-      <strong>[RAZON SOCIAL]</strong>, NIT <strong>[NIT]</strong>, con domicilio
-      en <strong>[DIRECCION]</strong>. Canal de atencion:
-      <strong>[CORREO]</strong>.
+      Responsable: <strong>{{ empresa.razon_social }}</strong>, NIT
+      <strong>{{ empresa.nit }}</strong>, con domicilio en
+      <strong>{{ empresa.domicilio }}</strong> ({{ empresa.ciudad }}, Colombia).
+    </p>
+    <p class="legal__p">
+      Canal de atencion al titular:
+      <a class="legal__link" href="mailto:{{ contacto.correo }}">{{ contacto.correo }}</a>
+      o WhatsApp
+      <a class="legal__link" href="{{ contacto.whatsapp }}" target="_blank" rel="noopener">{{ contacto.telefono_visible }}</a>.
+    </p>
+    <p class="legal__p">
+      Esta politica se expide conforme a la Ley 1581 de 2012, al Decreto 1074 de
+      2015 y demas normas que las modifiquen o complementen.
     </p>
   </section>
 
   <section class="legal__section" aria-labelledby="datos">
     <h2 class="legal__h2" id="datos">2. Datos que recogemos</h2>
     <p class="legal__p">
-      Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. A
-      titulo enunciativo, la plataforma trata las siguientes categorias:
+      La plataforma trata las siguientes categorias de datos:
     </p>
     <ul class="legal__list">
-      <li><strong>Identificacion:</strong> nombre, correo electronico y telefono.</li>
+      <li><strong>Identificacion:</strong> nombre, correo electronico y telefono de quien abre la cuenta y del personal que la usa.</li>
       <li><strong>Negocio:</strong> razon social, NIT y datos de la tienda.</li>
-      <li><strong>Operacion:</strong> ventas, inventario, gastos y cartera registrados por el usuario.</li>
-      <li><strong>Tecnicos:</strong> cookie de sesion y registros de auditoria de la propia plataforma.</li>
+      <li><strong>Operacion:</strong> ventas, inventario, gastos y cartera registrados por el usuario, incluidos los datos de contacto de sus clientes y proveedores.</li>
+      <li><strong>Autenticacion:</strong> la contrasena, que se guarda cifrada con una funcion de hash y nunca en texto plano. Ni siquiera nosotros podemos leerla.</li>
+      <li><strong>Tecnicos:</strong> cookie de sesion, token CSRF y registros de auditoria de la propia plataforma (quien hizo que y cuando).</li>
     </ul>
+    <p class="legal__p">
+      No recogemos datos sensibles (salud, biometria, origen etnico, opiniones
+      politicas o convicciones) ni datos de ninos o adolescentes. La plataforma
+      esta dirigida a personas mayores de edad que gestionan un negocio.
+    </p>
   </section>
 
   <section class="legal__section" aria-labelledby="finalidad">
     <h2 class="legal__h2" id="finalidad">3. Finalidad y base legal</h2>
     <p class="legal__p">
-      Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut
-      aliquip ex ea commodo consequat. Los datos se tratan para prestar el
-      servicio contratado, atender soporte y cumplir obligaciones legales.
+      Los datos se tratan para:
     </p>
+    <ul class="legal__list">
+      <li>Crear y administrar la cuenta y controlar el acceso segun el rol.</li>
+      <li>Prestar las funciones contratadas: ventas, inventario, cartera y reportes.</li>
+      <li>Atender soporte, notificar incidencias y gestionar la recuperacion de contrasena.</li>
+      <li>Facturar el servicio y llevar el control de pagos.</li>
+      <li>Mantener la seguridad de la plataforma y la trazabilidad de las operaciones.</li>
+      <li>Cumplir obligaciones legales, contables y tributarias.</li>
+    </ul>
+    <p class="legal__p">
+      La base del tratamiento es la autorizacion que el titular otorga al
+      registrarse, la ejecucion del contrato de servicio y el cumplimiento de
+      deberes legales. No usamos los datos para publicidad de terceros ni los
+      vendemos.
+    </p>
+
     <h3 class="legal__h3">3.1. Conservacion</h3>
     <p class="legal__p">
-      Duis aute irure dolor in reprehenderit in voluptate velit esse cillum
-      dolore eu fugiat nulla pariatur.
+      Los datos se conservan mientras la cuenta este activa. Tras su
+      cancelacion se mantienen treinta (30) dias calendario para permitir la
+      exportacion de la informacion, y despues se eliminan, salvo los registros
+      que la ley obligue a conservar por un plazo mayor (por ejemplo, soportes
+      contables y tributarios).
+    </p>
+  </section>
+
+  <section class="legal__section" aria-labelledby="encargado">
+    <h2 class="legal__h2" id="encargado">4. Datos de tus clientes: quien responde</h2>
+    <p class="legal__p">
+      Cuando registras en jemPOS los datos de tus propios clientes o
+      proveedores, <strong>tu eres el responsable</strong> del tratamiento
+      frente a ellos y jemPOS actua como <strong>encargado</strong>: solo
+      tratamos esa informacion siguiendo tus instrucciones y para prestarte el
+      servicio.
+    </p>
+    <p class="legal__p">
+      Eso significa que te corresponde obtener la autorizacion de esas personas,
+      informarles esta finalidad y atender las solicitudes de acceso,
+      rectificacion o supresion que te presenten. Si recibimos una solicitud de
+      un cliente tuyo, la remitiremos a ti.
     </p>
   </section>
 
   <section class="legal__section" aria-labelledby="cookies">
-    <h2 class="legal__h2" id="cookies">4. Cookies y almacenamiento local</h2>
+    <h2 class="legal__h2" id="cookies">5. Cookies y almacenamiento local</h2>
     <p class="legal__p">
-      Excepteur sint occaecat cupidatat non proident. jemPOS usa unicamente
-      cookies propias y tecnicamente necesarias:
+      jemPOS usa unicamente cookies propias y tecnicamente necesarias:
     </p>
     <ul class="legal__list">
-      <li><strong>Cookie de sesion:</strong> mantiene la autenticacion mientras usas la plataforma. Se elimina al cerrar sesion.</li>
-      <li><strong>Token CSRF:</strong> protege los formularios frente a peticiones falsificadas.</li>
-      <li><strong>Almacenamiento local:</strong> recuerda que aceptaste este aviso y preferencias de la interfaz. No sale de tu navegador.</li>
+      <li><strong>Cookie de sesion:</strong> mantiene la autenticacion mientras usas la plataforma. Se elimina al cerrar sesion y caduca por inactividad.</li>
+      <li><strong>Token CSRF:</strong> protege los formularios frente a peticiones falsificadas desde otros sitios.</li>
+      <li><strong>Almacenamiento local:</strong> recuerda que aceptaste este aviso y algunas preferencias de la interfaz. No sale de tu navegador.</li>
     </ul>
     <p class="legal__p">
-      No utilizamos cookies de publicidad ni de analitica de terceros.
+      No utilizamos cookies de publicidad, de perfilado ni de analitica de
+      terceros. Como todas son necesarias para que la plataforma funcione, no
+      hay un panel para desactivarlas: bloquearlas desde el navegador impide
+      iniciar sesion.
     </p>
   </section>
 
   <section class="legal__section" aria-labelledby="terceros">
-    <h2 class="legal__h2" id="terceros">5. Destinatarios y encargados</h2>
+    <h2 class="legal__h2" id="terceros">6. Destinatarios y encargados</h2>
     <p class="legal__p">
-      At vero eos et accusamus et iusto odio dignissimos ducimus qui blanditiis
-      praesentium voluptatum deleniti atque corrupti. No se cede informacion a
-      terceros salvo obligacion legal o proveedores de alojamiento y correo que
-      actuan como encargados.
+      No cedemos informacion a terceros salvo obligacion legal o requerimiento
+      de autoridad competente. Para prestar el servicio nos apoyamos en
+      proveedores que actuan como encargados y estan obligados
+      contractualmente a los mismos deberes de confidencialidad y seguridad:
+    </p>
+    <ul class="legal__list">
+      <li><strong>Alojamiento de la aplicacion y de la base de datos:</strong> Railway Corp. (Estados Unidos).</li>
+      <li><strong>Envio de correo transaccional:</strong> Google LLC, mediante el servicio SMTP de Gmail (Estados Unidos).</li>
+    </ul>
+    <p class="legal__p">
+      Esto implica una transferencia internacional de datos hacia Estados
+      Unidos. Se realiza al amparo de la autorizacion del titular y con
+      proveedores que ofrecen niveles adecuados de seguridad, conforme al
+      articulo 26 de la Ley 1581 de 2012.
     </p>
   </section>
 
   <section class="legal__section" aria-labelledby="derechos">
-    <h2 class="legal__h2" id="derechos">6. Tus derechos</h2>
+    <h2 class="legal__h2" id="derechos">7. Tus derechos</h2>
     <p class="legal__p">
-      Nam libero tempore, cum soluta nobis est eligendi optio cumque nihil
-      impedit. Puedes ejercer los derechos de acceso, rectificacion,
-      actualizacion, supresion y revocacion escribiendo a
-      <strong>[CORREO]</strong>.
+      Como titular puedes ejercer en cualquier momento estos derechos
+      escribiendo a
+      <a class="legal__link" href="mailto:{{ contacto.correo }}">{{ contacto.correo }}</a>:
     </p>
     <ul class="legal__list">
-      <li>Acceso y conocimiento de tus datos.</li>
-      <li>Rectificacion y actualizacion.</li>
-      <li>Supresion, cuando no exista deber legal de conservarlos.</li>
-      <li>Revocacion de la autorizacion otorgada.</li>
+      <li>Conocer, actualizar y rectificar tus datos.</li>
+      <li>Solicitar prueba de la autorizacion que otorgaste.</li>
+      <li>Ser informado sobre el uso que se ha dado a tus datos.</li>
+      <li>Presentar quejas ante la Superintendencia de Industria y Comercio por infracciones a la ley.</li>
+      <li>Revocar la autorizacion y solicitar la supresion, cuando no exista un deber legal o contractual de conservarlos.</li>
+      <li>Acceder de forma gratuita a los datos que hayan sido objeto de tratamiento.</li>
     </ul>
+    <p class="legal__p">
+      Las consultas se responden en un plazo maximo de diez (10) dias habiles y
+      los reclamos en quince (15) dias habiles, prorrogables conforme a la ley.
+      Antes de acudir a la Superintendencia de Industria y Comercio debes haber
+      agotado el tramite de consulta o reclamo con nosotros.
+    </p>
   </section>
 
   <section class="legal__section" aria-labelledby="seguridad">
-    <h2 class="legal__h2" id="seguridad">7. Seguridad de la informacion</h2>
+    <h2 class="legal__h2" id="seguridad">8. Seguridad de la informacion</h2>
     <p class="legal__p">
-      Omnis voluptas assumenda est, omnis dolor repellendus. Las contrasenas se
-      almacenan con funciones de hash, el trafico viaja cifrado por HTTPS y los
-      accesos quedan registrados en la auditoria interna.
+      Aplicamos medidas tecnicas y organizativas razonables para proteger la
+      informacion: las contrasenas se almacenan con funciones de hash, el
+      trafico viaja cifrado por HTTPS con HSTS, la sesion caduca por
+      inactividad, los formularios estan protegidos contra falsificacion de
+      peticiones y los accesos quedan registrados en la auditoria interna.
+    </p>
+    <p class="legal__p">
+      Ninguna medida elimina por completo el riesgo. Si llegara a producirse un
+      incidente que afecte tus datos, lo informaremos a los titulares y a la
+      Superintendencia de Industria y Comercio en los terminos que exige la
+      normativa.
+    </p>
+  </section>
+
+  <section class="legal__section" aria-labelledby="vigencia">
+    <h2 class="legal__h2" id="vigencia">9. Vigencia y cambios</h2>
+    <p class="legal__p">
+      Esta politica rige desde su fecha de publicacion y se mantiene vigente
+      mientras la plataforma preste el servicio. Los cambios sustanciales se
+      comunican por correo electronico o dentro de la plataforma antes de
+      entrar en vigor; la fecha de la ultima revision aparece al inicio de la
+      pagina.
     </p>
     <p class="legal__p">
       Consulta tambien nuestro

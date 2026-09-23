@@ -17,8 +17,13 @@
   <title>{% block titulo_pagina %}Informacion legal — jemPOS{% endblock %}</title>
   <meta name="description" content="{% block meta_descripcion %}Informacion legal de jemPOS, el sistema de punto de venta y gestion integral para MiPyMEs.{% endblock %}">
   {# Paginas legales: se indexan (dan confianza y son contenido real), pero no
-     compiten por posiciones comerciales. #}
-  <meta name="robots" content="{% block robots %}index, follow{% endblock %}">
+     compiten por posiciones comerciales.
+
+     Excepcion: si falta identificar al responsable del tratamiento
+     (EMPRESA en app/routes/legal.py), se sirven noindex. Un aviso legal
+     incompleto indexado queda en la cache de Google y en los resultados
+     mucho despues de haberlo corregido. #}
+  <meta name="robots" content="{% block robots %}{% if empresa_incompleta %}noindex, follow{% else %}index, follow{% endif %}{% endblock %}">
   <meta name="theme-color" content="#3b82f6">
   <link rel="canonical" href="{{ request.base_url }}">
 
@@ -28,6 +33,7 @@
   <meta property="og:site_name" content="jemPOS">
   <meta property="og:locale" content="es_CO">
   <meta property="og:url" content="{{ request.base_url }}">
+  <meta property="og:image" content="{{ url_for('static', filename='img/og-cover.jpg', _external=True) }}">
 
   {# Sin defer: cookies.js marca <html data-cookies-ok> antes del primer frame
      para que el aviso no parpadee a quien ya lo acepto. #}
@@ -65,13 +71,15 @@
          actualizacion ni el aviso de borrador. #}
       {% block encabezado %}
       <h1 class="legal__title">{% block titulo %}Informacion legal{% endblock %}</h1>
-      <p class="legal__meta">Ultima actualizacion: {% block actualizado %}22 de septiembre de 2026{% endblock %}</p>
+      <p class="legal__meta">Ultima actualizacion: {% block actualizado %}{{ actualizado }}{% endblock %}</p>
 
+      {% if empresa_incompleta %}
       <div class="legal__aviso" role="note">
-        <strong>Borrador.</strong> Este texto es de relleno y no tiene valor
-        juridico. Debe reemplazarse por el redactado definitivo antes de salir
-        a produccion.
+        <strong>Pendiente.</strong> Falta identificar al responsable del
+        tratamiento (denominacion, NIT y domicilio). Hasta completarlo, esta
+        pagina se sirve sin indexar.
       </div>
+      {% endif %}
       {% endblock %}
 
       {% block contenido %}{% endblock %}
@@ -99,6 +107,25 @@
         <ul role="list">
           <li><a class="footer__link" href="{{ url_for('legal_bp.aviso_legal') }}">Aviso legal</a></li>
           <li><a class="footer__link" href="{{ url_for('legal_bp.politica_privacidad') }}">Politica de privacidad</a></li>
+        </ul>
+      </nav>
+
+      {# Mismos datos que el footer de la landing: salen de CONTACTO en
+         app/routes/seo.py, no se repiten escritos a mano. #}
+      <nav class="footer__col" aria-label="Contacto">
+        <h3 class="footer__heading">Contacto</h3>
+        <ul role="list">
+          <li>
+            <a class="footer__link" href="{{ contacto.whatsapp }}"
+               target="_blank" rel="noopener">WhatsApp {{ contacto.telefono_visible }}</a>
+          </li>
+          <li>
+            <a class="footer__link" href="{{ contacto.instagram }}"
+               target="_blank" rel="me noopener">Instagram {{ contacto.instagram_usuario }}</a>
+          </li>
+          <li>
+            <a class="footer__link" href="mailto:{{ contacto.correo }}">{{ contacto.correo }}</a>
+          </li>
         </ul>
       </nav>
     </div>

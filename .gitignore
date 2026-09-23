@@ -1,7 +1,48 @@
+# ── Secretos y configuracion local ──────────────────────────
+# .env lleva SECRET_KEY, la contrasena de la base de datos y la del correo.
+# .env.example si se sube (es la plantilla) y por eso va exceptuado.
 .env
+.env.*
+!.env.example
+
+# ── Python ──────────────────────────────────────────────────
 __pycache__/
-*.pyc
-*.pyo
+*.py[cod]
+*.egg-info/
 .venv/
 venv/
+env/
+
+# ── Sesiones de Flask-Session ───────────────────────────────
+# Cada archivo es una sesion activa con el id de usuario y su rol dentro.
 flask_session/
+
+# ── Bases de datos locales ──────────────────────────────────
+# El proyecto usa MariaDB, pero cualquier archivo de base suelto lleva datos
+# reales de clientes y hashes de contrasena.
+*.db
+*.sqlite
+*.sqlite3
+*.db-journal
+
+# ── Volcados y respaldos de la base ─────────────────────────
+# Ojo: NO se ignora *.sql en general, porque migrations/*.sql tiene que
+# viajar en el repo. Se ignoran los volcados, que si llevan datos.
+jempos.sql
+*.dump
+*.sql.gz
+backups/
+/dumps/
+
+# ── Archivos que sube el usuario ────────────────────────────
+# Fotos de perfil: datos personales, y en Railway el disco es efimero.
+static/uploads/
+
+# ── Registros ───────────────────────────────────────────────
+logs/
+*.log
+
+# ── Sistema operativo y editores ────────────────────────────
+Thumbs.db
+desktop.ini
+.DS_Store

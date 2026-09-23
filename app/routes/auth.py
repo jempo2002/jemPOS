@@ -8,6 +8,7 @@ from itsdangerous import BadSignature, SignatureExpired
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from app import limiter
+from app.security import cerrar_sesion_publica
 from app.services.auth_service import (
     create_reset_token,
     decode_reset_token,
@@ -29,9 +30,12 @@ LOGIN_RATE_LIMIT = "5 per minute"
 @limiter.limit(LOGIN_RATE_LIMIT, methods=["POST"])
 def login():
     if request.method == "GET":
-        if "id_usuario" in session:
-            redirect_url = resolve_post_login_redirect(session.get("rol", ""))
-            return redirect(redirect_url)
+        # Ruta publica: abrir el login destruye cualquier sesion activa en vez
+        # de reenviar al dashboard. Quien llega aqui quiere autenticarse, y
+        # dejar la sesion anterior viva permitia seguir usandola con el boton
+        # "atras". El POST de abajo crea la sesion nueva desde cero.
+        # Se usa el helper para no borrar los flashes que trae el redirect.
+        cerrar_sesion_publica()
         return render_template("auth/login.html")
 
     data = request.get_json(silent=True) if request.is_json else request.form
@@ -59,7 +63,7 @@ def login():
         cur = conn.cursor(dictionary=True)
         cur.execute(
             "SELECT u.id_usuario, u.id_tienda, u.nombre_completo, u.clave_hash, u.rol, "
-            "u.estado_activo, u.foto_perfil, COALESCE(t.es_restaurante, 0) AS es_restaurante "
+            "u.estado_activo, COALESCE(t.es_restaurante, 0) AS es_restaurante "
             "FROM usuarios u "
             "LEFT JOIN tiendas t ON t.id_tienda = u.id_tienda "
             "WHERE u.correo = %s LIMIT 1",
@@ -208,9 +212,8 @@ def olvide_password():
             if user:
                 token = create_reset_token(current_app.secret_key, correo)
                 enlace = url_for("auth.reset_password", token=token, _external=True)
-                if not send_recovery_email(correo, enlace):
-                    flash("No fue posible enviar el correo de recuperacion. Intenta de nuevo.", "error")
-                    return redirect(url_for("auth.olvide_password"))
+                # Fire-and-forget: mail is dispatched in background and failures are logged.
+                send_recovery_email(correo, enlace)
 
         flash("Si el correo existe, recibiras un enlace de recuperacion.", "success")
         return redirect(url_for("auth.olvide_password"))

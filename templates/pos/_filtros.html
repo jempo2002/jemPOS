@@ -1,0 +1,30 @@
+<!-- Ruta: templates/pos/_filtros.html
+     Capsulas de tiempo + buscador de fecha. Se incluye en Ventas y Gastos para
+     que las dos pantallas tengan el mismo control, con los estilos .jem-* de
+     global.css y la logica de static/js/filtros-paginacion.js.
+
+     Se incluye dentro de un bloque "with" que define filtros_id (debe coincidir
+     con el id que recibe JemFiltros.init) y, si aplica, filtro_activo.
+     El paginador vive aparte en pos/_paginador.html, para poder colocarlo
+     debajo de la tabla.
+
+     Sin etiquetas Jinja de ejemplo en este comentario: Jinja las ejecuta aunque
+     esten dentro de un comentario HTML, y un include de ejemplo aqui recursa. -->
+<div class="jem-filters" data-jem-filters="{{ filtros_id | default('default') }}">
+  <div class="jem-pills" role="group" aria-label="Filtrar por periodo">
+    <button type="button" class="jem-pill{% if (filtro_activo | default('mes')) == 'hoy' %} active{% endif %}" data-periodo="hoy">Hoy</button>
+    <button type="button" class="jem-pill{% if (filtro_activo | default('mes')) == 'ayer' %} active{% endif %}" data-periodo="ayer">Ayer</button>
+    <button type="button" class="jem-pill{% if (filtro_activo | default('mes')) == 'semana' %} active{% endif %}" data-periodo="semana">Esta semana</button>
+    <button type="button" class="jem-pill{% if (filtro_activo | default('mes')) == 'mes' %} active{% endif %}" data-periodo="mes">Este mes</button>
+    <button type="button" class="jem-pill{% if (filtro_activo | default('mes')) == 'todas' %} active{% endif %}" data-periodo="todas">Todas</button>
+  </div>
+
+  <div class="jem-date-wrap">
+    <!-- input[type=date] nativo: calendario del sistema, sin libreria de fechas -->
+    <input type="date" class="jem-date" id="{{ filtros_id | default('default') }}-fecha"
+           data-jem-fecha aria-label="Buscar un dia especifico" />
+    <button type="button" class="jem-date-clear hidden" data-jem-fecha-clear aria-label="Quitar filtro de fecha">
+      Quitar
+    </button>
+  </div>
+</div>

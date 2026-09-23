@@ -10,17 +10,30 @@
    ============================================================ */
 
 /* ------------------------------------------------------------
-   1. TOKENS DEL SISTEMA DE DISEÑO (espejo de global.css)
+   1. TOKENS DEL SISTEMA DE DISEÑO (derivado de global.css)
+   ------------------------------------------------------------
+   NOTA DE AUDITORÍA: --color-primary, --color-text-muted y
+   --color-danger se oscurecieron un paso respecto a global.css.
+   Los valores originales (#3b82f6 / #64748b / #ef4444) no alcanzan
+   4.5:1 de contraste WCAG AA para texto normal en varias combinaciones
+   ya usadas en esta página (texto blanco sobre botón primario: 3.68:1;
+   "Stock bajo" en rojo sobre superficie blanca: 3.76:1). Si se quiere
+   la misma paleta en toda la app, conviene portar este ajuste a
+   global.css también.
    ------------------------------------------------------------ */
 :root {
-  --color-primary: #3b82f6;
+  --color-primary: #2563eb;
+  /* Variante clara solo para texto sobre fondos oscuros (.tour__eyebrow):
+     con el primary oscurecido de arriba, el texto sobre --color-secondary
+     cae a 2.83:1; esta variante da 5.75:1. */
+  --color-primary-on-dark: #60a5fa;
   --color-secondary: #1e293b;
   --color-background: #f8fafc;
   --color-surface: #ffffff;
   --color-text: #0f172a;
-  --color-text-muted: #64748b;
+  --color-text-muted: #57667a;
   --color-success: #10b981;
-  --color-danger: #ef4444;
+  --color-danger: #dc2626;
 
   /* Bordes redondeados estilo iOS */
   --radius-sm: 0.75rem;
@@ -141,7 +154,15 @@ a {
     transform 0.15s var(--ease-smooth),
     box-shadow 0.2s var(--ease-smooth),
     background-color 0.2s var(--ease-smooth);
-  /* transform acelerado por hardware para el micro-feedback */
+}
+
+/* will-change solo mientras el botón puede animarse (hover/foco/press):
+   promocionarlo a su propia capa de composición todo el tiempo, en
+   todos los botones de la página, desperdicia memoria de GPU sin
+   necesidad (uso imprudente de will-change). */
+.btn:hover,
+.btn:focus-visible,
+.btn:active {
   will-change: transform;
 }
 
@@ -294,8 +315,8 @@ a {
 }
 
 .header__toggle-bar { top: 50%; transform: translate(-50%, -50%); }
-.header__toggle-bar::before { content: ""; transform: translate(-50%, -7px); }
-.header__toggle-bar::after  { content: ""; transform: translate(-50%, 7px); }
+.header__toggle-bar::before { transform: translate(-50%, -7px); }
+.header__toggle-bar::after  { transform: translate(-50%, 7px); }
 
 /* Estado abierto: la hamburguesa se convierte en una X */
 .header__toggle[aria-expanded="true"] .header__toggle-bar { background: transparent; }
@@ -591,7 +612,9 @@ a {
 }
 
 .tour__eyebrow {
-  color: var(--color-primary);
+  /* Variante clara: el --color-primary base no llega a 4.5:1 sobre el
+     fondo oscuro de esta sección (ver nota de tokens al inicio). */
+  color: var(--color-primary-on-dark);
   font-weight: 700;
   font-size: 0.9rem;
   text-transform: uppercase;
@@ -600,8 +623,7 @@ a {
 
 .tour__title {
   margin-top: 0.4rem;
-  color: #fff;
-  font-size: clamp(1.6rem, 4vw, 2.6rem);
+  font-size: clamp(2rem, 5vw, 3.2rem);
   letter-spacing: -0.02em;
 }
 
@@ -614,7 +636,12 @@ a {
   gap: 1.5rem;
   /* Padding lateral para que la 1.ª y última tarjeta queden centradas */
   padding-inline: max(1.25rem, calc((100vw - 34rem) / 2));
-  /* El translateX lo aplica el JS; la transición la da el lerp en rAF */
+}
+
+/* will-change solo mientras el JS tiene el modo horizontal activo
+   (viewport de escritorio, sin prefers-reduced-motion). Fuera de esa
+   ventana no vale la pena mantener el carril en su propia capa de GPU. */
+.tour__track.is-animating {
   will-change: transform;
 }
 
@@ -676,8 +703,10 @@ a {
 }
 
 .tour-card__title {
-  font-size: 1.45rem;
+  font-size: 1.75rem;
+  font-weight: 800;
   letter-spacing: -0.02em;
+  color: var(--color-primary);
 }
 
 .tour-card__text {
@@ -708,7 +737,6 @@ a {
   height: 1rem;
   border-radius: 50%;
   background: var(--color-success);
-  clip-path: none;
 }
 
 .tour-card__list li::after {
@@ -753,9 +781,20 @@ a {
   transition: width 0.3s var(--ease-smooth), background-color 0.3s;
 }
 
+/* Micro-feedback: en dispositivos con puntero fino, un punto inactivo
+   se aclara al pasar el mouse para dar pista de que es clicable
+   (Nielsen #1: visibilidad del estado del sistema). */
+@media (hover: hover) and (pointer: fine) {
+  .tour__dot:not(.is-active):hover::after {
+    background: rgba(255, 255, 255, 0.6);
+  }
+}
+
 .tour__dot.is-active::after {
   width: 1.7rem;
-  background: var(--color-primary);
+  /* Variante clara: --color-primary base no llega a 3:1 (no-texto)
+     sobre este fondo oscuro. */
+  background: var(--color-primary-on-dark);
 }
 
 /* ------------------------------------------------------------
@@ -794,10 +833,12 @@ a {
 
 .pricing__grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(16.5rem, 1fr));
+  grid-template-columns: repeat(2, 1fr);
   gap: 1.5rem;
   align-items: stretch;
+  max-width: 55rem;
   margin-top: 3rem;
+  margin-inline: auto;
 }
 
 .plan {
@@ -805,7 +846,7 @@ a {
   display: flex;
   flex-direction: column;
   gap: 0.8rem;
-  padding: 2rem 1.7rem;
+  padding: 2.5rem 2rem;
   background: var(--color-surface);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-sm);
@@ -903,7 +944,9 @@ a {
   gap: 1rem;
   padding: 3.5rem 2rem;
   text-align: center;
-  background: linear-gradient(135deg, var(--color-primary), #6366f1);
+  /* #6366f1 original bajaba el texto blanco del subtítulo (opacity 0.9)
+     a 3.94:1 en el extremo del degradado; #4f46e5 mantiene ≥5.4:1 */
+  background: linear-gradient(135deg, var(--color-primary), #4f46e5);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-lg);
   color: #fff;
@@ -982,7 +1025,8 @@ a {
   padding-top: 1.5rem;
   border-top: 1px solid rgba(255, 255, 255, 0.1);
   font-size: 0.85rem;
-  color: rgba(255, 255, 255, 0.45);
+  /* 0.45 medía 4.17:1 (falla AA 4.5:1 para texto normal); 0.64 da ~6.2:1 */
+  color: rgba(255, 255, 255, 0.64);
 }
 
 /* ------------------------------------------------------------
@@ -1092,6 +1136,11 @@ a {
     opacity: 1;
     transform: none;
   }
+
+  /* La grilla de precios a 2 columnas fijas es demasiado angosta en móvil */
+  .pricing__grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* ------------------------------------------------------------
@@ -1151,4 +1200,251 @@ a {
   .header__toggle-bar::after {
     transition: none;
   }
+}
+
+/* ============================================================
+   PAGINAS LEGALES (aviso legal / politica de privacidad)
+   Reutilizan los tokens y el header/footer del landing.
+   ============================================================ */
+.legal {
+  /* El header es fijo: se deja aire para que no tape el titulo */
+  padding: 6.5rem 1.25rem 3rem;
+}
+
+.legal__inner {
+  max-width: 48rem;   /* ~75 caracteres por linea: lectura comoda */
+  margin: 0 auto;
+}
+
+.legal__title {
+  margin: 0 0 0.35rem;
+  font-size: clamp(1.75rem, 5vw, 2.5rem);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--color-secondary);
+  line-height: 1.15;
+}
+
+.legal__meta {
+  margin: 0 0 1.75rem;
+  font-size: 0.875rem;
+  color: var(--color-text-muted);
+}
+
+/* Banda de borrador: el texto es de relleno y hay que decirlo */
+.legal__aviso {
+  margin: 0 0 2.25rem;
+  padding: 0.9rem 1.1rem;
+  background: rgba(220, 38, 38, 0.07);
+  border: 1px solid rgba(220, 38, 38, 0.25);
+  border-radius: var(--radius-md);
+  font-size: 0.9rem;
+  line-height: 1.55;
+  color: var(--color-danger);
+}
+
+.legal__section {
+  margin-bottom: 2.25rem;
+}
+
+.legal__h2 {
+  margin: 0 0 0.75rem;
+  font-size: 1.2rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--color-secondary);
+  /* scroll-margin: al saltar por ancla, el header fijo no tapa el titulo */
+  scroll-margin-top: 6rem;
+}
+
+.legal__h3 {
+  margin: 1.5rem 0 0.6rem;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--color-secondary);
+  scroll-margin-top: 6rem;
+}
+
+.legal__p {
+  margin: 0 0 1rem;
+  font-size: 1rem;
+  line-height: 1.7;
+  color: var(--color-text);
+}
+
+.legal__list {
+  margin: 0 0 1rem;
+  padding-left: 1.25rem;
+  list-style: disc;
+}
+
+.legal__list li {
+  margin-bottom: 0.5rem;
+  font-size: 1rem;
+  line-height: 1.65;
+  color: var(--color-text);
+}
+
+.legal__link {
+  color: var(--color-primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.legal__link:hover {
+  color: var(--color-secondary);
+}
+
+@media (min-width: 768px) {
+  .legal { padding: 7.5rem 2rem 4rem; }
+}
+
+/* ============================================================
+   AVISO DE COOKIES
+   Barra inferior discreta. Oculta por CSS (no por JS) cuando
+   cookies.js encuentra la aceptacion guardada, para que no
+   parpadee en la primera pintada.
+   ============================================================ */
+.cookies {
+  position: fixed;
+  left: 1rem;
+  right: 1rem;
+  /* Respeta la barra de gestos de iOS */
+  bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.85rem;
+  padding: 1rem 1.15rem;
+  background: var(--color-surface);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  animation: cookies-entrada 0.28s ease-out;
+}
+
+/* Marca que pone cookies.js en <html> cuando ya se acepto */
+[data-cookies-ok] .cookies {
+  display: none;
+}
+
+@keyframes cookies-entrada {
+  from { opacity: 0; transform: translateY(0.75rem); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cookies { animation: none; }
+}
+
+.cookies__texto {
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.55;
+  color: var(--color-text-muted);
+}
+
+.cookies__enlace {
+  color: var(--color-primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  white-space: nowrap;
+}
+
+.cookies__enlace:hover {
+  color: var(--color-secondary);
+}
+
+.cookies__btn {
+  flex-shrink: 0;
+  /* 44px: minimo tactil del sistema de diseno */
+  min-height: 44px;
+  padding: 0.6rem 1.5rem;
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #ffffff;
+  background: var(--color-primary);
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.12s ease;
+}
+
+.cookies__btn:hover { background: var(--color-secondary); }
+.cookies__btn:active { transform: scale(0.97); }
+
+.cookies__btn:focus-visible {
+  outline: 3px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+/* A partir de tablet: una sola linea, boton a la derecha */
+@media (min-width: 640px) {
+  .cookies {
+    left: 50%;
+    right: auto;
+    transform: translateX(-50%);
+    width: min(56rem, calc(100% - 2rem));
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1.5rem;
+    padding: 0.9rem 1.25rem;
+  }
+
+  /* La animacion no puede pisar el translateX que centra la barra */
+  @keyframes cookies-entrada-centrada {
+    from { opacity: 0; transform: translateX(-50%) translateY(0.75rem); }
+    to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+  }
+
+  .cookies { animation-name: cookies-entrada-centrada; }
+}
+
+/* El aviso de cookies es fijo y se apoya en el borde inferior: se deja aire al
+   final del pie para que no tape el copyright ni los enlaces legales mientras
+   el visitante no lo acepta. Incondicional a proposito: evita el salto de
+   layout que produciria quitar el relleno al aceptar, y :has() todavia no es
+   fiable en los WebView Android antiguos del publico objetivo. */
+.footer {
+  padding-bottom: 7rem;
+}
+
+@media (min-width: 640px) {
+  .footer { padding-bottom: 6rem; }
+}
+
+/* ── Pagina 404 ───────────────────────────────────────────────
+   Reutiliza el layout .legal (mismo ancho de lectura y el mismo hueco
+   superior para el header fijo). Solo se anaden las piezas propias del
+   error. */
+
+.error404__codigo {
+  margin: 0 0 0.25rem;
+  font-size: clamp(3.5rem, 14vw, 6rem);
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.04em;
+  /* Decorativo: el mensaje real lo da el <h1>, y el lector de pantalla ya
+     omite este parrafo por su aria-hidden. Al ser decoracion no necesita
+     llegar a 4.5:1, pero se deja en un azul con 4.6:1 sobre blanco para que
+     siga siendo legible con poca luz o en una pantalla barata. */
+  color: var(--color-primary);
+  opacity: 0.85;
+}
+
+.error404__texto {
+  margin: 0 0 1.75rem;
+  font-size: 1.0625rem;
+  line-height: 1.6;
+  color: var(--color-text-muted);
+}
+
+.error404__acciones {
+  display: flex;
+  flex-wrap: wrap;   /* en movil estrecho los botones se apilan solos */
+  gap: 0.75rem;
+  margin-bottom: 2.5rem;
 }

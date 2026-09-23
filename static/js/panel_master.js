@@ -65,7 +65,7 @@ function bindLiveSearch(inputId, dropdownId, endpoint, mapRow, onSelect) {
       if (!data || !data.ok) return;
       const rows = (data.admins || data.tiendas || []);
       if (!rows.length) {
-        dd.innerHTML = '<div class="p-3 text-sm text-slate-400">Sin resultados</div>';
+        dd.innerHTML = '<div class="p-3 text-sm text-slate-500">Sin resultados</div>';
         dd.classList.remove('hidden');
         return;
       }
@@ -139,7 +139,7 @@ bindLiveSearch(
   'ct-owner-search',
   'ct-owner-dropdown',
   '/api/master/admins',
-  (a) => `<button type="button" data-pick='${JSON.stringify({ id: a.id_usuario, name: a.nombre_completo }).replace(/'/g, '&apos;')}' class="w-full text-left p-3 hover:bg-slate-50 border-b border-slate-100 text-sm">${a.nombre_completo} <span class="text-slate-400">(${a.correo})</span></button>`,
+  (a) => `<button type="button" data-pick='${JSON.stringify({ id: a.id_usuario, name: a.nombre_completo }).replace(/'/g, '&apos;')}' class="w-full text-left p-3 hover:bg-slate-50 border-b border-slate-100 text-sm">${a.nombre_completo} <span class="text-slate-500">(${a.correo})</span></button>`,
   (pick) => {
     $('ct-owner-search').value = pick.name;
     $('ct-owner-id').value = pick.id;
@@ -150,7 +150,7 @@ bindLiveSearch(
   'et-owner-search',
   'et-owner-dropdown',
   '/api/master/admins',
-  (a) => `<button type="button" data-pick='${JSON.stringify({ id: a.id_usuario, name: a.nombre_completo }).replace(/'/g, '&apos;')}' class="w-full text-left p-3 hover:bg-slate-50 border-b border-slate-100 text-sm">${a.nombre_completo} <span class="text-slate-400">(${a.correo})</span></button>`,
+  (a) => `<button type="button" data-pick='${JSON.stringify({ id: a.id_usuario, name: a.nombre_completo }).replace(/'/g, '&apos;')}' class="w-full text-left p-3 hover:bg-slate-50 border-b border-slate-100 text-sm">${a.nombre_completo} <span class="text-slate-500">(${a.correo})</span></button>`,
   (pick) => {
     $('et-owner-search').value = pick.name;
     $('et-owner-id').value = pick.id;
@@ -178,7 +178,6 @@ $('form-crear-tienda').addEventListener('submit', async (e) => {
     nit: $('ct-nit').value.trim(),
     telefono: sanitizePhone($('ct-telefono').value),
     owner_id: $('ct-owner-id').value,
-    es_restaurante: $('ct-es-restaurante').checked,
   };
   if (!payload.nombre_negocio || !payload.owner_id) {
     showInlineError('ct-error', 'Nombre del negocio y dueno son requeridos.');

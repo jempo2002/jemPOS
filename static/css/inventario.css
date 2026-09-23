@@ -81,16 +81,30 @@
 .btn-add:active { transform: scale(0.97); }
 .btn-add i      { font-size: 0.8rem; }
 
-/* Buscador */
+/* Buscador + boton escaner */
+.inv-search-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
 .inv-search-wrap {
   position: relative;
+  flex: 1;
+  min-width: 0;
 }
+
+/* Input + boton de icono en la misma fila (codigo de barras del modal) */
+.input-with-btn {
+  display: flex;
+  gap: 0.5rem;
+}
+.input-with-btn input { flex: 1; min-width: 0; }
 .inv-search-wrap i {
   position: absolute;
   left: 0.9rem;
   top: 50%;
   transform: translateY(-50%);
-  color: #94A3B8;
+  color: #57667A;
   font-size: 0.95rem;
   pointer-events: none;
 }
@@ -106,7 +120,7 @@
   outline: none;
   transition: border-color 0.2s, box-shadow 0.2s;
 }
-.inv-search::placeholder { color: #94A3B8; }
+.inv-search::placeholder { color: #57667A; }
 .inv-search:focus {
   border-color: #3B82F6;
   background: #ffffff;
@@ -123,9 +137,9 @@
   .inv-title-row {
     flex-shrink: 0;
   }
-  .inv-search-wrap {
+  .inv-search-row {
     flex: 1;
-    max-width: 400px;
+    max-width: 452px;
   }
   /* ocultar logo movil en desktop */
   .inv-logo { display: none; }
@@ -229,7 +243,7 @@
 
 .card-category {
   font-size: 0.78rem;
-  color: #94A3B8;
+  color: #57667A;
   margin-top: 0.15rem;
   font-weight: 500;
 }
@@ -257,7 +271,7 @@
 
 .card-price-label {
   font-size: 0.7rem;
-  color: #94A3B8;
+  color: #57667A;
   font-weight: 500;
 }
 
@@ -280,7 +294,14 @@
   background: #ffffff;
   border: 1px solid #E2E8F0;
   border-radius: 1rem;
-  overflow: hidden;
+  /* Scroll horizontal dentro de la tarjeta, no en la pagina: la tabla de
+     inventario tiene 7 columnas y con `overflow: hidden` las ultimas quedaban
+     recortadas e inalcanzables entre 768 y ~1050px. Al contenerlo aqui, la
+     barra superior no se desplaza con la tabla.
+     overflow-y hidden conserva el recorte del border-radius. */
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
   box-shadow: 0 1px 6px rgba(15,23,42,0.05);
 }
 
@@ -290,6 +311,7 @@
 
 .inv-table {
   width: 100%;
+  min-width: 720px;   /* 7 columnas: por debajo de esto se comprimen ilegibles */
   border-collapse: collapse;
   font-size: 0.9rem;
 }
@@ -376,7 +398,7 @@
 .no-results td {
   text-align: center;
   padding: 2.5rem;
-  color: #94A3B8;
+  color: #57667A;
   font-size: 0.9rem;
 }
 
@@ -411,7 +433,7 @@
 
 .action-btn.del {
   background: rgba(239,68,68,0.1);
-  color: #EF4444;
+  color: #B91C1C;
 }
 .action-btn.del:hover { background: rgba(239,68,68,0.2); }
 
@@ -436,7 +458,7 @@
   vertical-align: middle;
 }
 .sort-icon {
-  color: #94A3B8;
+  color: #57667A;
   font-size: 0.75rem;
   transition: color 0.15s;
 }
@@ -458,7 +480,7 @@
 .inv-empty-state {
   text-align: center;
   padding: 2.5rem;
-  color: #94A3B8;
+  color: #57667A;
 }
 
 .inv-empty-state i {
@@ -518,7 +540,7 @@
 .stock-modal-current {
   font-size: 0.8rem;
   font-weight: 600;
-  color: #94A3B8;
+  color: #57667A;
   padding-left: 0.2rem;
 }
 
@@ -533,13 +555,13 @@
 .stock-big-input::placeholder {
   font-size: 2.2rem;
   font-weight: 800;
-  color: #CBD5E1 !important;
+  color: #57667A !important;
 }
 
 .stock-preview {
   font-size: 0.88rem;
   font-weight: 700;
-  color: #3B82F6;
+  color: #1D4ED8;
   text-align: center;
   min-height: 1.2em;
   margin: 0;
@@ -573,7 +595,7 @@
   background: rgba(239,68,68,0.1);
   margin: 0 auto 0.75rem;
   font-size: 1.5rem;
-  color: #EF4444;
+  color: #B91C1C;
 }
 
 .confirm-body {
@@ -593,14 +615,14 @@
 
 .confirm-subtitle {
   font-size: 0.88rem;
-  color: #64748B;
+  color: #57667A;
   line-height: 1.5;
 }
 
 .confirm-product-name {
   font-size: 0.92rem;
   font-weight: 700;
-  color: #EF4444;
+  color: #B91C1C;
   background: rgba(239,68,68,0.07);
   border-radius: 0.5rem;
   padding: 0.35rem 0.75rem;
@@ -717,7 +739,7 @@
   transition: border-color 0.2s, box-shadow 0.2s;
   appearance: none;
 }
-.modal-field input::placeholder { color: #94A3B8; }
+.modal-field input::placeholder { color: #57667A; }
 .modal-field input:focus,
 .modal-field select:focus {
   border-color: #3B82F6;
@@ -726,7 +748,7 @@
 }
 .modal-field .field-help {
   font-size: 0.78rem;
-  color: #94A3B8;
+  color: #57667A;
   margin-top: 0.35rem;
 }
 
@@ -786,7 +808,7 @@
 .modal-recipe-total {
   margin-top: -0.2rem;
   font-size: 0.88rem;
-  color: #16a34a;
+  color: #15803D;
   font-weight: 700;
   min-height: 1.2rem;
 }
@@ -950,4 +972,262 @@
 @keyframes fadeIn {
   from { opacity: 0; }
   to   { opacity: 1; }
+}
+
+/* ============================================================
+   PROVEEDORES (pestana + tarjetas + modal de visualizacion)
+   Mobile-first, hereda paleta del inventario
+   ============================================================ */
+.inv-tabs {
+  display: flex;
+  gap: 0.4rem;
+  margin-top: 0.75rem;
+}
+
+.inv-tab {
+  flex: 1 1 0;
+  min-height: var(--touch-target-min, 44px);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.55rem 0.75rem;
+  border: 1px solid #E2E8F0;
+  border-radius: 0.75rem;
+  background: #FFFFFF;
+  color: #475569;
+  font-size: 0.86rem;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.18s, color 0.18s, border-color 0.18s;
+}
+
+.inv-tab.is-active {
+  background: #3B82F6;
+  border-color: #3B82F6;
+  color: #FFFFFF;
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.28);
+}
+
+/* Cabecera de la vista proveedores */
+.prov-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.9rem;
+}
+
+.prov-head-title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #0F172A;
+}
+
+/* Tarjetas de proveedor: 1 columna movil, grid en escritorio */
+.prov-cards {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.7rem;
+}
+
+.prov-card {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  padding: 0.85rem;
+  border: 1px solid #E2E8F0;
+  border-radius: 0.9rem;
+  background: #FFFFFF;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+  font-family: inherit;
+  transition: border-color 0.15s, box-shadow 0.15s, transform 0.12s;
+}
+
+.prov-card:hover { border-color: #BFDBFE; box-shadow: 0 6px 18px rgba(15, 23, 42, 0.06); }
+.prov-card:active { transform: scale(0.99); }
+
+.prov-avatar {
+  flex: 0 0 auto;
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 0.75rem;
+  background: #EFF6FF;
+  color: #2563EB;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.05rem;
+}
+
+.prov-info { flex: 1; min-width: 0; }
+
+.prov-name {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #0F172A;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.prov-phone {
+  margin: 0.15rem 0 0;
+  font-size: 0.8rem;
+  color: #57667A;
+}
+
+.prov-card-actions {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 0.3rem;
+}
+
+.prov-mini-btn {
+  width: 2rem;
+  height: 2rem;
+  border: 1px solid #E2E8F0;
+  border-radius: 0.55rem;
+  background: #FFFFFF;
+  color: #57667A;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8rem;
+}
+.prov-mini-btn:hover { color: #2563EB; border-color: #BFDBFE; }
+.prov-mini-btn.danger:hover { color: #B91C1C; border-color: #FECACA; }
+
+/* Modal grande para visualizacion */
+.modal-card-lg { max-width: 560px; }
+
+.modal-inline-error {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0 0 0.9rem;
+  padding: 0.6rem 0.75rem;
+  border-radius: 0.6rem;
+  background: #FEF2F2;
+  border: 1px solid #FECACA;
+  color: #B91C1C;
+  font-size: 0.82rem;
+}
+
+/* Contacto del proveedor en modal de visualizacion */
+.pv-contact {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 1rem;
+  margin-bottom: 0.9rem;
+  font-size: 0.83rem;
+  color: #475569;
+}
+.pv-contact span { display: inline-flex; align-items: center; gap: 0.35rem; }
+
+/* Filtro por categoria (chips con scroll horizontal) */
+.pv-filters {
+  display: flex;
+  gap: 0.4rem;
+  overflow-x: auto;
+  padding-bottom: 0.3rem;
+  margin-bottom: 0.8rem;
+  scrollbar-width: none;
+}
+.pv-filters::-webkit-scrollbar { display: none; }
+
+.pv-chip {
+  flex: 0 0 auto;
+  border: 1px solid #CBD5E1;
+  background: #FFFFFF;
+  color: #475569;
+  border-radius: 999px;
+  padding: 0.4rem 0.8rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  font-family: inherit;
+}
+.pv-chip.is-active { background: #3B82F6; border-color: #3B82F6; color: #FFFFFF; }
+
+/* Lista de productos del proveedor */
+.pv-products {
+  display: grid;
+  gap: 0.5rem;
+  min-height: 4rem;
+}
+
+.pv-product {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid #E2E8F0;
+  border-radius: 0.7rem;
+  background: #FFFFFF;
+}
+
+.pv-product-info { min-width: 0; }
+.pv-product-name {
+  margin: 0;
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: #0F172A;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pv-product-cat { margin: 0.1rem 0 0; font-size: 0.72rem; color: #57667A; }
+
+.pv-product-right { flex: 0 0 auto; text-align: right; }
+.pv-product-price { margin: 0; font-size: 0.86rem; font-weight: 700; color: #0F172A; }
+.pv-product-stock { margin: 0.1rem 0 0; font-size: 0.72rem; color: #57667A; }
+
+.pv-empty {
+  border: 1px dashed #E2E8F0;
+  border-radius: 0.7rem;
+  padding: 1.1rem;
+  text-align: center;
+  color: #57667A;
+  font-size: 0.85rem;
+}
+
+/* Paginacion del modal */
+.pv-pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  margin-top: 0.9rem;
+}
+.pv-pager-btn {
+  width: 2rem;
+  height: 2rem;
+  border: 1px solid #CBD5E1;
+  border-radius: 0.55rem;
+  background: #FFFFFF;
+  color: #475569;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.pv-pager-btn:disabled { opacity: 0.4; cursor: default; }
+.pv-pager-info { font-size: 0.8rem; font-weight: 600; color: #57667A; min-width: 3rem; text-align: center; }
+
+@media (min-width: 768px) {
+  .inv-tabs { max-width: 360px; }
+  .prov-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (min-width: 1100px) {
+  .prov-cards { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }

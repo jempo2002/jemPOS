@@ -1,0 +1,13 @@
+<!-- Ruta: templates/pos/_scanner_dialog.html
+     Hoja del escáner de códigos de barras (cámara). La controla
+     static/js/barcode-scanner.js; incluir una sola vez por plantilla. -->
+<dialog class="sheet sheet-scanner" id="scanner-dialog" aria-labelledby="scanner-title">
+  <div class="sheet-body">
+    <form method="dialog" class="sheet-header">
+      <h2 class="sheet-title" id="scanner-title">Escanear código</h2>
+      <button class="sheet-close" aria-label="Cerrar escáner"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
+    </form>
+    <div class="scanner-view" id="scanner-view"></div>
+    <p class="scanner-status" id="scanner-status" role="status" aria-live="polite"></p>
+  </div>
+</dialog>

@@ -1,0 +1,73 @@
+<!-- Ruta: templates/pos/_nav.html
+     Navegacion unica de las vistas POS: sidebar (desktop) + bottom bar
+     (movil), generadas desde la misma lista para que ambas muestren
+     siempre los mismos enlaces, en el mismo orden (Nielsen: consistencia
+     y estandares). Se incluye una sola vez por plantilla, dentro de
+     .app-shell. -->
+{% set nav_items = [
+  {'endpoint': 'sales_bp.turno', 'icon': 'fa-business-time', 'label': 'Mi Turno'},
+  {'endpoint': 'core_bp.dashboard_page', 'icon': 'fa-gauge-high',
+   'label': 'Panel de Control' if session.get('rol') == 'Admin' else 'Inicio'},
+  {'endpoint': 'sales_bp.caja', 'icon': 'fa-cash-register', 'label': 'Caja'},
+  {'endpoint': 'inventory_bp.inventario_page', 'icon': 'fa-boxes-stacked', 'label': 'Inventario'},
+  {'endpoint': 'sales_bp.fiados', 'icon': 'fa-handshake-simple', 'label': 'Cartera'},
+  {'endpoint': 'cartera_bp.clientes_proveer_page', 'icon': 'fa-truck-field',
+   'label': 'Clientes a Proveer', 'admin_only': true},
+  {'endpoint': 'sales_bp.ventas', 'icon': 'fa-file-invoice-dollar', 'label': 'Ventas'},
+  {'endpoint': 'sales_bp.gastos', 'icon': 'fa-receipt', 'label': 'Gastos'},
+  {'endpoint': 'core_bp.perfil_page', 'icon': 'fa-circle-user', 'label': 'Mi Perfil', 'admin_only': true},
+] %}
+{% set is_admin = (session.get('rol') or '')|lower == 'admin' %}
+
+<aside class="sidebar" role="navigation" aria-label="Menu principal">
+  <div class="sidebar-logo">
+    <div class="logo-text"><span class="jem">jem</span><span class="pos">POS</span></div>
+    <div class="sub">Punto de Venta</div>
+  </div>
+
+  <nav class="sidebar-nav">
+    {% for item in nav_items if not item.admin_only or is_admin %}
+    {% set href = url_for(item.endpoint) %}
+    {% set is_active = request.path == href or request.path.startswith(href ~ '/') %}
+    <a href="{{ href }}" class="nav-link{% if is_active %} active{% endif %}"{% if is_active %} aria-current="page"{% endif %}>
+      <i class="fa-solid {{ item.icon }}"></i>
+      <span>{{ item.label }}</span>
+    </a>
+    {% endfor %}
+  </nav>
+
+  <a href="{{ url_for('auth.logout') }}" class="sidebar-logout no-underline">
+    <img src="/static/img/leave.png" alt="" aria-hidden="true" width="18" height="18" decoding="async" />
+    Cerrar sesion
+  </a>
+
+  <div class="sidebar-footer">
+    {% if foto_perfil %}
+    {# alt vacio: el nombre y el rol ya van en texto justo al lado, repetirlos
+       en el alt duplica el anuncio del lector de pantalla. #}
+    <img src="/static/uploads/perfiles/{{ foto_perfil }}" class="avatar avatar-img"
+         alt="" aria-hidden="true" width="40" height="40" loading="lazy" decoding="async" />
+    {% else %}
+    <div class="avatar">{{ avatar_iniciales }}</div>
+    {% endif %}
+    <div class="user-info">
+      <div class="user-name">{{ nombre_completo }}</div>
+      <div class="user-role">{{ rol }}</div>
+    </div>
+  </div>
+</aside>
+
+<nav class="bottom-bar" role="navigation" aria-label="Navegacion principal" data-bottom-nav>
+  {% for item in nav_items if not item.admin_only or is_admin %}
+  {% set href = url_for(item.endpoint) %}
+  {% set is_active = request.path == href or request.path.startswith(href ~ '/') %}
+  <a href="{{ href }}" class="bottom-btn{% if is_active %} active{% endif %}"{% if is_active %} aria-current="page"{% endif %} aria-label="{{ item.label }}">
+    <i class="fa-solid {{ item.icon }}"></i>
+    <span>{{ item.label }}</span>
+  </a>
+  {% endfor %}
+  <a href="{{ url_for('auth.logout') }}" class="bottom-btn bottom-btn-logout" aria-label="Cerrar sesion">
+    <i class="fa-solid fa-right-from-bracket"></i>
+    <span>Salir</span>
+  </a>
+</nav>

@@ -1,179 +1,349 @@
-document.addEventListener('DOMContentLoaded', () => {
-  const modal = document.getElementById('prov-modal');
-  const modalTitle = document.getElementById('prov-modal-title');
-  const form = document.getElementById('prov-form');
-  const btnNew = document.getElementById('btn-prov-new');
-  const btnClose = document.getElementById('prov-modal-close');
-  const btnCancel = document.getElementById('prov-modal-cancel');
+// Ruta: static/js/proveedores.js
+// Seccion Proveedores del inventario: CRUD + modal de visualizacion
+// (productos asociados con filtro por categoria y paginacion client-side).
 
-  const fEmpresa = document.getElementById('prov-empresa');
-  const fNombre = document.getElementById('prov-nombre');
-  const fCelular = document.getElementById('prov-celular');
-  const fCorreo = document.getElementById('prov-correo');
-  const fDetalles = document.getElementById('prov-detalles');
+(function () {
+  'use strict';
 
-  const deleteModal = document.getElementById('prov-delete-modal');
-  const deleteClose = document.getElementById('prov-delete-close');
-  const deleteCancel = document.getElementById('prov-delete-cancel');
-  const deleteForm = document.getElementById('prov-delete-form');
-  const deleteText = document.getElementById('prov-delete-text');
+  var PV_PER_PAGE = 6; // productos por pagina en el modal de visualizacion
 
-  const productsModal = document.getElementById('prov-products-modal');
-  const productsClose = document.getElementById('prov-products-close');
-  const productsBody = document.getElementById('prov-products-body');
-  const productsTitle = document.getElementById('prov-products-title');
+  var csrf = document.querySelector('meta[name="csrf-token"]');
+  csrf = csrf ? csrf.getAttribute('content') : '';
 
-  const searchInput = document.getElementById('prov-search');
-  const allItems = Array.from(document.querySelectorAll('.prov-item'));
-  const emptyLive = document.getElementById('prov-empty-live');
-
-  function esc(v) {
-    return String(v || '')
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;');
+  function headers() {
+    var h = { 'Content-Type': 'application/json' };
+    if (csrf) h['X-CSRFToken'] = csrf;
+    return h;
   }
 
-  function openCreateModal() {
-    modalTitle.textContent = 'Nuevo Proveedor';
-    form.setAttribute('action', '/proveedores/crear');
-    fEmpresa.value = '';
-    fNombre.value = '';
-    fCelular.value = '';
-    fCorreo.value = '';
-    fDetalles.value = '';
-    modal.classList.remove('hidden');
-    setTimeout(() => fEmpresa.focus(), 60);
+  function $(id) { return document.getElementById(id); }
+
+  function toast(msg, isError) {
+    if (!window.JemToast) return;
+    if (isError) window.JemToast.error(msg);
+    else window.JemToast.success(msg);
   }
 
-  function openEditModal(btn) {
-    const id = btn.getAttribute('data-id');
-    modalTitle.textContent = 'Editar Proveedor';
-    form.setAttribute('action', `/proveedores/editar/${id}`);
+  function openModal(id) { var m = $(id); if (m) m.classList.add('open'); }
+  function closeModal(id) { var m = $(id); if (m) m.classList.remove('open'); }
 
-    fEmpresa.value = btn.getAttribute('data-empresa') || '';
-    fNombre.value = btn.getAttribute('data-nombre') || '';
-    fCelular.value = btn.getAttribute('data-celular') || '';
-    fCorreo.value = btn.getAttribute('data-correo') || '';
-    fDetalles.value = btn.getAttribute('data-detalles') || '';
+  var proveedores = [];
 
-    modal.classList.remove('hidden');
-    setTimeout(() => fEmpresa.focus(), 60);
+  /* ================= Pestanas ================= */
+  function setTab(tab) {
+    var isProv = tab === 'proveedores';
+    document.querySelectorAll('.inv-tab').forEach(function (b) {
+      var active = b.getAttribute('data-tab') === tab;
+      b.classList.toggle('is-active', active);
+      b.setAttribute('aria-selected', active ? 'true' : 'false');
+    });
+    var vp = $('view-productos');
+    var vv = $('view-proveedores');
+    if (vp) vp.hidden = isProv;
+    if (vv) vv.hidden = !isProv;
+    // Controles solo-productos
+    var btnAdd = $('btn-add');
+    var search = $('inv-search-wrap');
+    if (btnAdd) btnAdd.style.display = isProv ? 'none' : '';
+    if (search) search.style.display = isProv ? 'none' : '';
+    if (isProv && !proveedores.length) loadProveedores();
   }
 
-  function closeModal() {
-    modal.classList.add('hidden');
+  /* ================= Listado ================= */
+  async function loadProveedores() {
+    try {
+      var res = await fetch('/inventario/api/proveedores', { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+      if (res.status === 401) { window.location.href = '/login'; return; }
+      var data = await res.json();
+      if (!data || !data.ok) { toast('No se pudieron cargar los proveedores.', true); return; }
+      proveedores = data.proveedores || [];
+      renderProveedores();
+    } catch (e) {
+      toast('Error de conexion.', true);
+    }
   }
 
-  function openDeleteModal(btn) {
-    const id = btn.getAttribute('data-id');
-    const empresa = btn.getAttribute('data-empresa') || 'este proveedor';
-    deleteForm.setAttribute('action', `/proveedores/eliminar/${id}`);
-    deleteText.textContent = `Estas seguro de eliminar a ${empresa}?`;
-    deleteModal.classList.remove('hidden');
+  function renderProveedores() {
+    var list = $('prov-list');
+    if (!list) return;
+    list.innerHTML = '';
+
+    if (!proveedores.length) {
+      var empty = document.createElement('div');
+      empty.className = 'inv-empty-state';
+      empty.innerHTML = '<i class="fa-solid fa-truck-field"></i><p>Aun no hay proveedores. Anade el primero.</p>';
+      list.appendChild(empty);
+      return;
+    }
+
+    proveedores.forEach(function (p) {
+      var card = document.createElement('div');
+      card.className = 'prov-card';
+      card.setAttribute('role', 'button');
+      card.setAttribute('tabindex', '0');
+      card.dataset.id = p.id;
+
+      var tel = p.telefono_1 || p.celular || '';
+      var tel2 = p.telefono_2 || '';
+      var phoneTxt = tel ? tel : 'Sin telefono';
+      if (tel2) phoneTxt += ' · ' + tel2;
+
+      card.innerHTML =
+        '<div class="prov-avatar"><i class="fa-solid fa-truck-field"></i></div>' +
+        '<div class="prov-info">' +
+          '<p class="prov-name"></p>' +
+          '<p class="prov-phone"></p>' +
+        '</div>' +
+        '<div class="prov-card-actions">' +
+          '<button type="button" class="prov-mini-btn" data-act="edit" aria-label="Editar proveedor"><i class="fa-solid fa-pen"></i></button>' +
+          '<button type="button" class="prov-mini-btn danger" data-act="del" aria-label="Eliminar proveedor"><i class="fa-solid fa-trash"></i></button>' +
+        '</div>';
+      card.querySelector('.prov-name').textContent = p.empresa || 'Proveedor';
+      card.querySelector('.prov-phone').textContent = phoneTxt;
+
+      card.addEventListener('click', function (e) {
+        var act = e.target.closest('[data-act]');
+        if (act) {
+          e.stopPropagation();
+          if (act.dataset.act === 'edit') openEdit(p);
+          else deleteProveedor(p);
+          return;
+        }
+        openView(p.id);
+      });
+      card.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openView(p.id); }
+      });
+
+      list.appendChild(card);
+    });
   }
 
-  function closeDeleteModal() {
-    deleteModal.classList.add('hidden');
+  /* ================= Crear / Editar ================= */
+  var editingId = null;
+
+  function showProvError(msg) {
+    var box = $('prov-error');
+    if (!box) return;
+    $('prov-error-text').textContent = msg;
+    box.classList.remove('hidden');
+  }
+  function hideProvError() {
+    var box = $('prov-error');
+    if (box) box.classList.add('hidden');
   }
 
-  async function openProductsModal(btn) {
-    const id = btn.getAttribute('data-id');
-    const empresa = btn.getAttribute('data-empresa') || 'Proveedor';
-    productsTitle.textContent = `Productos - ${empresa}`;
-    productsBody.innerHTML = '<p>Cargando...</p>';
-    productsModal.classList.remove('hidden');
+  function openCreate() {
+    editingId = null;
+    $('prov-modal-title').textContent = 'Anadir Proveedor';
+    $('prov-nombre').value = '';
+    $('prov-tel1').value = '';
+    $('prov-tel2').value = '';
+    hideProvError();
+    openModal('modal-proveedor');
+    setTimeout(function () { $('prov-nombre').focus(); }, 80);
+  }
+
+  function openEdit(p) {
+    editingId = p.id;
+    $('prov-modal-title').textContent = 'Editar Proveedor';
+    $('prov-nombre').value = p.empresa || '';
+    $('prov-tel1').value = p.telefono_1 || p.celular || '';
+    $('prov-tel2').value = p.telefono_2 || '';
+    hideProvError();
+    openModal('modal-proveedor');
+    setTimeout(function () { $('prov-nombre').focus(); }, 80);
+  }
+
+  async function saveProveedor() {
+    var empresa = $('prov-nombre').value.trim();
+    var tel1 = $('prov-tel1').value.replace(/\D/g, '');
+    var tel2 = $('prov-tel2').value.replace(/\D/g, '');
+
+    if (!empresa) { showProvError('El nombre del proveedor es requerido.'); return; }
+    if (!tel1) { showProvError('El telefono 1 es requerido.'); return; }
+    hideProvError();
+
+    var url = editingId !== null ? '/inventario/api/proveedores/' + editingId : '/inventario/api/proveedores';
+    var method = editingId !== null ? 'PUT' : 'POST';
+    var btn = $('prov-save');
+    btn.disabled = true;
+    try {
+      var res = await fetch(url, {
+        method: method,
+        headers: headers(),
+        body: JSON.stringify({ empresa: empresa, celular: tel1, telefono_2: tel2 }),
+      });
+      if (res.status === 401) { window.location.href = '/login'; return; }
+      var data = await res.json().catch(function () { return null; });
+      if (!data || !data.ok) { showProvError((data && data.msg) || 'No se pudo guardar.'); return; }
+      closeModal('modal-proveedor');
+      toast(editingId !== null ? 'Proveedor actualizado.' : 'Proveedor anadido.');
+      await loadProveedores();
+    } catch (e) {
+      showProvError('Error de conexion.');
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  async function deleteProveedor(p) {
+    if (!window.confirm('Eliminar el proveedor "' + (p.empresa || '') + '"? Sus productos quedaran sin proveedor.')) return;
+    try {
+      var res = await fetch('/inventario/api/proveedores/' + p.id, { method: 'DELETE', headers: headers() });
+      if (res.status === 401) { window.location.href = '/login'; return; }
+      var data = await res.json().catch(function () { return null; });
+      if (!data || !data.ok) { toast((data && data.msg) || 'No se pudo eliminar.', true); return; }
+      toast('Proveedor eliminado.');
+      await loadProveedores();
+    } catch (e) {
+      toast('Error de conexion.', true);
+    }
+  }
+
+  /* ================= Ver proveedor (productos) ================= */
+  var pv = { all: [], filtered: [], page: 0, category: 'Todas' };
+
+  async function openView(id) {
+    openModal('modal-prov-view');
+    $('pv-title').textContent = 'Proveedor';
+    $('pv-contact').textContent = '';
+    $('pv-filters').innerHTML = '';
+    $('pv-products').innerHTML = '<div class="pv-empty">Cargando...</div>';
+    $('pv-pager').hidden = true;
 
     try {
-      const res = await fetch(`/inventario/api/proveedores/${encodeURIComponent(id)}/productos`);
-      const data = await res.json();
-      if (!res.ok || !data.ok) {
-        productsBody.innerHTML = `<p>${esc(data.msg || 'No se pudo cargar el listado')}</p>`;
-        return;
-      }
+      var res = await fetch('/inventario/api/proveedores/' + id + '/productos', { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+      if (res.status === 401) { window.location.href = '/login'; return; }
+      var data = await res.json();
+      if (!data || !data.ok) { $('pv-products').innerHTML = '<div class="pv-empty">No se pudo cargar.</div>'; return; }
 
-      if (!Array.isArray(data.productos) || data.productos.length === 0) {
-        productsBody.innerHTML = '<p>Este proveedor no tiene productos asociados.</p>';
-        return;
-      }
+      var prov = proveedores.find(function (x) { return x.id === id; }) || data.proveedor || {};
+      $('pv-title').textContent = data.proveedor && data.proveedor.empresa ? data.proveedor.empresa : (prov.empresa || 'Proveedor');
+      renderPvContact(prov);
 
-      productsBody.innerHTML = `
-        <div class="prov-products-list">
-          ${data.productos.map((p) => `
-            <div class="prov-product-item">
-              <span>${esc(p.nombre)}</span>
-              <small>Stock: ${Number(p.stock_actual || 0)}</small>
-            </div>
-          `).join('')}
-        </div>
-      `;
-    } catch (_) {
-      productsBody.innerHTML = '<p>Error de conexion al cargar productos.</p>';
+      pv.all = data.productos || [];
+      pv.category = 'Todas';
+      pv.page = 0;
+      buildFilters();
+      applyPvFilter();
+    } catch (e) {
+      $('pv-products').innerHTML = '<div class="pv-empty">Error de conexion.</div>';
     }
   }
 
-  function closeProductsModal() {
-    productsModal.classList.add('hidden');
+  function renderPvContact(prov) {
+    var c = $('pv-contact');
+    var t1 = prov.telefono_1 || prov.celular || '';
+    var t2 = prov.telefono_2 || '';
+    var parts = [];
+    if (t1) parts.push('<span><i class="fa-solid fa-phone"></i> ' + t1 + '</span>');
+    if (t2) parts.push('<span><i class="fa-solid fa-phone"></i> ' + t2 + '</span>');
+    c.innerHTML = parts.join('');
   }
 
-  btnNew.addEventListener('click', openCreateModal);
-  btnClose.addEventListener('click', closeModal);
-  btnCancel.addEventListener('click', closeModal);
-
-  if (fCelular) {
-    fCelular.addEventListener('input', () => {
-      fCelular.value = (fCelular.value || '').replace(/[^0-9]/g, '').slice(0, 10);
+  function buildFilters() {
+    var cats = ['Todas'];
+    pv.all.forEach(function (p) {
+      if (p.categoria && cats.indexOf(p.categoria) === -1) cats.push(p.categoria);
+    });
+    var wrap = $('pv-filters');
+    wrap.innerHTML = '';
+    if (cats.length <= 2) { wrap.style.display = pv.all.length ? '' : 'none'; }
+    else { wrap.style.display = ''; }
+    cats.forEach(function (cat) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'pv-chip' + (cat === pv.category ? ' is-active' : '');
+      b.textContent = cat;
+      b.addEventListener('click', function () {
+        pv.category = cat;
+        pv.page = 0;
+        wrap.querySelectorAll('.pv-chip').forEach(function (x) { x.classList.remove('is-active'); });
+        b.classList.add('is-active');
+        applyPvFilter();
+      });
+      wrap.appendChild(b);
     });
   }
 
-  deleteClose.addEventListener('click', closeDeleteModal);
-  deleteCancel.addEventListener('click', closeDeleteModal);
+  function applyPvFilter() {
+    pv.filtered = pv.category === 'Todas'
+      ? pv.all.slice()
+      : pv.all.filter(function (p) { return p.categoria === pv.category; });
+    renderPvPage();
+  }
 
-  productsClose.addEventListener('click', closeProductsModal);
+  function renderPvPage() {
+    var box = $('pv-products');
+    var pager = $('pv-pager');
+    var pages = Math.max(1, Math.ceil(pv.filtered.length / PV_PER_PAGE));
+    if (pv.page >= pages) pv.page = pages - 1;
+    if (pv.page < 0) pv.page = 0;
 
-  function applyLiveSearch() {
-    const q = (searchInput?.value || '').trim().toLowerCase();
-    let visible = 0;
-
-    allItems.forEach((item) => {
-      const hay = (item.getAttribute('data-search') || '').toLowerCase();
-      const match = !q || hay.includes(q);
-      item.style.display = match ? '' : 'none';
-      if (match) visible += 1;
-    });
-
-    if (emptyLive) {
-      emptyLive.classList.toggle('hidden', visible > 0);
+    box.innerHTML = '';
+    if (!pv.filtered.length) {
+      box.innerHTML = '<div class="pv-empty">Este proveedor no tiene productos en esta categoria.</div>';
+      pager.hidden = true;
+      return;
     }
+
+    var start = pv.page * PV_PER_PAGE;
+    pv.filtered.slice(start, start + PV_PER_PAGE).forEach(function (p) {
+      var money = (window.COP && window.COP.format) ? window.COP.format(p.precio_venta) : ('$' + p.precio_venta);
+      var row = document.createElement('div');
+      row.className = 'pv-product';
+      row.innerHTML =
+        '<div class="pv-product-info">' +
+          '<p class="pv-product-name"></p>' +
+          '<p class="pv-product-cat"></p>' +
+        '</div>' +
+        '<div class="pv-product-right">' +
+          '<p class="pv-product-price">' + money + '</p>' +
+          '<p class="pv-product-stock">Stock: ' + p.stock_actual + '</p>' +
+        '</div>';
+      row.querySelector('.pv-product-name').textContent = p.nombre || 'Producto';
+      row.querySelector('.pv-product-cat').textContent = p.categoria || '';
+      box.appendChild(row);
+    });
+
+    // fade sutil al cambiar de pagina/filtro
+    box.style.animation = 'none';
+    void box.offsetWidth;
+    box.style.animation = 'fadeIn 0.25s ease';
+
+    pager.hidden = pages <= 1;
+    $('pv-pageinfo').textContent = (pv.page + 1) + ' / ' + pages;
+    $('pv-prev').disabled = pv.page === 0;
+    $('pv-next').disabled = pv.page >= pages - 1;
   }
 
-  if (searchInput) {
-    searchInput.addEventListener('input', applyLiveSearch);
-  }
+  /* ================= Init ================= */
+  document.addEventListener('DOMContentLoaded', function () {
+    document.querySelectorAll('.inv-tab').forEach(function (b) {
+      b.addEventListener('click', function () { setTab(b.getAttribute('data-tab')); });
+    });
 
-  document.querySelectorAll('[data-action="edit"]').forEach((btn) => {
-    btn.addEventListener('click', () => openEditModal(btn));
+    var addBtn = $('btn-add-prov');
+    if (addBtn) addBtn.addEventListener('click', openCreate);
+
+    $('prov-save').addEventListener('click', saveProveedor);
+    $('prov-cancel').addEventListener('click', function () { closeModal('modal-proveedor'); });
+    $('prov-modal-close').addEventListener('click', function () { closeModal('modal-proveedor'); });
+
+    $('pv-close').addEventListener('click', function () { closeModal('modal-prov-view'); });
+    $('pv-prev').addEventListener('click', function () { pv.page--; renderPvPage(); });
+    $('pv-next').addEventListener('click', function () { pv.page++; renderPvPage(); });
+
+    // Cerrar modales al hacer click en el backdrop
+    ['modal-proveedor', 'modal-prov-view'].forEach(function (mid) {
+      var m = $(mid);
+      if (m) m.addEventListener('click', function (e) { if (e.target === m) closeModal(mid); });
+    });
+    document.addEventListener('keydown', function (e) {
+      if (e.key !== 'Escape') return;
+      closeModal('modal-proveedor');
+      closeModal('modal-prov-view');
+    });
   });
-
-  document.querySelectorAll('[data-action="delete"]').forEach((btn) => {
-    btn.addEventListener('click', () => openDeleteModal(btn));
-  });
-
-  document.querySelectorAll('[data-action="view-products"]').forEach((btn) => {
-    btn.addEventListener('click', () => openProductsModal(btn));
-  });
-
-  modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(); });
-  deleteModal.addEventListener('click', (e) => { if (e.target === deleteModal) closeDeleteModal(); });
-  productsModal.addEventListener('click', (e) => { if (e.target === productsModal) closeProductsModal(); });
-
-  document.addEventListener('keydown', (e) => {
-    if (e.key !== 'Escape') return;
-    if (!modal.classList.contains('hidden')) closeModal();
-    if (!deleteModal.classList.contains('hidden')) closeDeleteModal();
-    if (!productsModal.classList.contains('hidden')) closeProductsModal();
-  });
-
-  applyLiveSearch();
-});
+})();

@@ -1,9 +1,11 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>jemPOS - Fiados</title>
+  {% include "_favicon.html" %}
+  <title>jemPOS - Cartera</title>
+  <meta name="robots" content="noindex, nofollow">
 
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -23,80 +25,10 @@
 </head>
 
 <body>
+{% set es_admin = (rol or '')|lower in ['admin', 'master'] %}
 <div class="app-shell">
 
-  <aside class="sidebar" role="navigation" aria-label="Menu principal">
-    <div class="sidebar-logo">
-      <div class="logo-text">
-        <span class="jem">jem</span><span class="pos">POS</span>
-      </div>
-      <div class="sub">Punto de Venta</div>
-    </div>
-
-    <nav class="sidebar-nav">
-      <a href="{{ url_for('sales_bp.turno') }}" class="nav-link">
-        <i class="fa-solid fa-business-time"></i>
-        <span>Mi Turno</span>
-      </a>
-      <a href="/dashboard" class="nav-link">
-        <i class="fa-solid fa-gauge-high"></i>
-        <span>{% if session.get('rol') == 'Admin' %}Panel de Control{% else %}Inicio{% endif %}</span>
-      </a>
-      <a href="{{ url_for('sales_bp.caja') }}" class="nav-link">
-        <i class="fa-solid fa-cash-register"></i>
-        <span>Caja</span>
-      </a>
-      {% if session.get('es_restaurante') %}
-      <a href="/inventario" class="nav-link{% if request.path == '/inventario' %} active{% endif %}">
-        <i class="fa-solid fa-utensils"></i>
-        <span>Menu y Platos</span>
-      </a>
-      <a href="/inventario/insumos" class="nav-link{% if request.path == '/inventario/insumos' %} active{% endif %}">
-        <i class="fa-solid fa-boxes-stacked"></i>
-        <span>Insumos (Despensa)</span>
-      </a>
-      {% else %}
-      <a href="/inventario" class="nav-link{% if request.path == '/inventario' %} active{% endif %}">
-        <i class="fa-solid fa-boxes-stacked"></i>
-        <span>Inventario</span>
-      </a>
-      {% endif %}
-      <a href="{{ url_for('sales_bp.fiados') }}" class="nav-link active" aria-current="page">
-        <i class="fa-solid fa-handshake-simple"></i>
-        <span>Fiados</span>
-      </a>
-      <a href="{{ url_for('sales_bp.ventas') }}" class="nav-link">
-        <i class="fa-solid fa-file-invoice-dollar"></i>
-        <span>Ventas</span>
-      </a>
-      <a href="{{ url_for('sales_bp.gastos') }}" class="nav-link">
-        <i class="fa-solid fa-receipt"></i>
-        <span>Gastos</span>
-      </a>
-      {% if (session.get('rol') or '')|lower == 'admin' %}
-      <a href="/perfil" class="nav-link">
-        <i class="fa-solid fa-circle-user"></i>
-        <span>Mi Perfil</span>
-      </a>
-      {% endif %}
-    </nav>
-
-    <a href="{{ url_for('auth.logout') }}" class="sidebar-logout no-underline hover:no-underline">
-      <img src="/static/img/leave.png" alt="" />
-      Cerrar sesion
-    </a>
-    <div class="sidebar-footer">
-      {% if foto_perfil %}
-      <img src="/static/uploads/perfiles/{{ foto_perfil }}" class="avatar avatar-img" alt="Foto" />
-      {% else %}
-      <div class="avatar">{{ avatar_iniciales }}</div>
-      {% endif %}
-      <div class="user-info">
-        <div class="user-name">{{ nombre_completo }}</div>
-        <div class="user-role">{{ rol }}</div>
-      </div>
-    </div>
-  </aside>
+  {% include "pos/_nav.html" %}
 
   <div class="fiad-main">
     <header class="fiad-topbar">
@@ -104,20 +36,32 @@
         <div class="fiad-logo" aria-hidden="true">
           <span class="jem">jem</span><span class="pos">POS</span>
         </div>
-        <h1 class="fiad-title">Fiados</h1>
-        <button class="btn-new-client" id="btn-new-client" type="button">
-          <i class="fa-solid fa-user-plus"></i>
-          Nuevo Cliente
+        <h1 class="fiad-title">Cartera</h1>
+      </div>
+
+      <!-- Pestanas: una sola pantalla para los dos lados de la cartera -->
+      <div class="fiad-tabs" role="tablist" aria-label="Secciones de cartera">
+        <button class="fiad-tab active" type="button" role="tab" id="tab-btn-cobrar"
+                data-tab="cobrar" aria-selected="true" aria-controls="panel-cobrar">
+          <i class="fa-solid fa-hand-holding-dollar"></i>
+          <span>Cuentas por Cobrar</span>
         </button>
+        {% if es_admin %}
+        <button class="fiad-tab" type="button" role="tab" id="tab-btn-pagar"
+                data-tab="pagar" aria-selected="false" aria-controls="panel-pagar">
+          <i class="fa-solid fa-file-invoice"></i>
+          <span>Cuentas por Pagar</span>
+        </button>
+        {% endif %}
       </div>
 
       <div class="fiad-stats">
         <div class="fiad-stat">
-          <span class="fiad-stat-label">Total por cobrar</span>
+          <span class="fiad-stat-label" id="stat-total-label">Total por cobrar</span>
           <span class="fiad-stat-value" id="stat-total">$0</span>
         </div>
         <div class="fiad-stat">
-          <span class="fiad-stat-label">Clientes activos</span>
+          <span class="fiad-stat-label" id="stat-count-label">Clientes con deuda</span>
           <span class="fiad-stat-value fiad-stat-neutral" id="stat-count">0</span>
         </div>
       </div>
@@ -130,105 +74,92 @@
           class="fiad-search"
           placeholder="Buscar cliente o telefono..."
           autocomplete="off"
-          aria-label="Buscar clientes"
+          aria-label="Buscar en la cartera"
         />
       </div>
     </header>
 
     <div class="fiad-body" data-fab-scroll-container>
-      <div class="fiad-cards block md:hidden" id="fiad-cards" aria-label="Lista de clientes con fiado">
-        {% for c in fiados_clientes %}
-        <div class="fiad-card" data-id="{{ c.id }}">
-          <div class="fiad-card-top">
-            <div class="fiad-avatar">{{ c.name[:2]|upper }}</div>
-            <div class="fiad-card-info">
-              <div class="fiad-card-name">{{ c.name }}</div>
-              <div class="fiad-card-phone">{{ c.phone }}</div>
-            </div>
-            <div class="fiad-card-debt">
-              {% if c.debt > 0 %}
-              <div class="fiad-debt-tag">${{ "{:,.0f}".format(c.debt).replace(',', '.') }}</div>
-              <div class="fiad-debt-sublabel">Pendiente</div>
-              {% else %}
-              <div class="fiad-debt-tag at-zero">Al dia</div>
-              {% endif %}
-            </div>
-          </div>
-          <div class="fiad-card-actions">
-            <button class="fiad-action-btn btn-abonar" data-action="abonar" aria-label="Registrar abono">
-              <i class="fa-solid fa-circle-minus"></i> Abonar
-            </button>
-            <button class="fiad-action-btn btn-sumar" data-action="sumar" aria-label="Aumentar deuda">
-              <i class="fa-solid fa-circle-plus"></i> Aumentar
-            </button>
-          </div>
+
+      <!-- ══════════ PESTANA 1 — CUENTAS POR COBRAR ══════════ -->
+      <section class="fiad-panel" id="panel-cobrar" role="tabpanel" aria-labelledby="tab-btn-cobrar">
+        <div class="fiad-panel-actions">
+          <button class="btn-new-client" id="btn-new-client" type="button">
+            <i class="fa-solid fa-user-plus"></i>
+            Nuevo Cliente
+          </button>
         </div>
-        {% endfor %}
-      </div>
 
-      <div class="fiad-table-wrap hidden md:block">
-        <table class="fiad-table hidden md:table" aria-label="Fiados y cuentas por cobrar">
-          <thead id="fiad-thead">
-            <tr>
-              <th class="th-sortable" data-col="name">Cliente&nbsp;<span class="sort-icon-wrap"><i class="fa-solid fa-sort sort-icon"></i></span></th>
-              <th class="th-sortable" data-col="phone">Telefono&nbsp;<span class="sort-icon-wrap"><i class="fa-solid fa-sort sort-icon"></i></span></th>
-              <th class="th-sortable" data-col="debt">Deuda Total&nbsp;<span class="sort-icon-wrap"><i class="fa-solid fa-sort sort-icon"></i></span></th>
-              <th>Acciones</th>
-            </tr>
-          </thead>
-          <tbody id="fiad-table-body"></tbody>
-        </table>
-      </div>
+        <div class="fiad-cards" id="fiad-cards" aria-label="Clientes con deuda"></div>
 
-      <div class="fiad-empty hidden" id="fiad-empty">
-        <i class="fa-solid fa-handshake-simple"></i>
-        <p>Sin resultados</p>
-        <span>Prueba con otro nombre o numero.</span>
-      </div>
+        <div class="fiad-table-wrap">
+          <table class="fiad-table" aria-label="Cuentas por cobrar">
+            <thead id="fiad-thead">
+              <tr>
+                <th class="th-sortable" data-col="name">Cliente&nbsp;<span class="sort-icon-wrap"><i class="fa-solid fa-sort sort-icon"></i></span></th>
+                <th class="th-sortable" data-col="phone">Telefono&nbsp;<span class="sort-icon-wrap"><i class="fa-solid fa-sort sort-icon"></i></span></th>
+                <th class="th-sortable" data-col="debt">Deuda Total&nbsp;<span class="sort-icon-wrap"><i class="fa-solid fa-sort sort-icon"></i></span></th>
+                <th class="th-sortable" data-col="dias_mora">Mora&nbsp;<span class="sort-icon-wrap"><i class="fa-solid fa-sort sort-icon"></i></span></th>
+                <th>Acciones</th>
+              </tr>
+            </thead>
+            <tbody id="fiad-table-body"></tbody>
+          </table>
+        </div>
+
+        <div class="fiad-empty hidden" id="fiad-empty">
+          <i class="fa-solid fa-handshake-simple"></i>
+          <p>Sin resultados</p>
+          <span>Prueba con otro nombre o numero.</span>
+        </div>
+      </section>
+
+      {% if es_admin %}
+      <!-- ══════════ PESTANA 2 — CUENTAS POR PAGAR ══════════ -->
+      <section class="fiad-panel hidden" id="panel-pagar" role="tabpanel" aria-labelledby="tab-btn-pagar">
+        <div class="fiad-panel-actions">
+          <button class="btn-new-client" id="btn-new-cxp" type="button">
+            <i class="fa-solid fa-plus"></i>
+            Nueva Obligacion
+          </button>
+        </div>
+
+        <div class="fiad-cards" id="cxp-cards" aria-label="Obligaciones del negocio"></div>
+
+        <div class="fiad-table-wrap">
+          <table class="fiad-table" aria-label="Cuentas por pagar">
+            <thead>
+              <tr>
+                <th>Concepto</th>
+                <th>Categoria</th>
+                <th>Saldo</th>
+                <th>Vence</th>
+                <th>Acciones</th>
+              </tr>
+            </thead>
+            <tbody id="cxp-table-body"></tbody>
+          </table>
+        </div>
+
+        <div class="fiad-empty hidden" id="cxp-empty">
+          <i class="fa-solid fa-file-invoice"></i>
+          <p>Sin obligaciones registradas</p>
+          <span>Registra pagos a proveedores, nomina o servicios.</span>
+        </div>
+      </section>
+      {% endif %}
     </div>
   </div>
 
-  <nav class="bottom-bar" role="navigation" aria-label="Navegacion principal">
-      <a href="{{ url_for('sales_bp.ventas') }}" class="bottom-btn{% if request.path.startswith('/pos/ventas') %} active{% endif %}"{% if request.path.startswith('/pos/ventas') %} aria-current="page"{% endif %} aria-label="Ventas">
-        <i class="fa-solid fa-file-invoice-dollar"></i>
-        <span>Ventas</span>
-      </a>
-
-      <a href="{{ url_for('sales_bp.caja') }}" class="bottom-btn{% if request.path.startswith('/pos/caja') %} active{% endif %}"{% if request.path.startswith('/pos/caja') %} aria-current="page"{% endif %} aria-label="Caja">
-        <i class="fa-solid fa-cash-register"></i>
-        <span>Caja</span>
-      </a>
-
-      <a href="/inventario" class="bottom-btn{% if request.path.startswith('/inventario') %} active{% endif %}"{% if request.path.startswith('/inventario') %} aria-current="page"{% endif %} aria-label="Inventario">
-        <i class="fa-solid fa-boxes-stacked"></i>
-        <span>Inventario</span>
-      </a>
-
-      <button type="button" class="bottom-btn bottom-more-toggle{% if request.path.startswith('/pos/turno') or request.path == '/perfil' %} active{% endif %}" aria-label="Mas opciones" aria-controls="bottom-more-panel" aria-expanded="false">
-        <i class="fa-solid fa-ellipsis"></i>
-        <span>Mas</span>
-      </button>
-    </nav>
-
-    <div id="bottom-more-panel" class="bottom-more-panel" hidden>
-      <a href="{{ url_for('sales_bp.turno') }}" class="bottom-more-link{% if request.path.startswith('/pos/turno') %} active{% endif %}">
-        <i class="fa-solid fa-business-time"></i>
-        <span>Mi Turno</span>
-      </a>
-      <a href="/perfil" class="bottom-more-link{% if request.path == '/perfil' %} active{% endif %}">
-        <i class="fa-solid fa-circle-user"></i>
-        <span>Mi Perfil</span>
-      </a>
-    </div>
-
 </div>
 
+<!-- ══════════ MODAL — NUEVO CLIENTE ══════════ -->
 <div class="fiad-backdrop hidden" id="modal-add" role="dialog" aria-modal="true" aria-labelledby="modal-add-title">
   <div class="fiad-modal-card">
     <div class="fiad-modal-header">
       <span class="fiad-modal-title" id="modal-add-title">Nuevo Cliente</span>
       <button class="fiad-modal-close" data-close="modal-add" type="button" aria-label="Cerrar">
-        <img src="/static/img/equis.png" alt="Cerrar" />
+        <img src="/static/img/equis.png" alt="" aria-hidden="true" width="20" height="20" decoding="async" />
       </button>
     </div>
     <div class="fiad-modal-body">
@@ -252,16 +183,17 @@
   </div>
 </div>
 
+<!-- ══════════ MODAL — REGISTRAR ABONO ══════════ -->
 <div class="fiad-backdrop hidden" id="modal-abono" role="dialog" aria-modal="true" aria-labelledby="modal-abono-title">
   <div class="fiad-modal-card">
     <div class="fiad-modal-header">
       <span class="fiad-modal-title" id="modal-abono-title">Registrar Abono</span>
       <button class="fiad-modal-close" data-close="modal-abono" type="button" aria-label="Cerrar">
-        <img src="/static/img/equis.png" alt="Cerrar" />
+        <img src="/static/img/equis.png" alt="" aria-hidden="true" width="20" height="20" decoding="async" />
       </button>
     </div>
     <div class="fiad-modal-body">
-      <div id="alerta-error-modal" class="hidden mb-4 p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm flex items-center gap-2">
+      <div id="alerta-error-modal" class="fiad-modal-error hidden">
         <i class="fa-solid fa-circle-exclamation"></i><span id="texto-alerta-modal"></span>
       </div>
       <p class="fiad-modal-client-name" id="abono-client-name">Cliente</p>
@@ -280,7 +212,7 @@
           autocomplete="off"
           class="fiad-big-input"
         />
-        <p id="alerta-exceso-deuda" class="text-red-600 text-sm font-semibold hidden mt-1"><i class="fa-solid fa-circle-xmark"></i> El monto ingresado no puede ser mayor a la deuda actual.</p>
+        <p id="alerta-exceso-deuda" class="fiad-field-error hidden"><i class="fa-solid fa-circle-xmark"></i> El monto ingresado no puede ser mayor a la deuda actual.</p>
       </div>
       <p class="fiad-preview" id="abono-preview"></p>
     </div>
@@ -291,12 +223,13 @@
   </div>
 </div>
 
+<!-- ══════════ MODAL — SUMAR A LA DEUDA ══════════ -->
 <div class="fiad-backdrop hidden" id="modal-sumar" role="dialog" aria-modal="true" aria-labelledby="modal-sumar-title">
   <div class="fiad-modal-card">
     <div class="fiad-modal-header">
       <span class="fiad-modal-title" id="modal-sumar-title">Sumar a la Deuda</span>
       <button class="fiad-modal-close" data-close="modal-sumar" type="button" aria-label="Cerrar">
-        <img src="/static/img/equis.png" alt="Cerrar" />
+        <img src="/static/img/equis.png" alt="" aria-hidden="true" width="20" height="20" decoding="async" />
       </button>
     </div>
     <div class="fiad-modal-body">
@@ -322,28 +255,137 @@
   </div>
 </div>
 
-<script src="/static/js/logout.js"></script>
-<script src="/static/js/cop-format.js"></script>
-<script src="/static/js/toast.js"></script>
-<script src="/static/js/fab-scroll.js"></script>
-<script src="/static/js/fiados.js"></script>
+{% if es_admin %}
+<!-- ══════════ MODAL — CONFIRMAR (borrar deuda / anular obligacion) ══════════ -->
+<div class="fiad-backdrop hidden" id="modal-confirm" role="dialog" aria-modal="true" aria-labelledby="modal-confirm-title">
+  <div class="fiad-modal-card">
+    <div class="fiad-modal-header">
+      <span class="fiad-modal-title" id="modal-confirm-title">Confirmar</span>
+      <button class="fiad-modal-close" data-close="modal-confirm" type="button" aria-label="Cerrar">
+        <img src="/static/img/equis.png" alt="" aria-hidden="true" width="20" height="20" decoding="async" />
+      </button>
+    </div>
+    <div class="fiad-modal-body">
+      <p class="fiad-modal-client-name" id="confirm-target">—</p>
+      <p class="fiad-confirm-text" id="confirm-text">Esta accion no se puede deshacer.</p>
+    </div>
+    <div class="fiad-modal-footer">
+      <button class="btn-fiad-cancel" data-close="modal-confirm" type="button">Cancelar</button>
+      <button class="btn-fiad-danger" id="btn-confirm-yes" type="button"><i class="fa-solid fa-trash-can"></i>&nbsp; Confirmar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ MODAL — NUEVA OBLIGACION ══════════ -->
+<div class="fiad-backdrop hidden" id="modal-cxp" role="dialog" aria-modal="true" aria-labelledby="modal-cxp-title">
+  <div class="fiad-modal-card">
+    <div class="fiad-modal-header">
+      <span class="fiad-modal-title" id="modal-cxp-title">Nueva Obligacion</span>
+      <button class="fiad-modal-close" data-close="modal-cxp" type="button" aria-label="Cerrar">
+        <img src="/static/img/equis.png" alt="" aria-hidden="true" width="20" height="20" decoding="async" />
+      </button>
+    </div>
+    <div class="fiad-modal-body">
+      <div id="cxp-error" class="fiad-modal-error hidden">
+        <i class="fa-solid fa-circle-exclamation"></i><span id="cxp-error-text"></span>
+      </div>
+      <div class="fiad-field">
+        <label for="cxp-categoria">Categoria</label>
+        <select id="cxp-categoria" class="fiad-select">
+          {% for cat in categorias_por_pagar %}
+          <option value="{{ cat }}">{{ cat }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="fiad-field hidden" id="cxp-proveedor-field">
+        <label for="cxp-proveedor">Proveedor <span class="fiad-optional">(opcional)</span></label>
+        <select id="cxp-proveedor" class="fiad-select">
+          <option value="">Sin proveedor</option>
+        </select>
+      </div>
+      <div class="fiad-field">
+        <label for="cxp-concepto">Concepto</label>
+        <input type="text" id="cxp-concepto" placeholder="Ej. Factura 4312 / Nomina quincena" autocomplete="off" maxlength="150" />
+      </div>
+      <div class="fiad-field">
+        <label for="cxp-monto">Monto</label>
+        <input type="tel" id="cxp-monto" inputmode="numeric" pattern="[0-9]*" placeholder="0" autocomplete="off" class="fiad-big-input" />
+      </div>
+      <div class="fiad-field">
+        <label for="cxp-vence">Fecha de vencimiento <span class="fiad-optional">(opcional)</span></label>
+        <input type="date" id="cxp-vence" />
+      </div>
+      <div class="fiad-field">
+        <label for="cxp-desc">Detalle <span class="fiad-optional">(opcional)</span></label>
+        <input type="text" id="cxp-desc" placeholder="Ej. transferencia Bancolombia" autocomplete="off" maxlength="255" />
+      </div>
+    </div>
+    <div class="fiad-modal-footer">
+      <button class="btn-fiad-cancel" data-close="modal-cxp" type="button">Cancelar</button>
+      <button class="btn-fiad-primary" id="btn-cxp-confirm" type="button"><i class="fa-solid fa-floppy-disk"></i>&nbsp; Registrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ MODAL — APROBAR PAGO ══════════ -->
+<div class="fiad-backdrop hidden" id="modal-cxp-pay" role="dialog" aria-modal="true" aria-labelledby="modal-cxp-pay-title">
+  <div class="fiad-modal-card">
+    <div class="fiad-modal-header">
+      <span class="fiad-modal-title" id="modal-cxp-pay-title">Aprobar Pago</span>
+      <button class="fiad-modal-close" data-close="modal-cxp-pay" type="button" aria-label="Cerrar">
+        <img src="/static/img/equis.png" alt="" aria-hidden="true" width="20" height="20" decoding="async" />
+      </button>
+    </div>
+    <div class="fiad-modal-body">
+      <div id="cxp-pay-error" class="fiad-modal-error hidden">
+        <i class="fa-solid fa-circle-exclamation"></i><span id="cxp-pay-error-text"></span>
+      </div>
+      <p class="fiad-modal-client-name" id="cxp-pay-concepto">Obligacion</p>
+      <div class="fiad-debt-display">
+        <span class="fiad-debt-label">Saldo pendiente</span>
+        <span class="fiad-debt-amount" id="cxp-pay-saldo">$0</span>
+      </div>
+      <div class="fiad-field">
+        <label for="cxp-pay-monto">Monto a pagar</label>
+        <input type="tel" id="cxp-pay-monto" inputmode="numeric" pattern="[0-9]*" placeholder="0" autocomplete="off" class="fiad-big-input" />
+        <p id="cxp-pay-exceso" class="fiad-field-error hidden"><i class="fa-solid fa-circle-xmark"></i> El pago no puede superar el saldo pendiente.</p>
+      </div>
+      <!-- Obligatorio: define de donde sale el dinero y como se registra el
+           gasto automatico. El backend lo revalida contra ORIGENES_PAGO. -->
+      <div class="fiad-field">
+        <label for="cxp-pay-origen">Origen de los fondos</label>
+        <select id="cxp-pay-origen" class="fiad-select" required>
+          <option value="">Selecciona el origen...</option>
+        </select>
+        <p id="cxp-pay-origen-error" class="fiad-field-error hidden"><i class="fa-solid fa-circle-xmark"></i> Elige el origen de los fondos.</p>
+      </div>
+      <p class="fiad-preview" id="cxp-pay-preview"></p>
+      <p class="fiad-confirm-text">
+        Al aprobar se registra automaticamente el gasto correspondiente, en la
+        misma transaccion que el abono.
+      </p>
+    </div>
+    <div class="fiad-modal-footer">
+      <button class="btn-fiad-cancel" data-close="modal-cxp-pay" type="button">Cancelar</button>
+      <button class="btn-fiad-success" id="btn-cxp-pay-confirm" type="button"><i class="fa-solid fa-circle-check"></i>&nbsp; Aprobar Pago</button>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<script src="/static/js/logout.js" defer></script>
+<script src="/static/js/cop-format.js" defer></script>
+<script src="/static/js/toast.js" defer></script>
+<script src="/static/js/fab-scroll.js" defer></script>
 <div id="app-context"
   data-user-rol="{{ rol }}"
   data-subs-alerta='{{ mostrar_alerta_suscripcion | tojson }}'
   data-subs-dias="{{ dias_restantes }}"
   hidden></div>
-<script src="/static/js/subs-context.js"></script>
-<script src="/static/js/nav-rbac.js"></script>
-<script src="/static/js/subs-modal.js"></script>
+<script src="/static/js/subs-context.js" defer></script>
+<script src="/static/js/fiados.js" defer></script>
+<script src="/static/js/nav-rbac.js" defer></script>
+<script src="/static/js/subs-modal.js" defer></script>
 
 </body>
 </html>
-
-
-
-
-
-
-
-
-

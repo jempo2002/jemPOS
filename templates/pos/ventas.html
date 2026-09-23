@@ -3,7 +3,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Historial de Ventas</title>
+  {% include "_favicon.html" %}
+  <title>jemPOS - Historial de Ventas</title>
+  <meta name="robots" content="noindex, nofollow">
 
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -25,77 +27,7 @@
 
 <body>
 <div class="app-shell">
-  <aside class="sidebar" role="navigation" aria-label="Menu principal">
-    <div class="sidebar-logo">
-      <div class="logo-text"><span class="jem">jem</span><span class="pos">POS</span></div>
-      <div class="sub">Punto de Venta</div>
-    </div>
-
-    <nav class="sidebar-nav">
-      <a href="{{ url_for('sales_bp.turno') }}" class="nav-link">
-        <i class="fa-solid fa-business-time"></i>
-        <span>Mi Turno</span>
-      </a>
-      <a href="/dashboard" class="nav-link">
-        <i class="fa-solid fa-gauge-high"></i>
-        <span>{% if session.get('rol') == 'Admin' %}Panel de Control{% else %}Inicio{% endif %}</span>
-      </a>
-      <a href="{{ url_for('sales_bp.caja') }}" class="nav-link">
-        <i class="fa-solid fa-cash-register"></i>
-        <span>Caja</span>
-      </a>
-      {% if session.get('es_restaurante') %}
-      <a href="/inventario" class="nav-link{% if request.path == '/inventario' %} active{% endif %}">
-        <i class="fa-solid fa-utensils"></i>
-        <span>Menu y Platos</span>
-      </a>
-      <a href="/inventario/insumos" class="nav-link{% if request.path == '/inventario/insumos' %} active{% endif %}">
-        <i class="fa-solid fa-boxes-stacked"></i>
-        <span>Insumos (Despensa)</span>
-      </a>
-      {% else %}
-      <a href="/inventario" class="nav-link{% if request.path == '/inventario' %} active{% endif %}">
-        <i class="fa-solid fa-boxes-stacked"></i>
-        <span>Inventario</span>
-      </a>
-      {% endif %}
-      <a href="{{ url_for('sales_bp.fiados') }}" class="nav-link">
-        <i class="fa-solid fa-handshake-simple"></i>
-        <span>Fiados</span>
-      </a>
-      <a href="{{ url_for('sales_bp.ventas') }}" class="nav-link active" aria-current="page">
-        <i class="fa-solid fa-file-invoice-dollar"></i>
-        <span>Ventas</span>
-      </a>
-      <a href="{{ url_for('sales_bp.gastos') }}" class="nav-link">
-        <i class="fa-solid fa-receipt"></i>
-        <span>Gastos</span>
-      </a>
-      {% if (session.get('rol') or '')|lower == 'admin' %}
-      <a href="/perfil" class="nav-link">
-        <i class="fa-solid fa-circle-user"></i>
-        <span>Mi Perfil</span>
-      </a>
-      {% endif %}
-    </nav>
-
-    <a href="{{ url_for('auth.logout') }}" class="sidebar-logout no-underline hover:no-underline">
-      <img src="/static/img/leave.png" alt="" />
-      Cerrar sesion
-    </a>
-
-    <div class="sidebar-footer">
-      {% if foto_perfil %}
-      <img src="/static/uploads/perfiles/{{ foto_perfil }}" class="avatar avatar-img" alt="Foto" />
-      {% else %}
-      <div class="avatar">{{ avatar_iniciales }}</div>
-      {% endif %}
-      <div class="user-info">
-        <div class="user-name">{{ nombre_completo }}</div>
-        <div class="user-role">{{ rol }}</div>
-      </div>
-    </div>
-  </aside>
+  {% include "pos/_nav.html" %}
 
   <main class="main-area">
     <div class="bg-gray-50 min-h-full p-4 md:p-6">
@@ -113,59 +45,15 @@
             <i class="fa-solid fa-clock"></i> Mostrando ultimas 24 horas
           </div>
           {% else %}
-          <div class="flex flex-wrap items-center gap-2 mb-6">
-            <a href="{{ url_for('sales_bp.ventas', filtro='hoy') }}"
-               class="{% if filtro_activo == 'hoy' %}bg-blue-600 text-white shadow-md rounded-full px-4 py-2 text-sm font-semibold transition{% else %}bg-blue-50 text-blue-700 border border-blue-100 hover:bg-blue-100 rounded-full px-4 py-2 text-sm font-medium transition{% endif %}">
-              Hoy
-            </a>
-            <a href="{{ url_for('sales_bp.ventas', filtro='semana') }}"
-               class="{% if filtro_activo == 'semana' %}bg-blue-600 text-white shadow-md rounded-full px-4 py-2 text-sm font-semibold transition{% else %}bg-blue-50 text-blue-700 border border-blue-100 hover:bg-blue-100 rounded-full px-4 py-2 text-sm font-medium transition{% endif %}">
-              Semana
-            </a>
-            <a href="{{ url_for('sales_bp.ventas', filtro='mes') }}"
-               class="{% if filtro_activo == 'mes' %}bg-blue-600 text-white shadow-md rounded-full px-4 py-2 text-sm font-semibold transition{% else %}bg-blue-50 text-blue-700 border border-blue-100 hover:bg-blue-100 rounded-full px-4 py-2 text-sm font-medium transition{% endif %}">
-              Mes
-            </a>
-            <a href="{{ url_for('sales_bp.ventas', filtro='todas') }}"
-               class="{% if filtro_activo == 'todas' %}bg-blue-600 text-white shadow-md rounded-full px-4 py-2 text-sm font-semibold transition{% else %}bg-blue-50 text-blue-700 border border-blue-100 hover:bg-blue-100 rounded-full px-4 py-2 text-sm font-medium transition{% endif %}">
-              Todas
-            </a>
-          </div>
+          {% with filtros_id='ventas' %}
+            {% include "pos/_filtros.html" %}
+          {% endwith %}
           {% endif %}
 
-          {% if ventas %}
-          <div class="ventas-mobile-only space-y-4">
-            {% for venta in ventas %}
-            {% set estado = venta.estado_venta or 'Pagada' %}
-            <div class="bg-gray-50 rounded-2xl p-5 border border-gray-100 flex flex-col gap-3">
-              <div class="flex items-center justify-between gap-3">
-                <p class="text-sm font-semibold text-gray-800">Venta #{{ venta.id_venta }}</p>
-                {% if estado == 'Pagada' %}
-                <span class="rounded-full px-3 py-1 text-xs font-bold bg-green-100 text-green-800">Pagada</span>
-                {% elif estado == 'Anulada' %}
-                <span class="rounded-full px-3 py-1 text-xs font-bold bg-red-100 text-red-800">Anulada</span>
-                {% elif estado == 'Fiada/Pendiente' %}
-                <span class="rounded-full px-3 py-1 text-xs font-bold bg-orange-100 text-orange-800">Fiada/Pendiente</span>
-                {% else %}
-                <span class="rounded-full px-3 py-1 text-xs font-bold bg-gray-200 text-gray-700">{{ estado }}</span>
-                {% endif %}
-              </div>
+          <!-- Lista renderizada por static/js/ventas.js desde /pos/api/ventas -->
+          <div class="ventas-mobile-only space-y-4" id="ventas-cards"></div>
 
-              <p class="text-sm text-gray-700"><span class="font-semibold text-gray-800">Cliente:</span> {{ venta.nombre_cliente }}</p>
-              <p class="text-lg font-bold text-gray-900">${{ '{:,.0f}'.format(venta.total_final) }}</p>
-              <p class="text-xs text-gray-500">{{ venta.fecha_creacion.strftime('%Y-%m-%d %H:%M') if venta.fecha_creacion else 'Sin fecha' }}</p>
-
-              <button
-                type="button"
-                class="btn-ver-detalle bg-blue-100 text-blue-700 rounded-xl px-4 py-2 text-center font-semibold"
-                data-id="{{ venta.id_venta }}">
-                Ver Detalle
-              </button>
-            </div>
-            {% endfor %}
-          </div>
-
-          <div class="ventas-desktop-only overflow-x-auto">
+          <div class="ventas-desktop-only overflow-x-auto" id="ventas-table-wrap">
             <table class="w-full">
               <thead>
                 <tr class="text-gray-500 uppercase text-xs">
@@ -178,50 +66,23 @@
                   <th class="py-3 text-left">Accion</th>
                 </tr>
               </thead>
-              <tbody>
-                {% for venta in ventas %}
-                {% set estado = venta.estado_venta or 'Pagada' %}
-                <tr class="border-b border-gray-50 hover:bg-gray-50 transition">
-                  <td class="py-4 text-sm font-semibold text-gray-800">#{{ venta.id_venta }}</td>
-                  <td class="py-4 text-sm text-gray-700">{{ venta.fecha_creacion.strftime('%Y-%m-%d %H:%M') if venta.fecha_creacion else 'Sin fecha' }}</td>
-                  <td class="py-4 text-sm text-gray-700">{{ venta.nombre_cliente }}</td>
-                  <td class="py-4 text-sm text-gray-700">{{ venta.nombre_cajero }}</td>
-                  <td class="py-4 text-sm font-bold text-gray-900">${{ '{:,.0f}'.format(venta.total_final) }}</td>
-                  <td class="py-4 text-sm">
-                    {% if estado == 'Pagada' %}
-                    <span class="rounded-full px-3 py-1 text-xs font-bold bg-green-100 text-green-800">Pagada</span>
-                    {% elif estado == 'Anulada' %}
-                    <span class="rounded-full px-3 py-1 text-xs font-bold bg-red-100 text-red-800">Anulada</span>
-                    {% elif estado == 'Fiada/Pendiente' %}
-                    <span class="rounded-full px-3 py-1 text-xs font-bold bg-orange-100 text-orange-800">Fiada/Pendiente</span>
-                    {% else %}
-                    <span class="rounded-full px-3 py-1 text-xs font-bold bg-gray-200 text-gray-700">{{ estado }}</span>
-                    {% endif %}
-                  </td>
-                  <td class="py-4 text-sm">
-                    <button
-                      type="button"
-                      class="btn-ver-detalle bg-blue-100 text-blue-700 rounded-xl px-4 py-2 text-center font-semibold"
-                      data-id="{{ venta.id_venta }}">
-                      Ver Detalle
-                    </button>
-                  </td>
-                </tr>
-                {% endfor %}
-              </tbody>
+              <tbody id="ventas-table-body"></tbody>
             </table>
           </div>
-          {% else %}
-          <div class="bg-white rounded-[2rem] p-12 text-center border border-gray-100 shadow-sm flex flex-col items-center justify-center">
+
+          <div class="hidden p-12 text-center" id="ventas-empty">
             <i class="fa-solid fa-receipt text-6xl text-gray-200 mb-4"></i>
             <p class="font-semibold text-gray-700">No se encontraron ventas para este filtro</p>
           </div>
-          {% endif %}
+
+          {% with filtros_id='ventas' %}
+            {% include "pos/_paginador.html" %}
+          {% endwith %}
         </div>
       </div>
       <div id="modal-detalle" class="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
         <div class="bg-white rounded-[2rem] p-6 w-full max-w-md shadow-2xl relative max-h-[90vh] overflow-y-auto">
-          <img src="/static/img/equis.png" alt="Cerrar" id="btn-cerrar-modal" class="absolute right-4 top-4 h-6 w-6 cursor-pointer" />
+          <img src="/static/img/equis.png" alt="" aria-hidden="true" width="24" height="24" decoding="async" id="btn-cerrar-modal" class="absolute right-4 top-4 h-6 w-6 cursor-pointer" />
 
           <div id="ticket-content" class="pr-6">
             <h2 class="text-lg font-bold text-gray-800">Detalle del Ticket <span id="ticket-numero">-</span></h2>
@@ -241,51 +102,22 @@
     </div>
   </main>
 
-  <nav class="bottom-bar" role="navigation" aria-label="Navegacion principal">
-    <a href="{{ url_for('sales_bp.ventas') }}" class="bottom-btn{% if request.path.startswith('/pos/ventas') %} active{% endif %}"{% if request.path.startswith('/pos/ventas') %} aria-current="page"{% endif %} aria-label="Ventas">
-      <i class="fa-solid fa-file-invoice-dollar"></i>
-      <span>Ventas</span>
-    </a>
 
-    <a href="{{ url_for('sales_bp.caja') }}" class="bottom-btn{% if request.path.startswith('/pos/caja') %} active{% endif %}"{% if request.path.startswith('/pos/caja') %} aria-current="page"{% endif %} aria-label="Caja">
-      <i class="fa-solid fa-cash-register"></i>
-      <span>Caja</span>
-    </a>
-
-    <a href="/inventario" class="bottom-btn{% if request.path.startswith('/inventario') %} active{% endif %}"{% if request.path.startswith('/inventario') %} aria-current="page"{% endif %} aria-label="Inventario">
-      <i class="fa-solid fa-boxes-stacked"></i>
-      <span>Inventario</span>
-    </a>
-
-    <button type="button" class="bottom-btn bottom-more-toggle{% if request.path.startswith('/pos/turno') or request.path == '/perfil' %} active{% endif %}" aria-label="Mas opciones" aria-controls="bottom-more-panel" aria-expanded="false">
-      <i class="fa-solid fa-ellipsis"></i>
-      <span>Mas</span>
-    </button>
-  </nav>
-
-  <div id="bottom-more-panel" class="bottom-more-panel" hidden>
-    <a href="{{ url_for('sales_bp.turno') }}" class="bottom-more-link{% if request.path.startswith('/pos/turno') %} active{% endif %}">
-      <i class="fa-solid fa-business-time"></i>
-      <span>Mi Turno</span>
-    </a>
-    <a href="/perfil" class="bottom-more-link{% if request.path == '/perfil' %} active{% endif %}">
-      <i class="fa-solid fa-circle-user"></i>
-      <span>Mi Perfil</span>
-    </a>
-  </div>
 </div>
 
-<script src="/static/js/logout.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
-<script src="/static/js/ventas.js"></script>
+<script src="/static/js/logout.js" defer></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" defer></script>
+<script src="/static/js/toast.js" defer></script>
+<script src="/static/js/filtros-paginacion.js" defer></script>
+<script src="/static/js/ventas.js" defer></script>
 <div id="app-context"
      data-user-rol="{{ rol }}"
      data-subs-alerta='{{ mostrar_alerta_suscripcion | tojson }}'
      data-subs-dias="{{ dias_restantes }}"
      hidden></div>
-<script src="/static/js/subs-context.js"></script>
-<script src="/static/js/nav-rbac.js"></script>
-<script src="/static/js/subs-modal.js"></script>
+<script src="/static/js/subs-context.js" defer></script>
+<script src="/static/js/nav-rbac.js" defer></script>
+<script src="/static/js/subs-modal.js" defer></script>
 
 </body>
 </html>

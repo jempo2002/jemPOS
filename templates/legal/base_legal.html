@@ -1,0 +1,138 @@
+{# Ruta: templates/legal/base_legal.html
+   Layout de las paginas legales. Reutiliza landing.css (mismos tokens, misma
+   tipografia, mismo header y footer) para que no parezcan otra web.
+   Las hijas definen: titulo_pagina, meta_descripcion, titulo, actualizado y el
+   bloque `contenido`. #}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  {% include "_favicon.html" %}
+
+  {# Misma CSP restrictiva que la landing: estas paginas no cargan nada externo. #}
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
+
+  <title>{% block titulo_pagina %}Informacion legal — jemPOS{% endblock %}</title>
+  <meta name="description" content="{% block meta_descripcion %}Informacion legal de jemPOS, el sistema de punto de venta y gestion integral para MiPyMEs.{% endblock %}">
+  {# Paginas legales: se indexan (dan confianza y son contenido real), pero no
+     compiten por posiciones comerciales.
+
+     Excepcion: si falta identificar al responsable del tratamiento
+     (EMPRESA en app/routes/legal.py), se sirven noindex. Un aviso legal
+     incompleto indexado queda en la cache de Google y en los resultados
+     mucho despues de haberlo corregido. #}
+  <meta name="robots" content="{% block robots %}{% if empresa_incompleta %}noindex, follow{% else %}index, follow{% endif %}{% endblock %}">
+  <meta name="theme-color" content="#3b82f6">
+  <link rel="canonical" href="{{ request.base_url }}">
+
+  <meta property="og:title" content="{{ self.titulo_pagina() }}">
+  <meta property="og:description" content="{{ self.meta_descripcion() }}">
+  <meta property="og:type" content="article">
+  <meta property="og:site_name" content="jemPOS">
+  <meta property="og:locale" content="es_CO">
+  <meta property="og:url" content="{{ request.base_url }}">
+  <meta property="og:image" content="{{ url_for('static', filename='img/og-cover.jpg', _external=True) }}">
+
+  {# Sin defer: cookies.js marca <html data-cookies-ok> antes del primer frame
+     para que el aviso no parpadee a quien ya lo acepto. #}
+  <script src="/static/js/cookies.js"></script>
+  <link rel="stylesheet" href="/static/css/landing.css">
+</head>
+<body>
+
+  <a class="skip-link" href="#contenido">Saltar al contenido principal</a>
+
+  <header class="header is-scrolled" data-header>
+    <nav class="header__nav" aria-label="Navegacion principal">
+      <a class="header__brand" href="{{ url_for('landing') }}" aria-label="jemPOS, inicio">
+        <span class="header__logo" aria-hidden="true">
+          <svg viewBox="0 0 32 32" width="28" height="28">
+            <rect x="6" y="3" width="20" height="26" rx="4" fill="currentColor" opacity="0.15"/>
+            <rect x="6" y="3" width="20" height="26" rx="4" fill="none" stroke="currentColor" stroke-width="2"/>
+            <path d="M11 11h10M11 16h6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            <path d="M12 22.5l2.5 2.5 5-5" stroke="currentColor" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </span>
+        <span class="header__name">jem<strong>POS</strong></span>
+      </a>
+      <div class="header__auth">
+        <a class="btn btn--inverse btn--sm" href="{{ url_for('landing') }}">Volver al inicio</a>
+      </div>
+    </nav>
+  </header>
+
+  <main id="contenido" class="legal">
+    <div class="legal__inner">
+      {# Encabezado en un bloque propio: la pagina 404 reutiliza este layout
+         (header, footer, banner de cookies y landing.css) pero no es un texto
+         legal, asi que lo sobreescribe completo para no heredar la fecha de
+         actualizacion ni el aviso de borrador. #}
+      {% block encabezado %}
+      <h1 class="legal__title">{% block titulo %}Informacion legal{% endblock %}</h1>
+      <p class="legal__meta">Ultima actualizacion: {% block actualizado %}{{ actualizado }}{% endblock %}</p>
+
+      {% if empresa_incompleta %}
+      <div class="legal__aviso" role="note">
+        <strong>Pendiente.</strong> Falta identificar al responsable del
+        tratamiento (denominacion, NIT y domicilio). Hasta completarlo, esta
+        pagina se sirve sin indexar.
+      </div>
+      {% endif %}
+      {% endblock %}
+
+      {% block contenido %}{% endblock %}
+    </div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer__inner">
+      <div class="footer__brand">
+        <span class="header__name">jem<strong>POS</strong></span>
+        <p class="footer__tagline">Punto de venta y contabilidad en la nube para MiPyMEs.</p>
+      </div>
+
+      <nav class="footer__col" aria-label="Producto">
+        <h3 class="footer__heading">Producto</h3>
+        <ul role="list">
+          <li><a class="footer__link" href="{{ url_for('landing') }}#ventajas">Ventajas</a></li>
+          <li><a class="footer__link" href="{{ url_for('landing') }}#precios">Precios</a></li>
+          <li><a class="footer__link" href="{{ url_for('auth.login') }}">Iniciar sesion</a></li>
+        </ul>
+      </nav>
+
+      <nav class="footer__col" aria-label="Legal">
+        <h3 class="footer__heading">Legal</h3>
+        <ul role="list">
+          <li><a class="footer__link" href="{{ url_for('legal_bp.aviso_legal') }}">Aviso legal</a></li>
+          <li><a class="footer__link" href="{{ url_for('legal_bp.politica_privacidad') }}">Politica de privacidad</a></li>
+        </ul>
+      </nav>
+
+      {# Mismos datos que el footer de la landing: salen de CONTACTO en
+         app/routes/seo.py, no se repiten escritos a mano. #}
+      <nav class="footer__col" aria-label="Contacto">
+        <h3 class="footer__heading">Contacto</h3>
+        <ul role="list">
+          <li>
+            <a class="footer__link" href="{{ contacto.whatsapp }}"
+               target="_blank" rel="noopener">WhatsApp {{ contacto.telefono_visible }}</a>
+          </li>
+          <li>
+            <a class="footer__link" href="{{ contacto.instagram }}"
+               target="_blank" rel="me noopener">Instagram {{ contacto.instagram_usuario }}</a>
+          </li>
+          <li>
+            <a class="footer__link" href="mailto:{{ contacto.correo }}">{{ contacto.correo }}</a>
+          </li>
+        </ul>
+      </nav>
+    </div>
+    <p class="footer__copy">&copy; 2026 jemPOS. Todos los derechos reservados.</p>
+  </footer>
+
+  {% include "_cookies.html" %}
+
+</body>
+</html>

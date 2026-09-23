@@ -76,6 +76,15 @@
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') setOpen(false);
     });
+
+    // Cerrar al tocar/hacer clic fuera del menú (el usuario espera esta
+    // "vía de escape" en cualquier menú desplegable — Nielsen #3).
+    document.addEventListener('click', (e) => {
+      const isOpen = toggle.getAttribute('aria-expanded') === 'true';
+      if (isOpen && !menu.contains(e.target) && !toggle.contains(e.target)) {
+        setOpen(false);
+      }
+    });
   };
 
   /* ------------------------------------------------------------
@@ -178,32 +187,50 @@
       setActiveCard(Math.round(virtualIndex));
     };
 
-    /** Bucle de animación: interpola currentX hacia targetX. */
+    /**
+     * Bucle de animación: lee el scroll UNA vez por frame (aquí, no en
+     * el evento 'scroll') e interpola currentX hacia targetX.
+     * Antes, computeTarget() corría directo en el listener de 'scroll',
+     * que en scroll rápido/inercia puede disparar muchas más de 60
+     * lecturas de layout (getBoundingClientRect/offsetHeight) por
+     * segundo. Al mover la lectura aquí, rAF ya garantiza como máximo
+     * una lectura + una escritura de estilo por frame — cero layout
+     * thrashing.
+     */
     const loop = () => {
+      computeTarget();
       currentX += (targetX - currentX) * LERP_FACTOR;
       if (Math.abs(targetX - currentX) < 0.1) currentX = targetX;
       track.style.transform = `translate3d(${-currentX}px, 0, 0)`;
       rafId = requestAnimationFrame(loop);
     };
 
-    const onScroll = () => computeTarget();
-    const onResize = () => { measure(); computeTarget(); };
+    /** Remedida en resize, throttleada a máximo una vez por frame. */
+    let resizeTicking = false;
+    const onResize = () => {
+      if (resizeTicking) return;
+      resizeTicking = true;
+      requestAnimationFrame(() => {
+        measure();
+        resizeTicking = false;
+      });
+    };
 
     /** Activa/desactiva el modo horizontal según media queries. */
     const evaluateMode = () => {
       const shouldRun = desktopView.matches && !reducedMotion.matches;
       if (shouldRun === active) return;
       active = shouldRun;
+      // will-change solo mientras el carril realmente se anima (CSS).
+      track.classList.toggle('is-animating', shouldRun);
 
       if (shouldRun) {
         measure();
         computeTarget();
         currentX = targetX; // sin animación inicial brusca
-        window.addEventListener('scroll', onScroll, { passive: true });
         window.addEventListener('resize', onResize);
         rafId = requestAnimationFrame(loop);
       } else {
-        window.removeEventListener('scroll', onScroll);
         window.removeEventListener('resize', onResize);
         if (rafId) cancelAnimationFrame(rafId);
         track.style.transform = '';

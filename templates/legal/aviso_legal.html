@@ -1,0 +1,202 @@
+{# Ruta: templates/legal/aviso_legal.html
+   Texto definitivo. Los datos del responsable salen de EMPRESA y CONTACTO
+   (app/routes/legal.py y app/routes/seo.py): no se escriben aqui a mano. #}
+{% extends "legal/base_legal.html" %}
+
+{% block titulo_pagina %}Aviso legal — jemPOS, punto de venta y gestion integral{% endblock %}
+{% block meta_descripcion %}Aviso legal y condiciones de uso de jemPOS, el sistema de punto de venta y gestion integral para MiPyMEs: titularidad, cuenta de usuario, planes, propiedad intelectual y responsabilidad.{% endblock %}
+{% block titulo %}Aviso legal{% endblock %}
+
+{% block contenido %}
+  <section class="legal__section" aria-labelledby="titularidad">
+    <h2 class="legal__h2" id="titularidad">1. Titularidad del sitio</h2>
+    <p class="legal__p">
+      Este sitio y la plataforma jemPOS son operados por
+      <strong>{{ empresa.razon_social }}</strong>, identificado con NIT
+      <strong>{{ empresa.nit }}</strong> y domicilio en
+      <strong>{{ empresa.domicilio }}</strong> ({{ empresa.ciudad }}, Colombia).
+    </p>
+    <p class="legal__p">
+      Canales de atencion:
+      <a class="legal__link" href="mailto:{{ contacto.correo }}">{{ contacto.correo }}</a>,
+      WhatsApp
+      <a class="legal__link" href="{{ contacto.whatsapp }}" target="_blank" rel="noopener">{{ contacto.telefono_visible }}</a>
+      e Instagram
+      <a class="legal__link" href="{{ contacto.instagram }}" target="_blank" rel="me noopener">{{ contacto.instagram_usuario }}</a>.
+      Son los unicos canales oficiales: cualquier comunicacion que llegue por
+      otra via y pida contrasenas o pagos no proviene de jemPOS.
+    </p>
+  </section>
+
+  <section class="legal__section" aria-labelledby="objeto">
+    <h2 class="legal__h2" id="objeto">2. Objeto y ambito de aplicacion</h2>
+    <p class="legal__p">
+      Este aviso regula el acceso y el uso del sitio y de la plataforma jemPOS,
+      un servicio de software en la nube para la gestion de micro, pequenas y
+      medianas empresas. Al crear una cuenta o utilizar la plataforma, el
+      usuario acepta estas condiciones en su totalidad.
+    </p>
+    <p class="legal__p">
+      La plataforma presta, entre otras, las siguientes funciones:
+    </p>
+    <ul class="legal__list">
+      <li>Registro de ventas y facturacion de venta.</li>
+      <li>Control de inventario, costos y alertas de existencias.</li>
+      <li>Cartera: cuentas por cobrar a clientes y por pagar a proveedores.</li>
+      <li>Turnos de caja, control de gastos y gestion de personal.</li>
+      <li>Reportes de operacion y de resultados del negocio.</li>
+    </ul>
+    <p class="legal__p">
+      jemPOS es una herramienta de gestion, no un sustituto de la asesoria
+      contable, tributaria o juridica. Los documentos que genera no constituyen
+      por si solos factura electronica ante la DIAN, salvo que el usuario
+      contrate expresamente ese servicio con un proveedor tecnologico
+      autorizado.
+    </p>
+  </section>
+
+  <section class="legal__section" aria-labelledby="condiciones">
+    <h2 class="legal__h2" id="condiciones">3. Condiciones de uso</h2>
+
+    <h3 class="legal__h3">3.1. Cuenta de usuario</h3>
+    <p class="legal__p">
+      Para usar la plataforma hay que crear una cuenta con datos veraces y
+      actualizados. Las credenciales son personales e intransferibles: el
+      usuario responde por toda actividad realizada desde su cuenta y debe
+      avisarnos de inmediato si sospecha de un acceso no autorizado.
+    </p>
+    <p class="legal__p">
+      Cada tienda tiene roles con permisos distintos. Quien administra la
+      cuenta es responsable de asignar los roles y de retirar el acceso al
+      personal que deja de trabajar en el negocio.
+    </p>
+
+    <h3 class="legal__h3">3.2. Usos prohibidos</h3>
+    <p class="legal__p">
+      Queda prohibido:
+    </p>
+    <ul class="legal__list">
+      <li>Acceder a cuentas, tiendas o datos de terceros sin autorizacion.</li>
+      <li>Intentar vulnerar, sondear o sobrecargar la plataforma, incluido el uso de robots o peticiones automatizadas masivas.</li>
+      <li>Copiar, descompilar o redistribuir el software o partes de el.</li>
+      <li>Registrar informacion falsa o usar la plataforma para actividades ilicitas.</li>
+      <li>Suplantar la identidad de jemPOS o de otros usuarios.</li>
+    </ul>
+
+    <h3 class="legal__h3">3.3. Disponibilidad del servicio</h3>
+    <p class="legal__p">
+      Procuramos que el servicio este disponible de forma continua, pero puede
+      interrumpirse por mantenimiento, actualizaciones o fallas de los
+      proveedores de infraestructura. Avisaremos con antelacion de los
+      mantenimientos programados siempre que sea posible.
+    </p>
+  </section>
+
+  <section class="legal__section" aria-labelledby="planes">
+    <h2 class="legal__h2" id="planes">4. Planes, precios y pagos</h2>
+    <p class="legal__p">
+      Los planes y sus precios son los publicados en la
+      <a class="legal__link" href="{{ url_for('landing') }}#precios">pagina de inicio</a>,
+      expresados en pesos colombianos (COP). El cobro es periodico y se renueva
+      salvo cancelacion del usuario.
+    </p>
+    <p class="legal__p">
+      Los cambios de precio se comunican con antelacion razonable y solo aplican
+      al periodo siguiente. La falta de pago habilita la suspension del acceso;
+      durante la suspension el usuario conserva el derecho a solicitar una copia
+      de su informacion.
+    </p>
+    <p class="legal__p">
+      Al usuario consumidor le asisten los derechos de la Ley 1480 de 2011
+      (Estatuto del Consumidor), incluido el de retracto cuando la contratacion
+      se realiza por medios electronicos y se cumplen las condiciones legales.
+    </p>
+  </section>
+
+  <section class="legal__section" aria-labelledby="datos-usuario">
+    <h2 class="legal__h2" id="datos-usuario">5. Informacion cargada por el usuario</h2>
+    <p class="legal__p">
+      La informacion comercial que el usuario registra en la plataforma
+      (ventas, inventario, clientes, proveedores y cartera) es suya. jemPOS la
+      trata unicamente para prestar el servicio, con el alcance descrito en la
+      <a class="legal__link" href="{{ url_for('legal_bp.politica_privacidad') }}">politica de privacidad</a>.
+    </p>
+    <p class="legal__p">
+      Cuando el usuario registra datos de sus propios clientes, actua como
+      responsable del tratamiento frente a ellos y jemPOS como encargado. Es el
+      usuario quien debe obtener la autorizacion de esas personas y atender sus
+      solicitudes.
+    </p>
+  </section>
+
+  <section class="legal__section" aria-labelledby="propiedad">
+    <h2 class="legal__h2" id="propiedad">6. Propiedad intelectual e industrial</h2>
+    <p class="legal__p">
+      El software, el codigo fuente, la interfaz, los textos, el logotipo y
+      demas elementos de la plataforma son propiedad de su titular o cuentan con
+      licencia de uso, y estan protegidos por las normas de derecho de autor y
+      propiedad industrial (Decision Andina 351 de 1993 y Ley 23 de 1982).
+    </p>
+    <p class="legal__p">
+      El acceso al servicio concede al usuario una licencia limitada, revocable,
+      no exclusiva e intransferible para usar la plataforma conforme a este
+      aviso. No supone cesion de ningun derecho de propiedad intelectual.
+    </p>
+  </section>
+
+  <section class="legal__section" aria-labelledby="responsabilidad">
+    <h2 class="legal__h2" id="responsabilidad">7. Limitacion de responsabilidad</h2>
+    <p class="legal__p">
+      jemPOS responde por la correcta prestacion del servicio contratado. No
+      responde por decisiones comerciales, contables o tributarias que el
+      usuario tome con base en la informacion que el mismo registro, ni por
+      danos derivados de un uso contrario a este aviso, del acceso de terceros
+      a causa de credenciales mal custodiadas, o de fallas de la conexion a
+      internet o de los equipos del usuario.
+    </p>
+    <p class="legal__p">
+      Nada de lo anterior limita la responsabilidad que la ley colombiana no
+      permite excluir, en particular frente al consumidor.
+    </p>
+  </section>
+
+  <section class="legal__section" aria-labelledby="terminacion">
+    <h2 class="legal__h2" id="terminacion">8. Suspension y terminacion</h2>
+    <p class="legal__p">
+      El usuario puede cancelar su cuenta en cualquier momento escribiendo a
+      <a class="legal__link" href="mailto:{{ contacto.correo }}">{{ contacto.correo }}</a>.
+      jemPOS puede suspender o terminar el acceso ante incumplimientos graves de
+      este aviso o falta de pago, previo aviso cuando la situacion lo permita.
+    </p>
+    <p class="legal__p">
+      Terminada la relacion, el usuario dispone de treinta (30) dias calendario
+      para solicitar una copia de su informacion antes de su eliminacion, salvo
+      los datos que debamos conservar por obligacion legal.
+    </p>
+  </section>
+
+  <section class="legal__section" aria-labelledby="modificaciones">
+    <h2 class="legal__h2" id="modificaciones">9. Modificaciones de este aviso</h2>
+    <p class="legal__p">
+      Podemos actualizar este aviso para reflejar cambios en el servicio o en la
+      normativa. La fecha de la ultima revision aparece al inicio de la pagina.
+      Los cambios sustanciales se comunican por correo electronico o dentro de
+      la plataforma antes de entrar en vigor.
+    </p>
+  </section>
+
+  <section class="legal__section" aria-labelledby="legislacion">
+    <h2 class="legal__h2" id="legislacion">10. Legislacion aplicable y jurisdiccion</h2>
+    <p class="legal__p">
+      Este aviso se rige por la ley colombiana, en particular la Ley 527 de 1999
+      sobre comercio electronico, la Ley 1480 de 2011 y la Ley 1581 de 2012.
+      Para cualquier controversia seran competentes los jueces de
+      <strong>{{ empresa.ciudad }}</strong>, sin perjuicio de los fueros que la
+      ley reconoce al consumidor.
+    </p>
+    <p class="legal__p">
+      Consulta tambien nuestra
+      <a class="legal__link" href="{{ url_for('legal_bp.politica_privacidad') }}">politica de privacidad</a>.
+    </p>
+  </section>
+{% endblock %}

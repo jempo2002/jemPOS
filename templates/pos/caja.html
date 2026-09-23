@@ -1,325 +1,232 @@
-﻿<!-- Ruta: templates/pos/caja.html -->
+<!-- Ruta: templates/pos/caja.html -->
 <!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  {% include "_favicon.html" %}
   <title>jemPOS - Caja</title>
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="description" content="Caja de jemPOS: busca o escanea productos, cobra en efectivo, Nequi o tarjeta y registra fiados." />
+  <meta name="csrf-token" content="{{ csrf_token() }}" />
 
-  <!-- Google Fonts: Inter -->
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-
-  <!-- FontAwesome 6 -->
   <link
     rel="stylesheet"
     href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
     crossorigin="anonymous"
     referrerpolicy="no-referrer"
   />
-
-  <!-- Estilos del POS -->
   <link rel="stylesheet" href="/static/css/caja.css" />
   <link rel="stylesheet" href="/static/css/flash.css" />
-  <meta name="csrf-token" content="{{ csrf_token() }}" />
   <link rel="stylesheet" href="/static/css/global.css" />
 </head>
 
-<body class="page-caja">
+<body class="page-caja" data-user-rol="{{ (rol or '')|lower }}">
 
-<!-- Flash de permisos (RBAC redirect) -->
 {% with messages = get_flashed_messages(with_categories=true) %}
   {% if messages %}
     <div id="flash-container" class="flash-container">
       {% for category, message in messages %}
       <div class="flash-msg flash-{{ category }} flash-alert" role="alert">
-        <i class="fa-solid fa-circle-exclamation flash-alert-icon"></i>
+        <i class="fa-solid fa-circle-exclamation flash-alert-icon" aria-hidden="true"></i>
         {{ message }}
       </div>
       {% endfor %}
     </div>
-    <script src="/static/js/flash-auto-dismiss.js"></script>
+    <script src="/static/js/flash-auto-dismiss.js" defer></script>
   {% endif %}
 {% endwith %}
+
 <div class="app-shell">
-  <aside class="sidebar" role="navigation" aria-label="Menu principal">
+  {% include "pos/_nav.html" %}
 
-    <!-- Logo -->
-    <div class="sidebar-logo">
-      <div class="logo-text">
-        <span class="jem">jem</span><span class="pos">POS</span>
-      </div>
-      <div class="sub">Punto de Venta</div>
-    </div>
-
-    <!-- Navegacion -->
-    <nav class="sidebar-nav">
-      <a href="{{ url_for('sales_bp.turno') }}" class="nav-link">
-        <i class="fa-solid fa-business-time"></i>
-        <span>Mi Turno</span>
-      </a>
-      <a href="/dashboard" class="nav-link">
-        <i class="fa-solid fa-gauge-high"></i>
-        <span>{% if session.get('rol') == 'Admin' %}Panel de Control{% else %}Inicio{% endif %}</span>
-      </a>
-      <a href="{{ url_for('sales_bp.caja') }}" class="nav-link active" aria-current="page">
-        <i class="fa-solid fa-cash-register"></i>
-        <span>Caja</span>
-      </a>
-      <a href="/inventario" class="nav-link">
-        <i class="fa-solid fa-boxes-stacked"></i>
-        <span>Inventario</span>
-      </a>
-      <a href="{{ url_for('sales_bp.fiados') }}" class="nav-link">
-        <i class="fa-solid fa-handshake-simple"></i>
-        <span>Fiados</span>
-      </a>
-      <a href="{{ url_for('sales_bp.ventas') }}" class="nav-link">
-        <i class="fa-solid fa-file-invoice-dollar"></i>
-        <span>Ventas</span>
-      </a>
-      <a href="{{ url_for('sales_bp.gastos') }}" class="nav-link">
-        <i class="fa-solid fa-receipt"></i>
-        <span>Gastos</span>
-      </a>
-      {% if (session.get('rol') or '')|lower == 'admin' %}
-      <a href="/perfil" class="nav-link">
-        <i class="fa-solid fa-circle-user"></i>
-        <span>Mi Perfil</span>
-      </a>
-      {% endif %}
-    </nav>
-
-    <!-- Usuario (pie del sidebar) -->
-    <a href="{{ url_for('auth.logout') }}" class="sidebar-logout no-underline">
-      <img src="/static/img/leave.png" alt="" />
-      Cerrar sesion
-    </a>
-    <div class="sidebar-footer">
-      {% if foto_perfil %}
-      <img src="/static/uploads/perfiles/{{ foto_perfil }}" class="avatar avatar-img" alt="Foto" />
-      {% else %}
-      <div class="avatar">{{ avatar_iniciales }}</div>
-      {% endif %}
-      <div class="user-info">
-        <div class="user-name">{{ nombre_completo }}</div>
-        <div class="user-role">{{ rol }}</div>
-      </div>
-    </div>
-
-  </aside>
-  <!-- /sidebar -->
-  <div class="main-area">
+  <main class="main-area">
     <header class="top-bar">
-
-      <!-- Logo (solo visible en movil) -->
       <div class="top-bar-logo" aria-hidden="true">
         <span class="jem">jem</span><span class="pos">POS</span>
       </div>
 
-      <!-- Buscador / Escaner -->
-      <div class="search-wrap">
-        <i class="fa-solid fa-barcode" aria-hidden="true"></i>
+      <div class="search-wrap" role="search">
+        <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
         <input
-          type="text"
+          type="search"
           id="search-input"
           class="search-input"
-          placeholder="Buscar producto o escanear..."
-          inputmode="search"
+          placeholder="Buscar producto"
+          enterkeyhint="search"
           autocomplete="off"
           autocorrect="off"
           spellcheck="false"
-          aria-label="Buscar producto o escanear codigo de barras"
+          aria-label="Buscar producto por nombre o código de barras"
+          aria-controls="search-dropdown"
         />
-        <div id="search-dropdown" class="search-dropdown hidden" role="listbox" aria-label="Resultados de busqueda"></div>
+        <div id="search-dropdown" class="search-dropdown hidden" aria-label="Resultados de búsqueda"></div>
       </div>
 
+      <button type="button" class="icon-btn" id="btn-scan" aria-label="Escanear código de barras con la cámara">
+        <i class="fa-solid fa-camera" aria-hidden="true"></i>
+      </button>
+
+      <div id="offline-sync-indicator" class="offline-sync-indicator" hidden>
+        <i class="fa-solid fa-cloud" aria-hidden="true"></i>
+        <span id="offline-sync-indicator-text">Sincronización local</span>
+      </div>
     </header>
-    <!-- /top-bar -->
+
     <div class="pos-container">
-      <div class="left-col">
+      <section class="cart" aria-labelledby="cart-title">
+        <h1 class="cart-title" id="cart-title">Carrito</h1>
+        <div class="cart-section">
+          <p class="cart-empty" id="cart-empty" role="status">
+            <i class="fa-solid fa-cart-shopping" aria-hidden="true"></i>
+            El carrito está vacío.<br>Busca o escanea un producto.
+          </p>
+          <ul class="cart-list" id="cart-list" aria-label="Productos en el carrito"></ul>
+        </div>
+      </section>
 
-        <!-- Cabecera del carrito -->
-        <div class="cart-header cart-header-main">
-          <span class="cart-title">Carrito</span>
+      <aside class="payment-panel" aria-label="Panel de cobro">
+        <div class="total-block">
+          <span class="total-label">Total</span>
+          <output class="total-amount" id="val-total" aria-live="polite">$0</output>
         </div>
 
-        <!-- Lista de items del carrito -->
-        <div class="cart-section flex-1 overflow-y-auto p-4" id="cart-section" role="list" aria-label="Productos en el carrito">
-
-          <!-- Estado vacio (visible solo cuando no hay items) -->
-          <div class="cart-empty" id="cart-empty" role="status" aria-live="polite">
-            <i class="fa-solid fa-cart-shopping"></i>
-            <p>El carrito esta vacio.<br>Busca un producto arriba para agregar.</p>
-          </div>
-
-          <!-- Los items se inyectan aqui por el JS -->
-          <div id="cart-list"></div>
-
-        </div>
-        <!-- /cart-section -->
-
-      </div>
-      <!-- /left-col -->
-      <aside class="checkout-panel payment-panel" aria-label="Panel de cobro">
-
-        <div class="payment-footer flex flex-col gap-4">
-
-        <!-- Totales -->
-        <div class="totals-row">
-          <div class="totals-line">
-            <span>Subtotal</span>
-            <span id="val-subtotal">$0</span>
-          </div>
-          <div class="totals-line">
-            <span>Descuento</span>
-            <span id="val-discount" class="amount-positive">$0</span>
-          </div>
-        </div>
-
-        <!-- Total a pagar - el texto mas grande de la pantalla -->
-        <div class="total-block w-full">
-          <span class="total-label">Total a pagar</span>
-          <span class="total-amount" id="val-total">$0</span>
-        </div>
-
-        <!-- Calculadora de cambio (solo visible en modo Efectivo) -->
-        <div class="cash-section visible" id="cash-section" aria-live="polite">
-          <div class="cash-label">Efectivo recibido</div>
+        <div class="cash-section visible" id="cash-section">
           <div class="cash-input-wrap">
-            <span class="prefix">$</span>
+            <span class="prefix" aria-hidden="true">$</span>
             <input
               class="cash-input"
               id="cash-received"
-              type="number"
+              type="tel"
               inputmode="numeric"
-              pattern="[0-9]*"
-              placeholder="Ej. 20.000"
+              placeholder="Recibido"
               autocomplete="off"
               aria-label="Efectivo recibido"
             />
           </div>
           <div class="change-block" id="change-block">
-            <span class="change-label">Cambio a devolver</span>
-            <span class="change-amount" id="val-change">-</span>
+            <span class="change-label">Cambio</span>
+            <output class="change-amount" id="val-change" aria-live="polite">—</output>
           </div>
         </div>
 
-        <!-- Metodos de pago -->
-        <div class="payment-methods" role="group" aria-label="Metodo de pago">
-
-          <button
-            class="pay-method-btn selected"
-            data-method="efectivo"
-            type="button"
-            aria-pressed="true"
-          >
-            <i class="fa-solid fa-money-bill-wave"></i>
-            <span>Efectivo</span>
+        <div class="payment-methods" role="group" aria-label="Método de pago">
+          <button class="pay-method-btn selected" data-method="efectivo" type="button" aria-pressed="true">
+            <i class="fa-solid fa-money-bill-wave" aria-hidden="true"></i><span>Efectivo</span>
           </button>
-
-          <button
-            class="pay-method-btn"
-            data-method="nequi"
-            type="button"
-            aria-pressed="false"
-          >
-            <i class="fa-solid fa-mobile-screen-button"></i>
-            <span>Nequi</span>
+          <button class="pay-method-btn" data-method="nequi" type="button" aria-pressed="false">
+            <i class="fa-solid fa-mobile-screen-button" aria-hidden="true"></i><span>Nequi</span>
           </button>
-
-          <button
-            class="pay-method-btn"
-            data-method="tarjeta"
-            type="button"
-            aria-pressed="false"
-          >
-            <i class="fa-solid fa-credit-card"></i>
-            <span>Tarjeta</span>
+          <button class="pay-method-btn" data-method="tarjeta" type="button" aria-pressed="false">
+            <i class="fa-solid fa-credit-card" aria-hidden="true"></i><span>Tarjeta</span>
           </button>
-
-        </div>
-        <!-- /payment-methods -->
-
         </div>
 
-        <!-- Boton Cobrar -->
-        <button
-          class="btn-cobrar w-full"
-          id="btn-cobrar"
-          type="button"
-          disabled
-          aria-live="polite"
-        >
-          <i class="fa-solid fa-circle-check"></i>
-          Cobrar
+        <button class="btn-cobrar" id="btn-cobrar" type="button" disabled>Cobrar</button>
+        <button class="btn-fiar" id="btn-fiar" type="button" disabled>
+          <i class="fa-solid fa-handshake-simple" aria-hidden="true"></i> Fiar
         </button>
 
+        {% if (rol or '')|lower == 'admin' %}
+        <details class="offline-sync-panel" id="offline-sync-panel">
+          <summary class="offline-sync-panel-header">
+            <span class="offline-sync-title">Sincronización offline</span>
+            <span id="offline-sync-count" class="offline-sync-count">0 pendientes</span>
+          </summary>
+          <p class="offline-sync-help">Ventas guardadas sin internet y fallas al reenviarlas.</p>
+          <div class="offline-sync-table-wrap">
+            <table class="offline-sync-table">
+              <thead>
+                <tr>
+                  <th scope="col">Hora</th>
+                  <th scope="col">Venta</th>
+                  <th scope="col">Estado</th>
+                  <th scope="col">Error</th>
+                  <th scope="col"><span class="sr-only">Acciones</span></th>
+                </tr>
+              </thead>
+              <tbody id="offline-sync-log-body">
+                <tr class="offline-sync-empty">
+                  <td colspan="5">No hay eventos offline pendientes.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </details>
+        {% endif %}
       </aside>
-      <!-- /checkout-panel -->
-
     </div>
-    <!-- /pos-container -->
-
-  </div>
-  <!-- /main-area -->
-  <nav class="bottom-bar" role="navigation" aria-label="Navegacion principal">
-    <a href="{{ url_for('sales_bp.ventas') }}" class="bottom-btn{% if request.path.startswith('/pos/ventas') %} active{% endif %}"{% if request.path.startswith('/pos/ventas') %} aria-current="page"{% endif %} aria-label="Ventas">
-      <i class="fa-solid fa-file-invoice-dollar"></i>
-      <span>Ventas</span>
-    </a>
-
-    <a href="{{ url_for('sales_bp.caja') }}" class="bottom-btn{% if request.path.startswith('/pos/caja') %} active{% endif %}"{% if request.path.startswith('/pos/caja') %} aria-current="page"{% endif %} aria-label="Caja">
-      <i class="fa-solid fa-cash-register"></i>
-      <span>Caja</span>
-    </a>
-
-    <a href="/inventario" class="bottom-btn{% if request.path.startswith('/inventario') %} active{% endif %}"{% if request.path.startswith('/inventario') %} aria-current="page"{% endif %} aria-label="Inventario">
-      <i class="fa-solid fa-boxes-stacked"></i>
-      <span>Inventario</span>
-    </a>
-
-    <button type="button" class="bottom-btn bottom-more-toggle{% if request.path.startswith('/pos/turno') or request.path == '/perfil' %} active{% endif %}" aria-label="Mas opciones" aria-controls="bottom-more-panel" aria-expanded="false">
-      <i class="fa-solid fa-ellipsis"></i>
-      <span>Mas</span>
-    </button>
-  </nav>
-
-  <div id="bottom-more-panel" class="bottom-more-panel" hidden>
-    <a href="{{ url_for('sales_bp.turno') }}" class="bottom-more-link{% if request.path.startswith('/pos/turno') %} active{% endif %}">
-      <i class="fa-solid fa-business-time"></i>
-      <span>Mi Turno</span>
-    </a>
-    <a href="/perfil" class="bottom-more-link{% if request.path == '/perfil' %} active{% endif %}">
-      <i class="fa-solid fa-circle-user"></i>
-      <span>Mi Perfil</span>
-    </a>
-  </div>
-  <!-- /bottom-bar -->
-
+  </main>
 </div>
-<!-- /app-shell -->
 
-<!-- Toast de notificacion global -->
-<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<!-- Hoja "Fiar": el total del carrito pasa a ser deuda del cliente -->
+<dialog class="sheet sheet-form" id="fiar-dialog" aria-labelledby="fiar-title">
+  <form class="sheet-body" id="fiar-form">
+    <div class="sheet-header">
+      <h2 class="sheet-title" id="fiar-title">Fiar venta</h2>
+      <button type="button" class="sheet-close" id="fiar-close" aria-label="Cerrar">
+        <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+      </button>
+    </div>
 
-<!-- Scripts (cop-format primero) -->
-<script src="/static/js/cop-format.js"></script>
-<script src="/static/js/caja.js"></script>
+    <p class="fiar-total">Total a fiar <strong id="fiar-total">$0</strong></p>
 
-  <!-- RBAC + Suscripcion -->
-  <div id="app-context"
-       data-user-rol="{{ rol }}"
-       data-subs-alerta='{{ mostrar_alerta_suscripcion | tojson }}'
-       data-subs-dias="{{ dias_restantes }}"
-       hidden></div>
-  <script src="/static/js/subs-context.js"></script>
-  <script src="/static/js/nav-rbac.js"></script>
-  <script src="/static/js/subs-modal.js"></script>
+    <div class="field combo">
+      <label for="fiar-nombre">Nombre</label>
+      <input
+        id="fiar-nombre"
+        name="nombre"
+        type="text"
+        required
+        maxlength="150"
+        autocomplete="off"
+        autofocus
+        placeholder="Busca o escribe el nombre"
+        aria-controls="fiar-results"
+        aria-describedby="fiar-hint"
+      />
+      <ul class="combo-results" id="fiar-results" aria-label="Clientes encontrados" hidden></ul>
+      <p class="field-hint" id="fiar-hint" aria-live="polite">Busca por nombre, cédula o teléfono.</p>
+    </div>
+
+    <div class="field-row">
+      <div class="field">
+        <label for="fiar-cedula">Cédula <span class="optional">(opcional)</span></label>
+        <input id="fiar-cedula" name="cedula" type="text" inputmode="numeric" pattern="[0-9]{5,20}" maxlength="20" autocomplete="off" />
+      </div>
+      <div class="field">
+        <label for="fiar-telefono">Teléfono</label>
+        <input id="fiar-telefono" name="telefono" type="tel" inputmode="numeric" pattern="[0-9]{7,25}" maxlength="25" required autocomplete="off" />
+      </div>
+    </div>
+
+    <dl class="fiar-debt" id="fiar-debt" hidden>
+      <div><dt>Deuda actual</dt><dd id="fiar-debt-prev">$0</dd></div>
+      <div><dt>Nuevo saldo</dt><dd id="fiar-debt-new">$0</dd></div>
+    </dl>
+
+    <p class="form-error" id="fiar-error" role="alert" hidden></p>
+
+    <button type="submit" class="btn-cobrar" id="fiar-submit">Confirmar fiado</button>
+  </form>
+</dialog>
+
+{% include "pos/_scanner_dialog.html" %}
+
+<script src="/static/js/cop-format.js" defer></script>
+<script src="/static/js/toast.js" defer></script>
+<script src="/static/js/barcode-scanner.js" defer></script>
+<script src="/static/js/caja.js" defer></script>
+
+<!-- RBAC + Suscripcion -->
+<div id="app-context"
+     data-user-rol="{{ rol }}"
+     data-subs-alerta='{{ mostrar_alerta_suscripcion | tojson }}'
+     data-subs-dias="{{ dias_restantes }}"
+     hidden></div>
+<script src="/static/js/subs-context.js" defer></script>
+<script src="/static/js/nav-rbac.js" defer></script>
+<script src="/static/js/subs-modal.js" defer></script>
 
 </body>
 </html>
-
-
-

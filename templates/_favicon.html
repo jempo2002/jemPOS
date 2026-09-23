@@ -1,0 +1,13 @@
+{# Ruta: templates/_favicon.html
+   Iconos del sitio. Se incluye en el <head> de todas las plantillas con <html>
+   propio, para no repetir seis etiquetas en cada una.
+
+   Orden intencionado: el navegador moderno se queda con el SVG (un solo archivo
+   nitido a cualquier tamano) y los que no lo soportan caen al PNG de 32 px.
+   El .ico tambien se sirve desde la raiz (ver app/routes/seo.py), porque el
+   navegador lo pide por su cuenta sin leer estas etiquetas. #}
+<link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='img/favicon.svg') }}">
+<link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='img/favicon-32.png') }}">
+<link rel="icon" type="image/png" sizes="192x192" href="{{ url_for('static', filename='img/favicon-192.png') }}">
+<link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('static', filename='img/apple-touch-icon.png') }}">
+<link rel="manifest" href="{{ url_for('seo_bp.site_webmanifest') }}">

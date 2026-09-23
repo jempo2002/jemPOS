@@ -3,7 +3,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  {% include "_favicon.html" %}
   <title>jemPOS - Mi Perfil</title>
+  <meta name="robots" content="noindex, nofollow">
 
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -26,70 +28,7 @@
 
 <body>
   <div class="app-shell">
-    <aside class="sidebar" role="navigation" aria-label="Menu principal">
-      <div class="sidebar-logo">
-        <div class="logo-text"><span class="jem">jem</span><span class="pos">POS</span></div>
-        <div class="sub">Punto de Venta</div>
-      </div>
-
-      <nav class="sidebar-nav">
-        <a href="{{ url_for('sales_bp.turno') }}" class="nav-link">
-          <i class="fa-solid fa-business-time"></i>
-          <span>Mi Turno</span>
-        </a>
-        <a href="/dashboard" class="nav-link">
-          <i class="fa-solid fa-gauge-high"></i>
-          <span>{% if session.get('rol') == 'Admin' %}Panel de Control{% else %}Inicio{% endif %}</span>
-        </a>
-        <a href="{{ url_for('sales_bp.caja') }}" class="nav-link">
-          <i class="fa-solid fa-cash-register"></i>
-          <span>Caja</span>
-        </a>
-        <a href="/inventario" class="nav-link">
-          <i class="fa-solid fa-boxes-stacked"></i>
-          <span>Inventario</span>
-        </a>
-        <a href="{{ url_for('sales_bp.fiados') }}" class="nav-link">
-          <i class="fa-solid fa-handshake-simple"></i>
-          <span>Fiados</span>
-        </a>
-        <a href="{{ url_for('sales_bp.ventas') }}" class="nav-link">
-          <i class="fa-solid fa-file-invoice-dollar"></i>
-          <span>Ventas</span>
-        </a>
-        <a href="{{ url_for('inventory_bp.proveedores_page') }}" class="nav-link">
-          <i class="fa-solid fa-truck-field"></i>
-          <span>Proveedores</span>
-        </a>
-        <a href="{{ url_for('sales_bp.gastos') }}" class="nav-link">
-          <i class="fa-solid fa-receipt"></i>
-          <span>Gastos</span>
-        </a>
-        {% if (session.get('rol') or '')|lower == 'admin' %}
-        <a href="/perfil" class="nav-link active" aria-current="page">
-          <i class="fa-solid fa-circle-user"></i>
-          <span>Mi Perfil</span>
-        </a>
-        {% endif %}
-      </nav>
-
-      <a href="{{ url_for('auth.logout') }}" class="sidebar-logout no-underline">
-        <img src="/static/img/leave.png" alt="" />
-        Cerrar sesion
-      </a>
-
-      <div class="sidebar-footer">
-        {% if foto_perfil %}
-        <img src="/static/uploads/perfiles/{{ foto_perfil }}" class="avatar avatar-img" alt="Foto" />
-        {% else %}
-        <div class="avatar">{{ avatar_iniciales }}</div>
-        {% endif %}
-        <div class="user-info">
-          <div class="user-name">{{ nombre_completo }}</div>
-          <div class="user-role">{{ rol }}</div>
-        </div>
-      </div>
-    </aside>
+    {% include "pos/_nav.html" %}
 
     <div class="flex-1 flex flex-col h-screen">
       <header class="md:hidden flex items-center justify-between px-4 py-4 bg-white border-b border-gray-100">
@@ -102,7 +41,7 @@
         </div>
       </header>
 
-      <main class="flex-1 overflow-y-auto p-4 md:p-8">
+      <main class="flex-1 overflow-y-auto p-4 md:p-8 pos-bottom-nav-space">
         <div class="max-w-3xl mx-auto space-y-6">
           <div class="bg-white rounded-[2rem] p-8 shadow-sm border border-gray-100 space-y-6">
             <div class="flex flex-col gap-3">
@@ -114,47 +53,19 @@
               </div>
               <div class="flex flex-col gap-2">
                 <div class="text-2xl font-extrabold text-slate-900">Datos del Usuario</div>
-                <p class="text-sm text-slate-500">Actualiza tu informacion personal y foto de perfil.</p>
+                <p class="text-sm text-slate-500">Actualiza tu informacion personal.</p>
               </div>
             </div>
 
             <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
               <div class="flex items-center gap-4">
-                <div class="relative h-20 w-20">
-                  <div id="perf-avatar" class="absolute inset-0 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-2xl font-bold" aria-label="Avatar de usuario">
-                    {{ avatar_iniciales }}
-                  </div>
-                  <img
-                    id="perf-avatar-img"
-                    src="{% if foto_perfil %}/static/uploads/perfiles/{{ foto_perfil }}{% endif %}"
-                    alt="Foto de perfil"
-                    class="absolute inset-0 h-20 w-20 rounded-full object-cover{% if not foto_perfil %} hidden{% endif %}"
-                  />
+                <div id="perf-avatar" class="h-20 w-20 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-2xl font-bold" aria-label="Avatar de usuario">
+                  {{ avatar_iniciales }}
                 </div>
                 <div>
                   <div id="perf-display-name" class="text-lg font-semibold text-slate-900">{{ nombre_completo }}</div>
                   <div class="text-sm text-slate-500 perf-display-role">{{ rol }}</div>
                 </div>
-              </div>
-              <div class="flex flex-col gap-2">
-                <button
-                  class="inline-flex items-center justify-center gap-2 rounded-full bg-blue-500 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-600"
-                  type="button"
-                  id="perf-camera-btn"
-                >
-                  <i class="fa-solid fa-camera"></i>
-                  Cambiar foto
-                </button>
-                <input type="file" id="inp-foto-perfil" accept="image/png, image/jpeg" class="hidden" />
-                <button
-                  type="button"
-                  id="btn-eliminar-foto"
-                  class="inline-flex items-center justify-center gap-2 rounded-full border border-gray-200 px-5 py-2.5 text-sm font-semibold text-slate-600 hover:border-rose-200 hover:text-rose-500{% if not foto_perfil %} hidden{% endif %}"
-                  aria-label="Eliminar foto de perfil"
-                >
-                  <img src="/static/img/basura.png" alt="" class="h-4 w-4" />
-                  Eliminar foto
-                </button>
               </div>
             </div>
 
@@ -164,7 +75,7 @@
                 <input
                   type="text"
                   id="inp-nombre"
-                  class="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                  class="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-medium text-slate-900 placeholder:text-slate-500 focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
                   placeholder="Tu nombre completo"
                   autocomplete="name"
                 />
@@ -180,7 +91,7 @@
                     readonly
                     autocomplete="email"
                   />
-                  <i class="fa-solid fa-lock absolute right-4 top-1/2 -translate-y-1/2 text-slate-400" aria-hidden="true"></i>
+                  <i class="fa-solid fa-lock absolute right-4 top-1/2 -translate-y-1/2 text-slate-500" aria-hidden="true"></i>
                 </div>
               </div>
 
@@ -193,7 +104,7 @@
                     class="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 pr-10 text-sm font-medium text-slate-500"
                     readonly
                   />
-                  <i class="fa-solid fa-lock absolute right-4 top-1/2 -translate-y-1/2 text-slate-400" aria-hidden="true"></i>
+                  <i class="fa-solid fa-lock absolute right-4 top-1/2 -translate-y-1/2 text-slate-500" aria-hidden="true"></i>
                 </div>
               </div>
 
@@ -202,7 +113,7 @@
                 <input
                   type="text"
                   id="inp-negocio"
-                  class="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                  class="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-medium text-slate-900 placeholder:text-slate-500 focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
                   placeholder="Nombre de tu negocio"
                   autocomplete="organization"
                 />
@@ -213,7 +124,7 @@
                 <input
                   type="tel"
                   id="inp-telefono"
-                  class="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                  class="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-medium text-slate-900 placeholder:text-slate-500 focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
                   placeholder="Tu numero de telefono"
                   inputmode="numeric"
                   pattern="[0-9\s]*"
@@ -253,7 +164,7 @@
               <input
                 type="password"
                 id="pwd-actual"
-                class="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                class="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-medium text-slate-900 placeholder:text-slate-500 focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
                 autocomplete="current-password"
               />
             </div>
@@ -262,7 +173,7 @@
               <input
                 type="password"
                 id="pwd-nueva"
-                class="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                class="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-medium text-slate-900 placeholder:text-slate-500 focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
                 autocomplete="new-password"
               />
             </div>
@@ -271,7 +182,7 @@
               <input
                 type="password"
                 id="pwd-confirmar"
-                class="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                class="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-medium text-slate-900 placeholder:text-slate-500 focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
                 autocomplete="new-password"
               />
             </div>
@@ -290,16 +201,16 @@
     </div>
   </div>
 
-  <script src="/static/js/toast.js"></script>
-  <script src="/static/js/perfil.js"></script>
+  <script src="/static/js/toast.js" defer></script>
+  <script src="/static/js/perfil.js" defer></script>
   <div id="app-context"
        data-user-rol="{{ rol }}"
        data-subs-alerta='{{ mostrar_alerta_suscripcion | tojson }}'
        data-subs-dias="{{ dias_restantes }}"
        hidden></div>
-  <script src="/static/js/subs-context.js"></script>
-  <script src="/static/js/nav-rbac.js"></script>
-  <script src="/static/js/subs-modal.js"></script>
+  <script src="/static/js/subs-context.js" defer></script>
+  <script src="/static/js/nav-rbac.js" defer></script>
+  <script src="/static/js/subs-modal.js" defer></script>
 </body>
 </html>
 

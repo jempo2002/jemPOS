@@ -89,7 +89,7 @@
             const res = await fetch('/api/tiendas?q=' + encodeURIComponent(q));
             const data = await res.json();
             if (!data.ok || !data.tiendas.length) {
-              tidDd.innerHTML = '<div style="padding:.6rem 1rem;font-size:.82rem;color:#94A3B8;">Sin resultados</div>';
+              tidDd.innerHTML = '<div style="padding:.6rem 1rem;font-size:.82rem;color:#57667A;">Sin resultados</div>';
             } else {
               tidDd.innerHTML = data.tiendas
                 .map(function (t) {
@@ -138,7 +138,7 @@
     } else {
       icon.style.color = '#CBD5E1';
       icon.className = 'fa-solid fa-circle';
-      span.style.color = '#94A3B8';
+      span.style.color = '#57667A';
     }
   }
 

@@ -10,6 +10,8 @@ from flask_limiter.util import get_remote_address
 from flask_session import Session
 from flask_wtf.csrf import CSRFProtect
 
+from app.performance import init_compresion
+from app.security import cerrar_sesion_publica, init_security
 from database import init_pool_from_app
 from app.utils.decorators import login_required, roles_required
 from app.utils.helpers import avatar_iniciales
@@ -68,17 +70,26 @@ def create_app() -> Flask:
     csrf.init_app(app)
     server_session.init_app(app)
     limiter.init_app(app)
+    init_security(app)
+    init_compresion(app)
     init_pool_from_app(app)
 
     from app.routes.auth import auth
+    from app.routes.cartera import cartera_api_bp, cartera_bp
     from app.routes.core import core_bp
     from app.routes.inventory import inventory_api_bp, inventory_bp
+    from app.routes.legal import legal_bp
+    from app.routes.seo import seo_bp
     from app.routes.sales import sales_api_bp, sales_bp
 
     app.register_blueprint(auth)
     app.register_blueprint(core_bp)
+    app.register_blueprint(cartera_bp)
+    app.register_blueprint(cartera_api_bp)
     app.register_blueprint(inventory_bp)
     app.register_blueprint(inventory_api_bp)
+    app.register_blueprint(legal_bp)
+    app.register_blueprint(seo_bp)
     app.register_blueprint(sales_bp)
     app.register_blueprint(sales_api_bp)
 
@@ -86,10 +97,17 @@ def create_app() -> Flask:
     def index():
         # La raíz siempre dirige a la landing pública; desde ahí el
         # usuario decide iniciar sesión o crear cuenta.
+        # Salir del área privada cierra la sesión: ver comentario en landing().
+        cerrar_sesion_publica()
         return redirect(url_for("landing"))
 
     @app.get("/landing")
     def landing():
+        # Llegar a una ruta pública destruye la sesión activa. Evita sesiones
+        # "quietas" que siguen vivas en el servidor mientras el usuario cree
+        # haber salido. El no-store de app/security.py completa la medida:
+        # sin él, el botón "atrás" repintaría la página privada desde el caché.
+        cerrar_sesion_publica()
         return render_template("landing.html")
 
     @app.get("/health")

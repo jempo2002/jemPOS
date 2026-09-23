@@ -1,7 +1,7 @@
 /* ============================================================
    Ruta: static/js/inventario.js
    Pantalla: Inventario de Productos
-   Depende de: cop-format.js (cargado antes en el HTML)
+   Depende de: cop-format.js, barcode-scanner.js (cargados antes)
    ============================================================ */
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -52,11 +52,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
   /* Campos del modal */
   const fName     = document.getElementById('f-name');
+  const fBarcode  = document.getElementById('f-barcode');
   const fCategory = document.getElementById('f-category');
   const fCategoryDropdown = document.getElementById('f-category-dropdown');
   const fCost     = document.getElementById('f-cost');
   const fSale     = document.getElementById('f-sale');
   const fStock    = document.getElementById('f-stock');
+  const fStockMin = document.getElementById('f-stock-min');
   const fProvider = document.getElementById('f-provider');
   const fProfit   = document.getElementById('f-profit');
   const modalErrorBox = document.getElementById('alerta-error-modal');
@@ -113,6 +115,25 @@ document.addEventListener('DOMContentLoaded', () => {
     renderAll();
   });
 
+  /* ── Escaner: buscar por codigo; si no existe, ofrecer crearlo ── */
+  document.getElementById('inv-btn-scan').addEventListener('click', () => {
+    BarcodeScanner.open((code) => {
+      searchInput.value = code;
+      searchQuery = code.toLowerCase();
+      renderAll();
+      if (products.some((p) => p.barcode === code)) return;
+      openModal(null);
+      fBarcode.value = code;
+      showToast(`El código ${code} no está registrado. Completa los datos para añadirlo.`, true);
+    });
+  });
+
+  document.getElementById('f-barcode-scan').addEventListener('click', () => {
+    BarcodeScanner.open((code) => {
+      fBarcode.value = code;
+    });
+  });
+
   /* ── Abrir modal (nuevo producto) ───────────────────────── */
   btnAdd.addEventListener('click', () => openModal(null));
 
@@ -135,7 +156,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const q = filterValue.trim().toLowerCase();
     const filtered = categoryOptions.filter(opt => opt.toLowerCase().includes(q));
     if (!filtered.length) {
-      fCategoryDropdown.innerHTML = '<div class="p-3" style="color:#94A3B8;">Sin coincidencias</div>';
+      fCategoryDropdown.innerHTML = '<div class="p-3" style="color:#57667A;">Sin coincidencias</div>';
       fCategoryDropdown.classList.remove('hidden');
       return;
     }
@@ -240,7 +261,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const wrap = th.querySelector('.sort-icon-wrap');
       if (th.dataset.col === col) {
         const src = `/static/img/${dir === 'asc' ? 'up' : 'down'}.png`;
-        wrap.innerHTML = `<img src="${src}" class="sort-img" alt="${dir}">`;
+        wrap.innerHTML = `<img src="${src}" class="sort-img" alt="" aria-hidden="true" width="13" height="13" decoding="async">`;
       } else {
         wrap.innerHTML = '<i class="fa-solid fa-sort sort-icon"></i>';
       }
@@ -268,7 +289,8 @@ document.addEventListener('DOMContentLoaded', () => {
   function renderAll() {
     const filtered = products.filter(p =>
       p.name.toLowerCase().includes(searchQuery) ||
-      p.category.toLowerCase().includes(searchQuery)
+      p.category.toLowerCase().includes(searchQuery) ||
+      (p.barcode || '').toLowerCase().includes(searchQuery)
     );
     const display = applySort(filtered);
     renderCards(display);
@@ -331,7 +353,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const addStockButton = p.es_preparado
       ? ''
       : `<button class="action-btn add" data-action="addstock" aria-label="Anadir stock">
-            <img src="/static/img/mas.png" alt="Anadir" />
+            <img src="/static/img/mas.png" alt="" aria-hidden="true" width="18" height="18" decoding="async" />
           </button>`;
     return `
       <div class="card-top">
@@ -342,11 +364,11 @@ document.addEventListener('DOMContentLoaded', () => {
         </div>
         <div class="card-actions">
           <button class="action-btn edit" data-action="edit" aria-label="Editar">
-            <img src="/static/img/editar.png" alt="Editar" />
+            <img src="/static/img/editar.png" alt="" aria-hidden="true" width="18" height="18" decoding="async" />
           </button>
           ${addStockButton}
           <button class="action-btn del" data-action="del" aria-label="Eliminar">
-            <img src="/static/img/basura.png" alt="Eliminar" />
+            <img src="/static/img/basura.png" alt="" aria-hidden="true" width="18" height="18" decoding="async" />
           </button>
         </div>
       </div>
@@ -371,7 +393,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const addStockButton = p.es_preparado
       ? ''
       : `<button class="action-btn add" data-action="addstock" aria-label="Anadir stock">
-            <img src="/static/img/mas.png" alt="Anadir" />
+            <img src="/static/img/mas.png" alt="" aria-hidden="true" width="18" height="18" decoding="async" />
           </button>`;
     return `
       <td>
@@ -387,11 +409,11 @@ document.addEventListener('DOMContentLoaded', () => {
       <td>
         <div class="td-actions">
           <button class="action-btn edit" data-action="edit" aria-label="Editar">
-            <img src="/static/img/editar.png" alt="Editar" />
+            <img src="/static/img/editar.png" alt="" aria-hidden="true" width="18" height="18" decoding="async" />
           </button>
           ${addStockButton}
           <button class="action-btn del" data-action="del" aria-label="Eliminar">
-            <img src="/static/img/basura.png" alt="Eliminar" />
+            <img src="/static/img/basura.png" alt="" aria-hidden="true" width="18" height="18" decoding="async" />
           </button>
         </div>
       </td>`;
@@ -456,10 +478,12 @@ document.addEventListener('DOMContentLoaded', () => {
       const p = products.find(x => x.id === id);
       modalTitle.textContent  = 'Editar Producto';
       fName.value             = p.name;
+      fBarcode.value          = p.barcode || '';
       fCategory.value         = p.category;
       fCost.value             = COP.format(p.cost);
       fSale.value             = COP.format(p.sale);
       fStock.value            = formatStock(p.stock);
+      if (fStockMin) fStockMin.value = (p.stock_min != null ? p.stock_min : '');
       fProvider.value         = p.proveedor_id ? String(p.proveedor_id) : '';
       fCost.dataset.rawValue  = String(p.cost);
       fSale.dataset.rawValue  = String(p.sale);
@@ -468,7 +492,8 @@ document.addEventListener('DOMContentLoaded', () => {
       updateProfit();
     } else {
       modalTitle.textContent = 'Anadir Producto';
-      [fName, fCategory, fCost, fSale, fStock].forEach(f => f.value = '');
+      [fName, fBarcode, fCategory, fCost, fSale, fStock].forEach(f => f.value = '');
+      if (fStockMin) fStockMin.value = '';
       if (fProvider) fProvider.value = '';
       if (fPrepared) fPrepared.checked = false;
       fCost.dataset.rawValue = '';
@@ -497,6 +522,8 @@ document.addEventListener('DOMContentLoaded', () => {
     let cost  = COP.parse(fCost.value);
     const sale  = COP.parse(fSale.value);
     let stock = parseInt(String(fStock.value).replace(/\D/g, ''), 10);
+    const stockMinRaw = fStockMin ? String(fStockMin.value).replace(/\D/g, '') : '';
+    const stockMin = stockMinRaw === '' ? 0 : parseInt(stockMinRaw, 10);
     const idProveedor = fProvider && fProvider.value ? parseInt(fProvider.value, 10) : null;
     const isPrepared = Boolean(fPrepared?.checked);
     const ingredientes = isPrepared ? collectRecipeRows() : [];
@@ -524,10 +551,12 @@ document.addEventListener('DOMContentLoaded', () => {
       headers: jsonHeaders(),
       body: JSON.stringify({
         nombre: name,
+        codigo_barras: fBarcode.value.trim(),
         categoria: cat,
         costo: cost,
         venta: sale,
         stock,
+        stock_min: stockMin,
         es_preparado: isPrepared,
         ingredientes,
         id_proveedor: Number.isInteger(idProveedor) ? idProveedor : null,

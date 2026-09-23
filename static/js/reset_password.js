@@ -12,7 +12,7 @@
   };
 
   function setCheck(el, ok) {
-    el.className = ok ? 'text-emerald-600' : 'text-slate-400';
+    el.className = ok ? 'text-emerald-600' : 'text-slate-500';
   }
 
   function isPolicyOk(value) {

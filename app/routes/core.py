@@ -12,6 +12,8 @@ from app.services.auth_service import (
     first_password_policy_error,
     get_profile_for_user,
     is_valid_email,
+    liberar_datos_inactivos,
+    LIBERAR_USUARIO_SQL,
     update_profile_basic,
 )
 from app.services.sales_service import (
@@ -146,14 +148,6 @@ def _get_master_proximos_vencer() -> list:
 
 _CC_DUPLICADA = "Ya existe un usuario con esa cedula."
 
-# Soft delete de usuarios: libera correo y cc (UNIQUE) anteponiendo
-# 'deleted_<unix_ts>_'. CONCAT con cc NULL da NULL. SQL fijo, sin datos del
-# usuario. Ver migrations/2026-09-23_liberar_unicos_eliminados.sql
-_LIBERAR_USUARIO_SQL = (
-    "estado_activo = 0, "
-    "correo = CONCAT('deleted_', UNIX_TIMESTAMP(), '_', correo), "
-    "cc = CONCAT('deleted_', UNIX_TIMESTAMP(), '_', cc)"
-)
 
 
 def _parse_cc(raw) -> str:
@@ -786,7 +780,7 @@ def api_master_tiendas_delete(id_tienda):
             return jsonify({"ok": False, "msg": "Tienda no encontrada."}), 404
         cur.execute(
             # estado_activo = 1: no volver a prefijar a los ya eliminados.
-            "UPDATE usuarios SET " + _LIBERAR_USUARIO_SQL +
+            "UPDATE usuarios SET " + LIBERAR_USUARIO_SQL +
             " WHERE id_tienda=%s AND rol <> 'Master' AND estado_activo = 1",
             (id_tienda,),
         )
@@ -894,6 +888,7 @@ def api_crear_usuario():
     conn = get_db()
     try:
         cur = conn.cursor(dictionary=True)
+        liberar_datos_inactivos(cur, correo, cc)
         cur.execute(
             "SELECT id_usuario FROM usuarios WHERE correo = %s LIMIT 1",
             (correo,),
@@ -1030,18 +1025,24 @@ def api_master_usuarios_delete(id_usuario):
             return jsonify({"ok": False, "msg": "No se puede eliminar un usuario Master."}), 403
         if _es_ultimo_admin(cur, usuario):
             return jsonify({"ok": False, "msg": "Es el unico Admin de su tienda; no se puede eliminar."}), 400
-        # Soft delete: ventas/turnos/gastos referencian al usuario con FK RESTRICT.
-        cur.execute(
-            "UPDATE usuarios SET " + _LIBERAR_USUARIO_SQL + " WHERE id_usuario = %s AND estado_activo = 1",
-            (id_usuario,),
-        )
+        try:
+            cur.execute("DELETE FROM usuarios WHERE id_usuario = %s", (id_usuario,))
+            detalle = f"Se borro usuario id={id_usuario}"
+        except IntegrityError:
+            # Tiene ventas/turnos/gastos (FK RESTRICT): borrarlo destruiria la
+            # contabilidad. Se desactiva y se libera su correo/cc para reusarlos.
+            conn.rollback()
+            cur.execute(
+                "UPDATE usuarios SET " + LIBERAR_USUARIO_SQL + " WHERE id_usuario = %s",
+                (id_usuario,),
+            )
+            detalle = f"Se desactivo usuario id={id_usuario} (tiene historial)"
         conn.commit()
     finally:
         conn.close()
 
     _registrar_auditoria(
-        session.get("id_tienda"), session.get("id_usuario"), "eliminar_usuario",
-        f"Se desactivo usuario id={id_usuario}",
+        session.get("id_tienda"), session.get("id_usuario"), "eliminar_usuario", detalle,
     )
     return jsonify({"ok": True, "msg": "Usuario eliminado."})
 

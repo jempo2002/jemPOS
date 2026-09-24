@@ -15,6 +15,7 @@ from app.services.auth_service import (
     first_password_policy_error,
     initialize_user_session,
     is_valid_email,
+    liberar_datos_inactivos,
     resolve_post_login_redirect,
     send_recovery_email,
 )
@@ -164,6 +165,7 @@ def registro():
     conn = get_db()
     try:
         cur = conn.cursor(dictionary=True)
+        liberar_datos_inactivos(cur, correo, nit)
         cur.execute("SELECT id_usuario FROM usuarios WHERE correo = %s LIMIT 1", (correo,))
         if cur.fetchone():
             flash("Ya existe una cuenta con ese correo.", "error")

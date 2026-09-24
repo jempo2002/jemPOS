@@ -33,6 +33,27 @@ def first_password_policy_error(password: str) -> str | None:
     return None
 
 
+# Libera correo y cc (UNIQUE) de un usuario eliminado anteponiendo
+# 'deleted_<unix_ts>_'. CONCAT con cc NULL da NULL. SQL fijo, sin datos del
+# usuario. Ver migrations/2026-09-23_liberar_unicos_eliminados.sql
+LIBERAR_USUARIO_SQL = (
+    "estado_activo = 0, "
+    "correo = CONCAT('deleted_', UNIX_TIMESTAMP(), '_', correo), "
+    "cc = CONCAT('deleted_', UNIX_TIMESTAMP(), '_', cc)"
+)
+
+
+def liberar_datos_inactivos(cur, correo: str, cc: str | None = None) -> None:
+    """Si el correo o la cc pertenecen a un usuario inactivo (eliminado antes
+    de que existiera el prefijo deleted_), los libera para poder reusarlos.
+    Un usuario activo no se toca: ese sigue bloqueando el registro."""
+    cur.execute(
+        "UPDATE usuarios SET " + LIBERAR_USUARIO_SQL +
+        " WHERE estado_activo = 0 AND (correo = %s OR cc = %s)",
+        (correo, cc),
+    )
+
+
 def initialize_user_session(session_obj, user: dict) -> None:
     session_obj.clear()
     session_obj.permanent = True

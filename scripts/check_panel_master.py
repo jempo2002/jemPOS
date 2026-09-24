@@ -140,26 +140,44 @@ try:
     check(client.put("/api/master/usuarios/6", json={"nombre": "A", "cc": "9990098", "rol": "Cajero"}), 400, "unico Admin")
 
     # 5) Eliminar
-    q("UPDATE usuarios SET cc='9990088' WHERE id_usuario=8")
-    cajero8 = q("SELECT correo, cc FROM usuarios WHERE id_usuario=8")[0]
     check(client.delete("/api/master/usuarios/1"), 400, "propia cuenta")
     check(client.delete(f"/api/master/usuarios/{otro_master['id_usuario']}"), 403, "Master")
     check(client.delete("/api/master/usuarios/6"), 400, "unico Admin")
-    check(client.delete("/api/master/usuarios/8"), 200)
-    assert q("SELECT estado_activo FROM usuarios WHERE id_usuario=8")[0]["estado_activo"] == 0
-    check(client.delete("/api/master/usuarios/8"), 404)
 
-    # 6) Correo/cc/NIT liberados
+    # 5a) Sin historial: se borra de verdad y el correo/cc se reusan al instante
+    check(crear("9990055", "qa_borrar@test.com"), 200)
+    id_borrar = q("SELECT id_usuario FROM usuarios WHERE correo='qa_borrar@test.com'")[0]["id_usuario"]
+    check(client.delete(f"/api/master/usuarios/{id_borrar}"), 200)
+    assert not q("SELECT 1 FROM usuarios WHERE id_usuario=%s", (id_borrar,)), "fila borrada"
+    check(client.delete(f"/api/master/usuarios/{id_borrar}"), 404)
+    check(crear("9990055", "qa_borrar@test.com"), 200)
+
+    # 5b) Con historial (turnos de caja): no se puede borrar sin romper la
+    # contabilidad -> se desactiva, se libera correo/cc y el historial sigue
+    q("UPDATE usuarios SET id_tienda=1, cc='9990022' WHERE id_usuario IN (%s)", (nuevo["id_usuario"],))
+    q("UPDATE usuarios SET cc='9990088' WHERE id_usuario=2")
+    ximena = q("SELECT correo FROM usuarios WHERE id_usuario=2")[0]["correo"]
+    turnos_2 = q("SELECT COUNT(*) n FROM turnos_caja WHERE id_usuario_apertura=2")[0]["n"]
+    assert turnos_2 > 0
+    check(client.delete("/api/master/usuarios/2"), 200)
+    fila2 = q("SELECT correo, cc, estado_activo FROM usuarios WHERE id_usuario=2")[0]
+    assert fila2["estado_activo"] == 0 and fila2["correo"].endswith("_" + ximena), fila2
+    assert fila2["correo"].startswith("deleted_") and fila2["cc"].startswith("deleted_"), fila2
+    assert q("SELECT COUNT(*) n FROM turnos_caja WHERE id_usuario_apertura=2")[0]["n"] == turnos_2
+    check(crear("9990088", ximena), 200)
+
+    # 5c) Eliminado con el codigo viejo (inactivo, correo sin prefijo): se
+    # libera al volver a registrarlo en vez de responder "ya existe"
+    q("UPDATE usuarios SET estado_activo=0, cc='9990044' WHERE id_usuario=8")
+    cajero8 = q("SELECT correo FROM usuarios WHERE id_usuario=8")[0]["correo"]
+    check(crear("9990044", cajero8), 200)
+
+    # 6) Correo/cc/NIT de la tienda eliminada liberados
     assert q("SELECT nit FROM tiendas WHERE id_tienda=2")[0]["nit"].startswith("deleted_")
     borrado = q("SELECT correo FROM usuarios WHERE id_usuario=3")[0]["correo"]
     assert borrado.startswith("deleted_") and borrado.endswith("_" + brayan), borrado
     ventas_3 = q("SELECT COUNT(*) n FROM ventas WHERE id_cajero=3")[0]["n"]
     assert ventas_3 > 0, "historial de ventas del usuario eliminado sigue ligado a su id"
-
-    fila8 = q("SELECT correo, cc FROM usuarios WHERE id_usuario=8")[0]
-    assert fila8["correo"].startswith("deleted_") and fila8["correo"].endswith("_" + cajero8["correo"])
-    assert fila8["cc"].startswith("deleted_") and fila8["cc"].endswith("_9990088"), fila8
-    check(crear("9990088", cajero8["correo"]), 200)  # panel: reusar correo + cc
 
     def registro(correo, nit):
         return client.post("/registro", data={

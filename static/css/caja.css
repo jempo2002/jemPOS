@@ -37,6 +37,14 @@ html, body {
    Desktop: sidebar + contenido
    ══════════════════════════════════════════════════════════ */
 
+/* Alto de la barra de navegacion inferior, en un solo sitio.
+   Lo usan la propia .bottom-bar y el padding que le reserva .main-area. Antes
+   eran dos numeros escritos aparte (60px calculados contra 64px fijos): basta
+   que uno cambie para que la barra de cobro se meta debajo del navbar. */
+:root {
+  --pos-nav-h: calc(var(--touch-target-min) + 16px);
+}
+
 .app-shell {
   display: flex;
   height: 100%;
@@ -175,12 +183,12 @@ html, body {
   overflow: hidden;
   min-width: 0;
   /* espacio para bottom bar en movil (incluye safe area iOS) */
-  padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px));
+  padding-bottom: calc(var(--pos-nav-h) + env(safe-area-inset-bottom, 0px));
 }
 
 /* Vistas sin .main-area (ej. perfil.html): mismo espacio para la bottom bar */
 .pos-bottom-nav-space {
-  padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px)) !important;
+  padding-bottom: calc(var(--pos-nav-h) + env(safe-area-inset-bottom, 0px)) !important;
 }
 
 /* ── Bottom bar (Mobile only) ────────────────────────────── */
@@ -191,7 +199,7 @@ html, body {
   bottom: 0;
   left: 0;
   right: 0;
-  height: calc(var(--touch-target-min) + 16px + env(safe-area-inset-bottom, 0px));
+  height: calc(var(--pos-nav-h) + env(safe-area-inset-bottom, 0px));
   padding-bottom: env(safe-area-inset-bottom, 0px);
   background: color-mix(in srgb, var(--color-surface) 88%, transparent);
   border-top: 1px solid #E2E8F0;
@@ -258,8 +266,8 @@ html, body {
 .top-bar {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  padding: 0.5rem 0.75rem;
+  gap: 0.45rem;
+  padding: 0.35rem 0.6rem;
   background: rgba(255, 255, 255, 0.92);
   -webkit-backdrop-filter: blur(12px);
   backdrop-filter: blur(12px);
@@ -270,7 +278,7 @@ html, body {
 }
 
 .top-bar-logo {
-  font-size: 1.1rem;
+  font-size: 1rem;
   font-weight: 800;
   letter-spacing: -0.03em;
   flex-shrink: 0;
@@ -396,8 +404,8 @@ html, body {
 }
 
 .cart-title {
-  padding: 0.6rem 0.9rem 0.25rem;
-  font-size: 0.72rem;
+  padding: 0.45rem 0.75rem 0.2rem;
+  font-size: 0.66rem;
   font-weight: 700;
   color: #57667A;
   text-transform: uppercase;
@@ -407,7 +415,7 @@ html, body {
 .cart-section {
   flex: 1;
   overflow-y: auto;
-  padding: 0.25rem 0.75rem 0.75rem;
+  padding: 0.2rem 0.6rem 0.5rem;
   display: flex;
   flex-direction: column;
   -webkit-overflow-scrolling: touch;
@@ -433,7 +441,7 @@ html, body {
   list-style: none;
   display: flex;
   flex-direction: column;
-  gap: 0.4rem;
+  gap: 0.3rem;
 }
 
 /* Item: nombre + subtotal arriba, precio unitario + controles abajo */
@@ -444,8 +452,8 @@ html, body {
     "name  total"
     "unit  actions";
   align-items: center;
-  gap: 0.15rem 0.5rem;
-  padding: 0.5rem 0.5rem 0.5rem 0.75rem;
+  gap: 0.1rem 0.45rem;
+  padding: 0.38rem 0.4rem 0.38rem 0.6rem;
   background: #ffffff;
   border: 1px solid #EEF2F6;
   border-radius: var(--radius-md);
@@ -459,7 +467,7 @@ html, body {
 
 .item-name {
   grid-area: name;
-  font-size: 0.9rem;
+  font-size: 0.82rem;
   font-weight: 600;
   color: #0F172A;
   line-height: 1.25;
@@ -471,7 +479,7 @@ html, body {
 
 .item-subtotal {
   grid-area: total;
-  font-size: 0.95rem;
+  font-size: 0.88rem;
   font-weight: 700;
   color: #0F172A;
   text-align: right;
@@ -481,7 +489,7 @@ html, body {
 
 .item-unit-price {
   grid-area: unit;
-  font-size: 0.75rem;
+  font-size: 0.69rem;
   color: #57667A;
 }
 
@@ -492,12 +500,14 @@ html, body {
   gap: 0.25rem;
 }
 
-/* Botones de 34px visibles con area tactil de 44px (::after) */
+/* Botones de 30px visibles con area tactil de 44px (::after).
+   Al reducir el circulo hay que agrandar el inset en la misma medida: el
+   objetivo tactil de 44px es un minimo de accesibilidad, no un adorno. */
 .qty-btn,
 .btn-delete {
   position: relative;
-  width: 2.125rem;
-  height: 2.125rem;
+  width: 1.875rem;
+  height: 1.875rem;
   min-height: 0;
   display: flex;
   align-items: center;
@@ -512,7 +522,7 @@ html, body {
 .btn-delete::after {
   content: '';
   position: absolute;
-  inset: -5px;
+  inset: -8px;
 }
 .qty-btn:active,
 .btn-delete:active { transform: scale(0.9); }
@@ -524,10 +534,10 @@ html, body {
 .btn-delete:hover { background: #FEE2E2; }
 
 .qty-display {
-  width: 2rem;
+  width: 1.8rem;
   min-height: 0;
   text-align: center;
-  font-size: 0.95rem;
+  font-size: 0.88rem;
   font-weight: 700;
   color: #0F172A;
   border: none;
@@ -537,44 +547,98 @@ html, body {
 }
 .qty-display:focus { border-radius: 0.4rem; box-shadow: 0 0 0 2px #BFDBFE; }
 
-/* ── Panel de cobro ──────────────────────────────────────── */
-.payment-panel {
+/* ══════════════════════════════════════════════════════════
+   BARRA DE COBRO
+   Ultimo hijo de .main-area, en flujo normal y sin position:fixed.
+   .main-area ya reserva abajo el alto de la barra de navegacion con su
+   padding-bottom, asi que la barra aterriza justo encima de ella sin
+   solaparse y sin tener que replicar ese alto en un calc().
+   ══════════════════════════════════════════════════════════ */
+/* Movil: dos filas. El Total ocupa su propia linea y el boton va debajo a
+   todo el ancho. En una sola fila, a 320-400px el boton (min 9.5rem) le
+   dejaba al importe ~130px y un total de siete cifras se metia por debajo
+   del boton, tapando el signo $. Apilados no compiten por el ancho. */
+.checkout-bar {
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
-  max-height: 62%;
-  overflow-y: auto;
-  margin: 0 0.5rem 0.5rem;
-  padding: 0.75rem;
-  background: #ffffff;
-  border: 1px solid #E2E8F0;
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-md);
+  align-items: stretch;
+  gap: 0.4rem;
+  padding: 0.45rem 0.75rem 0.55rem;
+  background: rgba(255, 255, 255, 0.95);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  border-top: 1px solid #E2E8F0;
+  box-shadow: 0 -6px 18px rgba(15, 23, 42, 0.07);
 }
 
-.total-block {
+/* Etiqueta a la izquierda, importe a la derecha, en la misma linea. */
+.checkout-total {
   display: flex;
-  justify-content: space-between;
   align-items: baseline;
-  padding: 0 0.15rem;
+  justify-content: space-between;
+  gap: 0.75rem;
+  min-width: 0;
 }
 
-.total-label {
-  font-size: 0.75rem;
+.checkout-total-label {
+  font-size: 0.72rem;
   font-weight: 700;
   color: #57667A;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.06em;
+  line-height: 1.2;
 }
 
-.total-amount {
-  font-size: 1.6rem;
+/* Sin ellipsis ni overflow oculto: un importe de dinero nunca se recorta.
+   clamp() baja la fuente en pantallas muy estrechas en lugar de cortarlo. */
+.checkout-total-amount {
+  font-size: clamp(1.2rem, 6vw, 1.45rem);
+  font-weight: 800;
+  color: #1D4ED8;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.checkout-btn {
+  width: 100%;
+  min-height: 46px;
+}
+
+/* ── Modal de cobro ──────────────────────────────────────── */
+.cobro-total-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.1rem;
+  padding: 0.75rem;
+  background: #EFF6FF;
+  border-radius: var(--radius-sm);
+}
+
+.cobro-total-label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #1D4ED8;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.cobro-total-amount {
+  font-size: 1.9rem;
   font-weight: 800;
   color: #1D4ED8;
   letter-spacing: -0.02em;
   line-height: 1.1;
   font-variant-numeric: tabular-nums;
+}
+
+.cobro-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
 }
 
 /* Efectivo recibido + cambio en una sola fila */
@@ -724,57 +788,52 @@ html, body {
 .btn-fiar:disabled { background: #F1F5F9; color: #57667A; }
 
 /* ── Sincronizacion offline (solo admin) ─────────────────── */
+/* Solo el icono: mismo tamano que el boton de la camara (.icon-btn) para que
+   la top bar quede alineada. El estado lo da el color. */
 .offline-sync-indicator {
+  position: relative;
+  flex-shrink: 0;
+  width: var(--touch-target-min);
+  height: var(--touch-target-min);
   display: inline-flex;
   align-items: center;
-  gap: 0.35rem;
-  padding: 0.35rem 0.6rem;
-  border-radius: 999px;
-  font-size: 0.72rem;
-  font-weight: 700;
+  justify-content: center;
+  border: none;
+  border-radius: 50%;
+  font-size: 1rem;
   background: #DBEAFE;
   color: #1D4ED8;
-  white-space: nowrap;
-  flex-shrink: 0;
+  cursor: pointer;
+  transition: background 0.18s, color 0.18s, transform 0.12s;
 }
+.offline-sync-indicator[hidden] { display: none; }
+.offline-sync-indicator:active { transform: scale(0.94); }
+.offline-sync-indicator:focus-visible { outline: 2px solid #3B82F6; outline-offset: 2px; }
 .offline-sync-indicator.is-online  { background: #DCFCE7; color: #15803D; }
 .offline-sync-indicator.is-offline { background: #FEE2E2; color: #B91C1C; }
 .offline-sync-indicator.is-syncing { background: #FFEDD5; color: #C2410C; }
 
-.offline-sync-panel {
-  border: 1px solid #E2E8F0;
-  border-radius: var(--radius-sm);
-  overflow: hidden;
-}
-
-/* Plegado por defecto: no le quita espacio al carrito en movil */
-.offline-sync-panel-header {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  min-height: 40px;
-  padding: 0 0.75rem;
-  list-style: none;
-  cursor: pointer;
-}
-.offline-sync-panel-header::-webkit-details-marker { display: none; }
-.offline-sync-panel-header::after {
+/* Punto de aviso: hay ventas offline por reenviar. */
+.offline-sync-indicator.has-pending::after {
   content: '';
-  width: 0.45rem;
-  height: 0.45rem;
-  margin-left: 0.25rem;
-  border-right: 2px solid #94A3B8;
-  border-bottom: 2px solid #94A3B8;
-  transform: rotate(-45deg);
-  transition: transform 0.2s;
+  position: absolute;
+  top: 0.45rem;
+  right: 0.45rem;
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 50%;
+  background: #DC2626;
+  box-shadow: 0 0 0 2px #FFFFFF;
 }
-.offline-sync-panel[open] .offline-sync-panel-header::after { transform: rotate(45deg); }
 
-.offline-sync-title { flex: 1; font-size: 0.8rem; font-weight: 700; color: #334155; }
+/* Dentro de la hoja: texto de ayuda y contador en la misma linea. */
 .offline-sync-help {
-  padding: 0.5rem 0.75rem;
-  border-top: 1px solid #E2E8F0;
-  font-size: 0.72rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem;
+  font-size: 0.75rem;
   color: #57667A;
 }
 
@@ -788,7 +847,12 @@ html, body {
   font-weight: 700;
 }
 
-.offline-sync-table-wrap { max-height: 200px; overflow: auto; border-top: 1px solid #E2E8F0; }
+.offline-sync-table-wrap {
+  max-height: 50dvh;
+  overflow: auto;
+  border: 1px solid #E2E8F0;
+  border-radius: var(--radius-sm);
+}
 
 .offline-sync-table {
   width: 100%;
@@ -1147,6 +1211,8 @@ html, body {
    RESPONSIVE — Desktop
    ══════════════════════════════════════════════════════════ */
 @media (min-width: 769px) {
+  :root { --pos-nav-h: 0px; }
+
   .sidebar     { display: flex; }
   .bottom-bar  { display: none; }
 
@@ -1157,14 +1223,16 @@ html, body {
   .top-bar-logo { display: none; }
   .search-wrap { max-width: 36rem; }
 
+  /* Una sola columna: el cobro ya no vive en un panel lateral sino en la
+     barra inferior y su modal, asi que el carrito se queda con todo el ancho. */
   .pos-container {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) 340px;
-    gap: 1.25rem;
-    padding: 0.75rem 1.25rem 1.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    padding: 0.6rem 1.25rem 0.75rem;
   }
 
-  .cart-title { padding: 0.25rem 0.15rem 0.5rem; }
+  .cart-title { padding: 0.2rem 0.15rem 0.4rem; }
   .cart-section { padding: 0 0.15rem 0.5rem; }
 
   /* Item en una sola fila: nombre | controles | subtotal */
@@ -1173,20 +1241,25 @@ html, body {
     grid-template-areas:
       "name actions total"
       "unit actions total";
-    padding: 0.55rem 0.6rem 0.55rem 0.9rem;
+    padding: 0.45rem 0.5rem 0.45rem 0.75rem;
   }
   .item-name { -webkit-line-clamp: 1; }
 
-  .payment-panel {
-    align-self: center;
-    max-height: 100%;
-    margin: 0;
-    padding: 1.25rem;
-    gap: 0.75rem;
+  .checkout-bar {
+    flex-direction: row;
+    align-items: center;
+    padding: 0.6rem 1.25rem;
+    gap: 1rem;
   }
-
-  .total-amount { font-size: 2rem; }
-  .btn-cobrar { min-height: 52px; font-size: 1.05rem; }
+  .checkout-total {
+    flex: 1;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: center;
+    gap: 0;
+  }
+  .checkout-total-amount { font-size: 1.6rem; }
+  .checkout-btn { width: auto; flex: 0 0 auto; min-height: 50px; font-size: 1.05rem; min-width: 12rem; }
 }
 
 @media (min-width: 1024px) {

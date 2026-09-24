@@ -23,7 +23,14 @@ import mysql.connector
 from dotenv import load_dotenv
 
 # Errores que significan "ya estaba aplicado", no un fallo real.
-_YA_EXISTE = {1050, 1060, 1061, 1022, 1826, 121, 1091}
+# 1050 tabla, 1060 columna, 1061 clave, 1022/1826/121 restriccion, 1091 no
+# existe lo que se iba a borrar, 1359 trigger.
+#
+# Deliberadamente NO incluye 1062 (fila duplicada): una migracion repetida
+# puede volver a crear una columna sin consecuencias, pero una fila duplicada
+# significa que se esta reimportando datos sobre datos, y eso hay que verlo,
+# no silenciarlo.
+_YA_EXISTE = {1050, 1060, 1061, 1022, 1826, 121, 1091, 1359}
 
 
 def _ya_aplicada(exc: mysql.connector.Error) -> bool:

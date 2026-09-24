@@ -21,9 +21,30 @@
 @media (min-width: 768px) {
   .turno-main {
     padding: 2.5rem 2rem 2rem;
-    justify-content: center;
+    justify-content: flex-start;
   }
 }
+
+/* Contenedor unico de la pantalla.
+   Sustituye a las clases de Tailwind que traia la plantilla (max-w-5xl,
+   space-y-8, grid-cols-4...): esta pagina nunca cargo Tailwind, asi que no
+   pintaban nada y el arqueo se veia como una lista suelta. */
+.turno-wrap {
+  width: 100%;
+  max-width: 56rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+}
+
+.turno-state {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
 
 /* ── Logo movil (solo visible en mobile) ─────────────────── */
 .turno-mobile-logo {
@@ -264,3 +285,219 @@
   margin-top: 0.35rem;
 }
 .turno-api-msg:empty { display: none; }
+
+
+/* ══════════════════════════════════════════════════════════
+   ARQUEO DE CAJA (cierre de turno)
+   ══════════════════════════════════════════════════════════ */
+
+.turno-topline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  width: 100%;
+}
+
+.turno-since {
+  font-size: 0.82rem;
+  color: #57667A;
+}
+.turno-since strong { color: #1E293B; font-weight: 700; }
+
+/* ── Tarjetas de cifras ──────────────────────────────────── */
+.turno-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.6rem;
+  width: 100%;
+}
+
+@media (min-width: 900px) {
+  .turno-stats { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+
+.turno-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.9rem 0.85rem;
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-radius: 1rem;
+  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.05);
+}
+
+.turno-stat-icon {
+  width: 2rem;
+  height: 2rem;
+  margin-bottom: 0.25rem;
+  border-radius: 0.65rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.85rem;
+}
+.turno-stat-icon.base     { background: #F1F5F9; color: #475569; }
+.turno-stat-icon.ventas   { background: #DCFCE7; color: #15803D; }
+.turno-stat-icon.gastos   { background: #FEE2E2; color: #B91C1C; }
+.turno-stat-icon.esperado { background: rgba(255,255,255,0.18); color: #FFFFFF; }
+
+.turno-stat-label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #57667A;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  line-height: 1.25;
+}
+
+.turno-stat-value {
+  font-size: 1.3rem;
+  font-weight: 800;
+  color: #0F172A;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.15;
+}
+
+.turno-stat-sub {
+  font-size: 0.7rem;
+  color: #57667A;
+  font-variant-numeric: tabular-nums;
+}
+
+/* La cifra que el cajero tiene que comparar contra lo que cuenta:
+   se separa del resto por contraste, no por tamano, para que siga
+   cabiendo en la misma rejilla. */
+.turno-stat-expected {
+  grid-column: 1 / -1;
+  background: linear-gradient(135deg, #1D4ED8 0%, #2563EB 100%);
+  border-color: transparent;
+  box-shadow: 0 8px 22px rgba(37, 99, 235, 0.28);
+}
+.turno-stat-expected .turno-stat-label { color: rgba(255,255,255,0.82); }
+.turno-stat-expected .turno-stat-value { color: #FFFFFF; font-size: 1.6rem; }
+.turno-stat-expected .turno-stat-sub   { color: rgba(255,255,255,0.75); }
+
+@media (min-width: 900px) {
+  .turno-stat-expected { grid-column: auto; }
+}
+
+/* ── Desglose plegable ───────────────────────────────────── */
+.turno-breakdown {
+  width: 100%;
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-radius: 1rem;
+  padding: 0.75rem 0.95rem;
+}
+
+.turno-breakdown > summary {
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #1D4ED8;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: var(--touch-target-min);
+}
+.turno-breakdown > summary::-webkit-details-marker { display: none; }
+.turno-breakdown > summary::before {
+  content: '+';
+  font-size: 0.95rem;
+  line-height: 1;
+}
+.turno-breakdown[open] > summary::before { content: '−'; }
+
+.turno-breakdown-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  margin: 0.6rem 0 0;
+}
+
+.turno-breakdown-list > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  font-size: 0.85rem;
+}
+
+.turno-breakdown-list dt { color: #57667A; }
+.turno-breakdown-list dd {
+  margin: 0;
+  font-weight: 700;
+  color: #1E293B;
+  font-variant-numeric: tabular-nums;
+}
+
+.turno-breakdown-total {
+  margin-top: 0.35rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid #E2E8F0;
+}
+.turno-breakdown-total dt { color: #1E293B !important; font-weight: 700; }
+.turno-breakdown-total dd { color: #1D4ED8; font-size: 1rem; }
+
+.turno-breakdown-note {
+  margin: 0.6rem 0 0;
+  font-size: 0.74rem;
+  color: #57667A;
+  line-height: 1.45;
+}
+
+/* ── Tarjeta de conteo ───────────────────────────────────── */
+.turno-card-count {
+  max-width: none;
+  padding: 1.5rem 1.25rem;
+}
+
+/* ── Indicador cuadrado / descuadrado ────────────────────── */
+.turno-balance {
+  width: 100%;
+  max-width: 360px;
+  margin: 0.25rem 0 0;
+  padding: 0.7rem 0.9rem;
+  border-radius: 0.85rem;
+  font-size: 0.88rem;
+  font-weight: 700;
+  text-align: center;
+  line-height: 1.35;
+  border: 1px solid transparent;
+}
+
+/* Verde solo cuando la caja cuadra exactamente. Cualquier diferencia, sobre
+   o falte, se pinta en rojo: un sobrante tambien es un error de registro y
+   mostrarlo en verde le ensena al cajero a ignorarlo. */
+.turno-balance.ok {
+  background: #DCFCE7;
+  border-color: #86EFAC;
+  color: #15803D;
+}
+.turno-balance.off {
+  background: #FEF2F2;
+  border-color: #FECACA;
+  color: #B91C1C;
+}
+
+.turno-balance-amount {
+  display: block;
+  font-size: 1.15rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  margin-top: 0.15rem;
+}
+
+/* ── Resultado tras cerrar ───────────────────────────────── */
+.turno-result-list {
+  width: 100%;
+  max-width: 320px;
+}
+
+.turno-icon-wrap.turno-icon-ok  { background: #DCFCE7; color: #15803D; }
+.turno-icon-wrap.turno-icon-off { background: #FEF2F2; color: #B91C1C; }

@@ -1,8 +1,9 @@
-﻿<!DOCTYPE html>
+<!-- Ruta: templates/pos/turno.html -->
+<!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   {% include "_favicon.html" %}
   <title>jemPOS - Mi Turno</title>
   <meta name="robots" content="noindex, nofollow">
@@ -29,11 +30,12 @@
   {% include "pos/_nav.html" %}
 
   <main class="turno-main">
-    <div class="max-w-5xl mx-auto p-4 md:p-10 w-full space-y-8">
+    <div class="turno-wrap">
       <div class="turno-mobile-logo" aria-hidden="true">
         <span class="jem">jem</span><span class="pos">POS</span>
       </div>
 
+      <!-- ══════════════ APERTURA ══════════════ -->
       <section class="turno-card" id="state-apertura" aria-label="Apertura de caja">
         <div class="turno-icon-wrap turno-icon-closed">
           <i class="fa-solid fa-lock"></i>
@@ -63,68 +65,121 @@
         <p class="turno-api-msg" id="msg-apertura" role="alert"></p>
       </section>
 
-      <section class="turno-card hidden" id="state-cierre" aria-label="Cierre de caja">
-        <div class="turno-active-badge">
+      <!-- ══════════════ CIERRE / ARQUEO ══════════════ -->
+      <section class="turno-state hidden" id="state-cierre" aria-label="Cierre de caja">
+
+        <header class="turno-topline">
+          <span class="turno-active-badge">
+            <i class="fa-solid fa-circle-check" aria-hidden="true"></i>
+            Turno activo
+          </span>
+          <span class="turno-since">
+            Abierto desde <strong id="lbl-hora-apertura">-</strong>
+          </span>
+        </header>
+
+        {# Cuatro cifras del arqueo. El orden replica la formula que el cajero
+           tiene que poder seguir de izquierda a derecha:
+           base + ventas - gastos = esperado. #}
+        <div class="turno-stats">
+          <article class="turno-stat">
+            <span class="turno-stat-icon base" aria-hidden="true"><i class="fa-solid fa-wallet"></i></span>
+            <span class="turno-stat-label">Base de apertura</span>
+            <span class="turno-stat-value" id="lbl-base-inicial">$0</span>
+          </article>
+
+          <article class="turno-stat">
+            <span class="turno-stat-icon ventas" aria-hidden="true"><i class="fa-solid fa-arrow-trend-up"></i></span>
+            <span class="turno-stat-label">Ventas del dia</span>
+            <span class="turno-stat-value" id="lbl-ventas">$0</span>
+            <span class="turno-stat-sub" id="lbl-ventas-efectivo">En efectivo $0</span>
+          </article>
+
+          <article class="turno-stat">
+            <span class="turno-stat-icon gastos" aria-hidden="true"><i class="fa-solid fa-receipt"></i></span>
+            <span class="turno-stat-label">Gastos del dia</span>
+            <span class="turno-stat-value" id="lbl-gastos">$0</span>
+            <span class="turno-stat-sub" id="lbl-gastos-base">De la base $0</span>
+          </article>
+
+          <article class="turno-stat turno-stat-expected">
+            <span class="turno-stat-icon esperado" aria-hidden="true"><i class="fa-solid fa-cash-register"></i></span>
+            <span class="turno-stat-label">Total esperado en caja</span>
+            <span class="turno-stat-value" id="lbl-esperado">$0</span>
+            <span class="turno-stat-sub">Efectivo que deberia haber</span>
+          </article>
+        </div>
+
+        {# El desglose va en un <details> cerrado: el cajero de a pie solo
+           necesita el total, pero quien cuadra a fin de mes necesita ver de
+           donde sale cada peso sin abrir la base de datos. #}
+        <details class="turno-breakdown">
+          <summary>Como se calcula el total esperado</summary>
+          <dl class="turno-breakdown-list">
+            <div><dt>Base de apertura</dt><dd id="brk-base">$0</dd></div>
+            <div><dt>+ Ventas en efectivo</dt><dd id="brk-ventas">$0</dd></div>
+            <div><dt>+ Abonos de fiados en efectivo</dt><dd id="brk-abonos">$0</dd></div>
+            <div><dt>&minus; Gastos pagados con base o caja menor</dt><dd id="brk-gastos">$0</dd></div>
+            <div class="turno-breakdown-total"><dt>= Total esperado</dt><dd id="brk-total">$0</dd></div>
+          </dl>
+          <p class="turno-breakdown-note">
+            Los gastos pagados desde Caja Fuerte o Bancos no aparecen aqui:
+            ese dinero nunca estuvo en el cajon.
+          </p>
+        </details>
+
+        <div class="turno-card turno-card-count">
+          <h2 class="turno-heading">Cierre de Caja</h2>
+          <p class="turno-subheading">Cuenta el efectivo del cajon y escribe el total.</p>
+
+          <div class="turno-input-group">
+            <span class="turno-currency-sign">$</span>
+            <input
+              type="tel"
+              id="inp-cierre"
+              class="turno-big-input"
+              inputmode="numeric"
+              pattern="[0-9]*"
+              placeholder="0"
+              autocomplete="off"
+              aria-label="Efectivo contado al cierre"
+              aria-describedby="turno-balance"
+            />
+          </div>
+
+          {# aria-live: el cajero que usa lector de pantalla necesita oir si
+             cuadro o no sin tener que ir a buscar el mensaje. #}
+          <p class="turno-balance" id="turno-balance" role="status" aria-live="polite" hidden></p>
+
+          <button class="turno-btn turno-btn-close" id="btn-cerrar" type="button">
+            <i class="fa-solid fa-circle-stop"></i>
+            Cerrar Turno
+          </button>
+          <p class="turno-api-msg" id="msg-cierre" role="alert"></p>
+        </div>
+      </section>
+
+      <!-- ══════════════ RESULTADO DEL CIERRE ══════════════ -->
+      <section class="turno-card hidden" id="state-resultado" aria-label="Resultado del cierre">
+        <div class="turno-icon-wrap" id="res-icon">
           <i class="fa-solid fa-circle-check"></i>
-          Turno Activo
         </div>
+        <h1 class="turno-heading" id="res-heading">Turno cerrado</h1>
+        <p class="turno-subheading" id="res-sub">-</p>
 
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 w-full">
-          <div class="bg-white rounded-[1.5rem] p-5 shadow-sm border border-gray-100 flex flex-col justify-center items-center text-center hover:shadow-md transition-shadow">
-            <span class="text-sm font-medium text-gray-500 uppercase tracking-wider">Hora de apertura</span>
-            <span class="text-2xl font-extrabold text-slate-900" id="lbl-hora-apertura">-</span>
-          </div>
-          <div class="bg-white rounded-[1.5rem] p-5 shadow-sm border border-gray-100 flex flex-col justify-center items-center text-center hover:shadow-md transition-shadow">
-            <span class="text-sm font-medium text-gray-500 uppercase tracking-wider">Base inicial</span>
-            <span class="text-2xl font-extrabold text-slate-900" id="lbl-base-inicial">-</span>
-          </div>
-          <div class="bg-white rounded-[1.5rem] p-5 shadow-sm border border-gray-100 flex flex-col justify-center items-center text-center hover:shadow-md transition-shadow">
-            <span class="text-sm font-medium text-gray-500 uppercase tracking-wider">Efectivo</span>
-            <span class="text-2xl font-extrabold text-slate-900">{{ turno.efectivo if turno is defined and turno.efectivo is defined else '-' }}</span>
-          </div>
-          <div class="bg-white rounded-[1.5rem] p-5 shadow-sm border border-gray-100 flex flex-col justify-center items-center text-center hover:shadow-md transition-shadow">
-            <span class="text-sm font-medium text-gray-500 uppercase tracking-wider">Tarjeta</span>
-            <span class="text-2xl font-extrabold text-slate-900">{{ turno.tarjeta if turno is defined and turno.tarjeta is defined else '-' }}</span>
-          </div>
-          <div class="bg-white rounded-[1.5rem] p-5 shadow-sm border border-gray-100 flex flex-col justify-center items-center text-center hover:shadow-md transition-shadow">
-            <span class="text-sm font-medium text-gray-500 uppercase tracking-wider">Nequi</span>
-            <span class="text-2xl font-extrabold text-slate-900">{{ turno.nequi if turno is defined and turno.nequi is defined else '-' }}</span>
-          </div>
-        </div>
+        <dl class="turno-breakdown-list turno-result-list">
+          <div><dt>Esperado</dt><dd id="res-esperado">$0</dd></div>
+          <div><dt>Contado</dt><dd id="res-contado">$0</dd></div>
+          <div class="turno-breakdown-total"><dt>Diferencia</dt><dd id="res-diferencia">$0</dd></div>
+        </dl>
 
-        <div class="turno-divider"></div>
-
-        <div class="turno-icon-wrap turno-icon-open">
-          <i class="fa-solid fa-cash-register"></i>
-        </div>
-
-        <h1 class="turno-heading">Cierre de Caja</h1>
-        <p class="turno-subheading">¿Con cuanto efectivo terminas el dia?</p>
-
-        <div class="turno-input-group">
-          <span class="turno-currency-sign">$</span>
-          <input
-            type="tel"
-            id="inp-cierre"
-            class="turno-big-input"
-            inputmode="numeric"
-            pattern="[0-9]*"
-            placeholder="0"
-            autocomplete="off"
-            aria-label="Efectivo final de cierre"
-          />
-        </div>
-
-        <button class="turno-btn turno-btn-close" id="btn-cerrar" type="button">
-          <i class="fa-solid fa-circle-stop"></i>
-          Cerrar Turno
+        <button class="turno-btn turno-btn-open" id="btn-nuevo-turno" type="button">
+          <i class="fa-solid fa-circle-play"></i>
+          Abrir un turno nuevo
         </button>
-        <p class="turno-api-msg" id="msg-cierre" role="alert"></p>
       </section>
     </div>
   </main>
-
-
 </div>
 
 <script src="/static/js/logout.js" defer></script>
@@ -137,11 +192,7 @@
      data-subs-dias="{{ dias_restantes }}"
      hidden></div>
 <script src="/static/js/subs-context.js" defer></script>
-<script src="/static/js/nav-rbac.js" defer></script>
 <script src="/static/js/subs-modal.js" defer></script>
 
 </body>
 </html>
-
-
-

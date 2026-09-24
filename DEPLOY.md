@@ -103,7 +103,13 @@ $env:DB_USER="root"; $env:DB_PASSWORD="CLAVE"; $env:DB_NAME="railway"
 ```
 
 Despues, en este orden, lo que el dump no trae (es de julio; las migraciones
-son posteriores). El runner es idempotente: repetirlo no rompe nada.
+son posteriores). Estas si se pueden repetir: solo crean columnas, claves y
+tablas, y el runner trata "ya existe" como no-op.
+
+> **El volcado `jempos.sql` no se puede reimportar sobre una base ya cargada.**
+> Se detiene en el primer trigger con `ERROR 1359: Trigger already exists`, y si
+> se pasara de ahi chocaria con las filas duplicadas. No rompe nada (se para,
+> no borra), pero para rehacer la carga hay que vaciar la base primero.
 
 ```powershell
 .venv/Scripts/python.exe scripts/run_migration.py migrations/2026-09-16_clientes_cedula.sql
@@ -172,23 +178,88 @@ la cuenta), `EMAIL_SMTP_HOST=smtp.gmail.com`, `EMAIL_SMTP_PORT=587`,
 Guardar las variables dispara un redespliegue. Revisa **Deployments → Logs**:
 debe aparecer el arranque de gunicorn sin trazas de error.
 
+### Si el log dice `Can't connect to MySQL server on '127.0.0.1:3306' (111)`
+
+Es el fallo mas facil de cometer: se copiaron los valores del `.env` local a
+Railway. Dentro del contenedor de jemPOS, `127.0.0.1` es ese mismo contenedor, y
+ahi no corre ningun MySQL: el sistema rechaza la conexion (111 = connection
+refused). La base vive en otro contenedor, y se llega a ella por las
+referencias `${{MySQL.*}}`, nunca por una IP local.
+
+Dos comprobaciones:
+
+1. `DB_HOST` y `DB_PORT` deben decir `${{MySQL.MYSQLHOST}}` y
+   `${{MySQL.MYSQLPORT}}` tal cual, con las llaves. Si muestran una IP o un
+   numero, estan mal.
+2. El nombre dentro de `${{...}}` debe coincidir **exacto** con el del servicio
+   de base de datos en el panel. Si no coincide, Railway no resuelve la
+   referencia y el error cambia a "host desconocido".
+
+Revisa de paso que `FLASK_ENV` diga `production` y no `development`: con
+`development` no se fuerza HTTPS ni se marca la cookie de sesion como `Secure`.
+
+Para aislar el problema, se pueden poner temporalmente los datos del proxy
+publico (`HOST.proxy.rlwy.net` y su puerto). Si asi arranca, el fallo estaba en
+las referencias. Volver despues a las internas: el proxy publico sale a
+internet y consume ancho de banda facturable.
+
 ---
 
-## 6. Conectar tu dominio
+## 6. Conectar tu dominio (jempos.app, en Namecheap)
 
-1. Servicio web → **Settings → Networking → Custom Domain** → escribe tu
-   dominio. Railway devuelve un destino `CNAME` (algo `.up.railway.app`).
-2. En tu proveedor de DNS crea el registro:
-   - **Subdominio** (`app.tudominio.com`): `CNAME` → el destino que dio Railway.
-   - **Dominio raiz** (`tudominio.com`): el estandar DNS no permite `CNAME` en
-     la raiz. Necesitas un proveedor con `ALIAS`/`ANAME`/CNAME flattening
-     (Cloudflare, por ejemplo). Si el tuyo no lo tiene, usa `www` y redirige la
-     raiz hacia `www` desde el panel del proveedor.
-3. Si usas Cloudflare, deja el proxy (nube naranja) **activado** y el modo SSL
-   en **Full (strict)**. En **Flexible** Cloudflare habla HTTP con Railway,
-   Talisman responde con redireccion a HTTPS y se forma un bucle infinito.
-4. La propagacion y el certificado tardan entre minutos y un par de horas.
-   Railway marca el dominio en verde cuando el certificado esta emitido.
+Los valores DNS no se buscan: los genera Railway al registrar el dominio, y de
+ahi se copian a Namecheap.
+
+### 6.1. Registrar el dominio en Railway
+
+Servicio web -> **Settings -> Networking -> + Custom Domain**. Anade
+`jempos.app` y, como entrada aparte, `www.jempos.app`.
+
+Railway devuelve **dos registros por dominio**: un `CNAME` y un `TXT` de
+verificacion de propiedad. Los dos son obligatorios: con solo el CNAME el
+certificado no se emite nunca.
+
+### 6.2. Preparar Namecheap
+
+Domain List -> **Manage** en `jempos.app`.
+
+1. Pestaña **Domain**, seccion *Nameservers*: tiene que decir **Namecheap
+   BasicDNS**. Con "Web Hosting DNS" o nameservers personalizados, los
+   registros que crees no se usan.
+2. Pestaña **Advanced DNS**: borra los registros que Namecheap trae por
+   defecto, el `CNAME` de `www` hacia `parkingpage.namecheap.com` y la
+   `URL Redirect Record` de `@`. Si se quedan, chocan con los nuevos y el
+   dominio sigue mostrando la pagina de parqueo.
+
+### 6.3. Crear los registros
+
+En `Host` no va el dominio completo: Namecheap le anade `.jempos.app` solo.
+
+| Type | Host | Value | TTL |
+|---|---|---|---|
+| `ALIAS Record` | `@` | el CNAME de Railway | Automatic |
+| `CNAME Record` | `www` | el CNAME de Railway | Automatic |
+| `TXT Record` | el host que indique Railway | el valor TXT de Railway | Automatic |
+
+`ALIAS` y no `CNAME` en la raiz porque el estandar DNS no admite un CNAME en
+`@`. El tipo `ALIAS` de Namecheap (disponible en BasicDNS) hace lo mismo y
+convive con otros registros en ese nombre. Railway soporta ALIAS dinamicos y
+CNAME flattening para dominios apex, asi que no hace falta pasar por
+Cloudflare.
+
+Si algun dia se migra a Cloudflare: deja el proxy (nube naranja) **activado** y
+el modo SSL en **Full (strict)**. En *Flexible*, Cloudflare habla HTTP con
+Railway, Talisman responde con redireccion a HTTPS y se forma un bucle
+infinito.
+
+### 6.4. Esperar
+
+Entre diez minutos y un par de horas. Railway marca el dominio en verde cuando
+el certificado esta emitido.
+
+`.app` esta en la lista de precarga HSTS de Google: los navegadores solo lo
+abren por HTTPS, sin alternativa en claro. Mientras el certificado no este
+listo se vera un error de seguridad, no una pagina rota. Es lo esperado.
 
 ---
 
@@ -196,19 +267,22 @@ debe aparecer el arranque de gunicorn sin trazas de error.
 
 Con el dominio ya activo:
 
-- `https://tudominio.com/` → redirige a `/landing`.
-- `http://tudominio.com/` → redirige a `https://` (Talisman).
-- `https://tudominio.com/health` → `{"ok": true, ...}`.
-- `https://tudominio.com/robots.txt` → el `Sitemap:` al final debe decir
-  `https://tudominio.com/...`. Si sale `http://` o un host `.railway.app`,
-  ProxyFix no esta viendo las cabeceras `X-Forwarded-*`.
-- `https://tudominio.com/sitemap.xml` → las cuatro URLs con tu dominio.
-- `https://tudominio.com/static/img/og-cover.jpg` -> la imagen de
-  previsualizacion (1200x630). Se genera con
-  `python scripts/generar_og_cover.py` y esta versionada; solo hay que volver a
-  correrlo si cambia el texto o el logo.
+- `https://jempos.app/` -> redirige a `/landing`.
+- `https://www.jempos.app/` -> tambien responde.
+- `https://jempos.app/health` -> `{"ok": true, ...}`.
+- `https://jempos.app/robots.txt` -> la ultima linea debe decir
+  `Sitemap: https://jempos.app/sitemap.xml`. Si sale `http://` o un host
+  `.railway.app`, ProxyFix no esta viendo las cabeceras `X-Forwarded-*` y los
+  enlaces del correo de recuperacion de contrasena saldrian mal.
+- `https://jempos.app/sitemap.xml` -> las URLs publicas con el dominio real.
+- `https://jempos.app/static/img/og-cover.jpg` -> la imagen de previsualizacion
+  (1200x630). Se genera con `python scripts/generar_og_cover.py` y esta
+  versionada; solo hay que volver a correrlo si cambia el texto o el logo.
 - El footer muestra WhatsApp, Instagram y el correo, y los tres enlaces abren.
 - Inicia sesion y entra al POS: valida que la base quedo bien importada.
+
+No hay prueba de `http://` a `https://`: `.app` esta en la precarga HSTS y el
+navegador nunca llega a emitir la peticion en claro.
 
 ---
 

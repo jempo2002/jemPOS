@@ -29,6 +29,10 @@ document.addEventListener('DOMContentLoaded', () => {
   const cartEmpty      = document.getElementById('cart-empty');
   const cartList       = document.getElementById('cart-list');
   const totalEl        = document.getElementById('val-total');
+  const btnCheckout    = document.getElementById('btn-checkout');
+  const cobroDialog    = document.getElementById('cobro-dialog');
+  const cobroClose     = document.getElementById('cobro-close');
+  const cobroTotal     = document.getElementById('cobro-total');
   const btnCobrar      = document.getElementById('btn-cobrar');
   const btnFiar        = document.getElementById('btn-fiar');
   const cashSection    = document.getElementById('cash-section');
@@ -46,6 +50,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const offlineQueue = loadJsonArray(offlineQueueKey);
   const offlineLog = loadJsonArray(offlineLogKey);
+
+  const offlineDialog = document.getElementById('offline-sync-dialog');
+  if (offlineIndicator && offlineDialog) {
+    offlineIndicator.addEventListener('click', () => offlineDialog.showModal());
+    document.getElementById('offline-sync-close')
+      ?.addEventListener('click', () => offlineDialog.close());
+    offlineDialog.addEventListener('click', (e) => {
+      if (e.target === offlineDialog) offlineDialog.close();
+    });
+  }
 
   renderOfflineSyncPanel();
   updateConnectionIndicator();
@@ -129,8 +143,10 @@ document.addEventListener('DOMContentLoaded', () => {
   }, SEARCH_DEBOUNCE_MS);
 
   function addProduct(p) {
+    /* Sin toast de confirmacion: la fila aparece en el carrito y el total de
+       la barra cambia en el mismo frame. Un aviso encima de eso solo tapa la
+       pantalla en la operacion que mas se repite del turno. */
     addToCart(p.id, 1, p.name, p.price);
-    showToast(`"${p.name}" agregado`, false, 1200);
     searchInput.value = '';
     liveProductSearch.cancel();
     cancelRequest('productos');
@@ -264,14 +280,57 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  /* ── Modal de cobro ───────────────────────────────────────
+     El boton de la barra inferior solo abre; el cobro real sigue estando en
+     #btn-cobrar, que ahora vive dentro del modal. Asi la logica de venta no
+     se duplico al cambiar la interfaz.
+  ─────────────────────────────────────────────────────────── */
+
+  function openCobroDialog() {
+    if (cart.size === 0) return;
+    cobroTotal.textContent = money(calcTotal());
+    cashReceived.value = '';
+    resetChange();
+    btnCobrar.disabled = false;
+    btnFiar.disabled = false;
+    cobroDialog.showModal();
+    /* Foco en el efectivo recibido solo si se cobra en efectivo: en Nequi o
+       tarjeta ese campo esta oculto y abrir el teclado no sirve de nada. */
+    if (selectedPayMethod === 'efectivo') {
+      setTimeout(() => cashReceived.focus(), 60);
+    }
+  }
+
+  function closeCobroDialog() {
+    if (cobroDialog.open) cobroDialog.close();
+  }
+
+  btnCheckout.addEventListener('click', openCobroDialog);
+  cobroClose.addEventListener('click', closeCobroDialog);
+  /* Tocar fuera cierra, igual que la hoja de fiado: sin esto las dos hojas
+     del POS se cerrarian de forma distinta. */
+  cobroDialog.addEventListener('click', (e) => {
+    if (e.target === cobroDialog) closeCobroDialog();
+  });
+
   btnCobrar.addEventListener('click', async () => {
     if (cart.size === 0) return;
     btnCobrar.disabled = true;
+    btnFiar.disabled = true;
     const total = calcTotal();
     const result = await processSale(buildSalePayload(selectedPayMethod));
-    if (result.ok) showToast(`¡Venta de ${money(total)} registrada!`);
-    else showToast(result.msg, true, result.offline ? 4200 : 6000);
-    btnCobrar.disabled = cart.size === 0;
+    btnCobrar.disabled = false;
+    btnFiar.disabled = false;
+
+    if (result.ok) {
+      /* Cerrar antes del toast: en caja los toasts se pintan arriba del todo
+         (.page-caja .jem-toast-host) y con el modal abierto quedarian detras
+         del backdrop. */
+      closeCobroDialog();
+      showToast(`¡Venta de ${money(total)} registrada!`);
+    } else {
+      showToast(result.msg, true, result.offline ? 4200 : 6000);
+    }
   });
 
   /* ── Hoja "Fiar" con live search de clientes ───────────────── */
@@ -295,6 +354,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
   btnFiar.addEventListener('click', () => {
     if (cart.size === 0) return;
+    /* Se cierra el modal de cobro antes de abrir la hoja de fiado: dos
+       <dialog> modales a la vez apilan backdrops y el de abajo se queda
+       capturando el foco. */
+    closeCobroDialog();
     fiarTotal.textContent = money(calcTotal());
     renderFiarDebt();
     setFiarError('');
@@ -596,9 +659,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const empty = cart.size === 0;
 
     totalEl.textContent = money(total);
-    btnCobrar.disabled = empty;
-    btnFiar.disabled = empty;
-    btnCobrar.textContent = empty ? 'Cobrar' : `Cobrar ${money(total)}`;
+    cobroTotal.textContent = money(total);
+    btnCheckout.disabled = empty;
+
+    /* Vaciar el carrito con el modal abierto (pasa al cobrar) lo cierra: sin
+       productos no hay nada que cobrar y quedaria un modal con total $0. */
+    if (empty) closeCobroDialog();
 
     /* Recalcular el cambio si el cajero ya digito un monto */
     if (selectedPayMethod === 'efectivo' && cashReceived.value !== '') {
@@ -663,17 +729,28 @@ document.addEventListener('DOMContentLoaded', () => {
       offlineLogCount.textContent = `${pendingCount} ${pendingCount === 1 ? 'pendiente' : 'pendientes'}`;
     }
 
+    /* Sin el panel a la vista, un punto sobre la nube avisa de que hay ventas
+       por reenviar. Antes el panel se desplegaba solo; abrir un modal por
+       sorpresa al cargar la caja seria mas intrusivo que eso. */
+    offlineIndicator.classList.toggle('has-pending', pendingCount > 0);
+
     const currentState = state || (navigator.onLine ? 'online' : 'offline');
+    let text;
     if (currentState === 'syncing') {
       offlineIndicator.classList.add('is-syncing');
-      offlineIndicatorText.textContent = label || 'Sincronizando ventas';
+      text = label || 'Sincronizando ventas';
     } else if (!navigator.onLine || currentState === 'offline') {
       offlineIndicator.classList.add('is-offline');
-      offlineIndicatorText.textContent = label || 'Offline - guardando localmente';
+      text = label || 'Offline - guardando localmente';
     } else {
       offlineIndicator.classList.add('is-online');
-      offlineIndicatorText.textContent = label || 'Online';
+      text = label || 'Online';
     }
+    if (pendingCount) text += ` (${pendingCount} por sincronizar)`;
+    /* El texto ya no se ve: vive en el span sr-only (lector de pantalla) y en
+       el title (tooltip al pasar el raton en escritorio). */
+    offlineIndicatorText.textContent = text;
+    offlineIndicator.title = text;
   }
 
   function renderOfflineSyncPanel() {
@@ -692,8 +769,6 @@ document.addEventListener('DOMContentLoaded', () => {
       offlineLogBody.innerHTML = '<tr class="offline-sync-empty"><td colspan="5">No hay eventos offline pendientes.</td></tr>';
       return;
     }
-    if (pendingCount) document.getElementById('offline-sync-panel').open = true;
-
     offlineLogBody.innerHTML = rows.map((entry) => {
       const saleLabel = entry.sale_label || `#${entry.id}`;
       const timeLabel = formatOfflineTime(entry.updated_at || entry.created_at);
@@ -902,9 +977,15 @@ document.addEventListener('DOMContentLoaded', () => {
     }));
   }
 
+  const STOCK_ALERT_MS = 2000;
+
   function showStockAlerts(alerts) {
+    /* Antes duraban 5 s y se encolaban cada 5,2 s: con tres productos bajos
+       el cajero veia avisos rojos durante mas de quince segundos y parecian
+       pegados a la pantalla. Ahora cada uno dura 2 s y el siguiente entra
+       justo cuando el anterior se va. */
     alerts.slice(0, 3).forEach((msg, idx) => {
-      setTimeout(() => showToast(msg, true, 5000), idx * 5200);
+      setTimeout(() => showToast(msg, true, STOCK_ALERT_MS), idx * (STOCK_ALERT_MS + 200));
     });
   }
 

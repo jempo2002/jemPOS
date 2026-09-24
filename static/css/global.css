@@ -190,6 +190,14 @@ input[type="reset"] {
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
 }
 
+/* Safari iOS: con appearance:none (reset de arriba) el valor de un
+   input[type=date] se centra y, vacio, el control colapsa. Se alinea a la
+   izquierda como el resto de campos. */
+.jem-date::-webkit-date-and-time-value {
+  text-align: left;
+  min-height: 1.2em;
+}
+
 .jem-date-clear {
   padding: 0.4rem 0.6rem;
   font-size: 0.78rem;
@@ -273,6 +281,41 @@ input[type="reset"] {
 [data-fab-smart] .fab-label {
   transition: max-width 0.2s ease, opacity 0.2s ease, margin 0.2s ease, transform 0.2s ease;
   white-space: nowrap;
+}
+
+/* ── Filtros en movil ─────────────────────────────────────── */
+@media (max-width: 768px) {
+  .jem-filters { gap: 0.45rem; }
+
+  /* Capsulas compactas. El min-height se pone explicito porque la regla
+     general de button (min-height: 44px, arriba) mandaba sobre el padding y
+     las dejaba igual de altas por mucho que se redujera. 32px sigue por
+     encima del minimo de 24px de WCAG 2.2 (2.5.8) para objetivos tactiles. */
+  .jem-pills { gap: 0.3rem; flex: 1 1 100%; }
+  .jem-pill {
+    min-height: 32px;
+    padding: 0.28rem 0.65rem;
+    font-size: 0.74rem;
+  }
+  .jem-pill.active { box-shadow: 0 2px 8px rgba(59, 130, 246, 0.25); }
+
+  /* Fecha a todo el ancho, en su propia linea. Antes .jem-date-wrap tenia
+     flex-shrink:0 y el input no tenia min-width:0, asi que su ancho
+     intrinseco (el del selector nativo) empujaba la fila fuera de la
+     pantalla y forzaba scroll horizontal en la pagina. */
+  .jem-date-wrap {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+  .jem-date {
+    flex: 1;
+    min-width: 0;
+    width: 100%;
+    /* 16px: por debajo, iOS hace zoom en la pagina al enfocar el campo. */
+    font-size: 1rem;
+    padding: 0.4rem 0.7rem;
+  }
+  .jem-date-clear { flex-shrink: 0; }
 }
 
 @media (max-width: 768px) {

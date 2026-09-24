@@ -67,10 +67,16 @@
         <i class="fa-solid fa-camera" aria-hidden="true"></i>
       </button>
 
-      <div id="offline-sync-indicator" class="offline-sync-indicator" hidden>
+      {# Solo el icono de la nube: el color dice el estado (verde online,
+         rojo offline, naranja sincronizando). El texto se conserva como
+         sr-only porque para un lector de pantalla el color no existe; caja.js
+         lo sigue actualizando. Tocarlo abre el registro offline (solo admin,
+         que es el unico rol para el que caja.js lo muestra). #}
+      <button type="button" id="offline-sync-indicator" class="offline-sync-indicator" hidden
+              aria-haspopup="dialog" aria-controls="offline-sync-dialog">
         <i class="fa-solid fa-cloud" aria-hidden="true"></i>
-        <span id="offline-sync-indicator-text">Sincronización local</span>
-      </div>
+        <span id="offline-sync-indicator-text" class="sr-only">Sincronizacion local</span>
+      </button>
     </header>
 
     <div class="pos-container">
@@ -85,79 +91,116 @@
         </div>
       </section>
 
-      <aside class="payment-panel" aria-label="Panel de cobro">
-        <div class="total-block">
-          <span class="total-label">Total</span>
-          <output class="total-amount" id="val-total" aria-live="polite">$0</output>
-        </div>
+    </div>
 
-        <div class="cash-section visible" id="cash-section">
-          <div class="cash-input-wrap">
-            <span class="prefix" aria-hidden="true">$</span>
-            <input
-              class="cash-input"
-              id="cash-received"
-              type="tel"
-              inputmode="numeric"
-              placeholder="Recibido"
-              autocomplete="off"
-              aria-label="Efectivo recibido"
-            />
-          </div>
-          <div class="change-block" id="change-block">
-            <span class="change-label">Cambio</span>
-            <output class="change-amount" id="val-change" aria-live="polite">—</output>
-          </div>
-        </div>
-
-        <div class="payment-methods" role="group" aria-label="Método de pago">
-          <button class="pay-method-btn selected" data-method="efectivo" type="button" aria-pressed="true">
-            <i class="fa-solid fa-money-bill-wave" aria-hidden="true"></i><span>Efectivo</span>
-          </button>
-          <button class="pay-method-btn" data-method="nequi" type="button" aria-pressed="false">
-            <i class="fa-solid fa-mobile-screen-button" aria-hidden="true"></i><span>Nequi</span>
-          </button>
-          <button class="pay-method-btn" data-method="tarjeta" type="button" aria-pressed="false">
-            <i class="fa-solid fa-credit-card" aria-hidden="true"></i><span>Tarjeta</span>
-          </button>
-        </div>
-
-        <button class="btn-cobrar" id="btn-cobrar" type="button" disabled>Cobrar</button>
-        <button class="btn-fiar" id="btn-fiar" type="button" disabled>
-          <i class="fa-solid fa-handshake-simple" aria-hidden="true"></i> Fiar
-        </button>
-
-        {% if (rol or '')|lower == 'admin' %}
-        <details class="offline-sync-panel" id="offline-sync-panel">
-          <summary class="offline-sync-panel-header">
-            <span class="offline-sync-title">Sincronización offline</span>
-            <span id="offline-sync-count" class="offline-sync-count">0 pendientes</span>
-          </summary>
-          <p class="offline-sync-help">Ventas guardadas sin internet y fallas al reenviarlas.</p>
-          <div class="offline-sync-table-wrap">
-            <table class="offline-sync-table">
-              <thead>
-                <tr>
-                  <th scope="col">Hora</th>
-                  <th scope="col">Venta</th>
-                  <th scope="col">Estado</th>
-                  <th scope="col">Error</th>
-                  <th scope="col"><span class="sr-only">Acciones</span></th>
-                </tr>
-              </thead>
-              <tbody id="offline-sync-log-body">
-                <tr class="offline-sync-empty">
-                  <td colspan="5">No hay eventos offline pendientes.</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </details>
-        {% endif %}
-      </aside>
+    {# Barra de cobro: total siempre visible y una sola accion. Va fija sobre
+       la barra de navegacion (ver --pos-nav-h en caja.css) para que el cajero
+       no tenga que bajar hasta el final del carrito para cobrar. #}
+    <div class="checkout-bar" id="checkout-bar">
+      <div class="checkout-total">
+        <span class="checkout-total-label">Total</span>
+        <output class="checkout-total-amount" id="val-total" aria-live="polite">$0</output>
+      </div>
+      <button class="btn-cobrar checkout-btn" id="btn-checkout" type="button" disabled>
+        Cobrar
+      </button>
     </div>
   </main>
 </div>
+
+{% if (rol or '')|lower == 'admin' %}
+{# Registro de ventas offline. Vivia en un panel bajo el carrito; ahora se
+   abre desde el icono de la nube para que en pantalla no quede mas rastro de
+   la sincronizacion que ese icono. No se elimina: el boton "Reintentar" es la
+   unica forma de reenviar una venta offline que fallo al sincronizar. #}
+<dialog class="sheet sheet-form" id="offline-sync-dialog" aria-labelledby="offline-sync-title">
+  <div class="sheet-body">
+    <div class="sheet-header">
+      <h2 class="sheet-title" id="offline-sync-title">Sincronizacion offline</h2>
+      <button type="button" class="sheet-close" id="offline-sync-close" aria-label="Cerrar">
+        <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+      </button>
+    </div>
+    <p class="offline-sync-help">
+      Ventas guardadas sin internet y fallas al reenviarlas.
+      <span id="offline-sync-count" class="offline-sync-count">0 pendientes</span>
+    </p>
+    <div class="offline-sync-table-wrap">
+      <table class="offline-sync-table">
+        <thead>
+          <tr>
+            <th scope="col">Hora</th>
+            <th scope="col">Venta</th>
+            <th scope="col">Estado</th>
+            <th scope="col">Error</th>
+            <th scope="col"><span class="sr-only">Acciones</span></th>
+          </tr>
+        </thead>
+        <tbody id="offline-sync-log-body">
+          <tr class="offline-sync-empty">
+            <td colspan="5">No hay eventos offline pendientes.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</dialog>
+{% endif %}
+
+<!-- Modal de cobro: total, efectivo recibido, cambio y metodo de pago -->
+<dialog class="sheet sheet-form" id="cobro-dialog" aria-labelledby="cobro-title">
+  <div class="sheet-body">
+    <div class="sheet-header">
+      <h2 class="sheet-title" id="cobro-title">Cobrar venta</h2>
+      <button type="button" class="sheet-close" id="cobro-close" aria-label="Cerrar">
+        <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+      </button>
+    </div>
+
+    <div class="cobro-total-block">
+      <span class="cobro-total-label">Total a pagar</span>
+      <output class="cobro-total-amount" id="cobro-total" aria-live="polite">$0</output>
+    </div>
+
+    <div class="payment-methods" role="group" aria-label="Metodo de pago">
+      <button class="pay-method-btn selected" data-method="efectivo" type="button" aria-pressed="true">
+        <i class="fa-solid fa-money-bill-wave" aria-hidden="true"></i><span>Efectivo</span>
+      </button>
+      <button class="pay-method-btn" data-method="nequi" type="button" aria-pressed="false">
+        <i class="fa-solid fa-mobile-screen-button" aria-hidden="true"></i><span>Nequi</span>
+      </button>
+      <button class="pay-method-btn" data-method="tarjeta" type="button" aria-pressed="false">
+        <i class="fa-solid fa-credit-card" aria-hidden="true"></i><span>Tarjeta</span>
+      </button>
+    </div>
+
+    <div class="cash-section visible" id="cash-section">
+      <div class="cash-input-wrap">
+        <span class="prefix" aria-hidden="true">$</span>
+        <input
+          class="cash-input"
+          id="cash-received"
+          type="tel"
+          inputmode="numeric"
+          placeholder="Recibido"
+          autocomplete="off"
+          aria-label="Efectivo recibido"
+        />
+      </div>
+      <div class="change-block" id="change-block">
+        <span class="change-label">Cambio</span>
+        <output class="change-amount" id="val-change" aria-live="polite">&mdash;</output>
+      </div>
+    </div>
+
+    <div class="cobro-actions">
+      <button class="btn-cobrar" id="btn-cobrar" type="button">Completar cobro</button>
+      <button class="btn-fiar" id="btn-fiar" type="button">
+        <i class="fa-solid fa-handshake-simple" aria-hidden="true"></i> Fiar venta
+      </button>
+    </div>
+  </div>
+</dialog>
 
 <!-- Hoja "Fiar": el total del carrito pasa a ser deuda del cliente -->
 <dialog class="sheet sheet-form" id="fiar-dialog" aria-labelledby="fiar-title">
@@ -225,7 +268,6 @@
      data-subs-dias="{{ dias_restantes }}"
      hidden></div>
 <script src="/static/js/subs-context.js" defer></script>
-<script src="/static/js/nav-rbac.js" defer></script>
 <script src="/static/js/subs-modal.js" defer></script>
 
 </body>

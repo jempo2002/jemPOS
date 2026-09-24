@@ -139,8 +139,10 @@ def api_turno_cerrar():
         return jsonify({"ok": False, "msg": "El monto no puede ser negativo."}), 400
 
     try:
-        cerrar_turno(int(session["id_tienda"]), int(session["id_usuario"]), monto_final)
-        return jsonify({"ok": True})
+        arqueo = cerrar_turno(
+            int(session["id_tienda"]), int(session["id_usuario"]), monto_final
+        )
+        return jsonify({"ok": True, "arqueo": arqueo})
     except SalesValidationError as exc:
         return jsonify({"ok": False, "msg": str(exc)}), 400
     except SalesNotFoundError:
@@ -410,7 +412,9 @@ def api_gastos_crear():
         return jsonify({"ok": False, "msg": "Metodo de pago invalido."}), 400
 
     if metodo_pago == "Efectivo":
-        if fuente_dinero not in {"Caja Menor", "Caja Fuerte"}:
+        # "Base" sale de los billetes de la apertura; el servicio la descuenta
+        # del efectivo esperado igual que "Caja Menor".
+        if fuente_dinero not in {"Base", "Caja Menor", "Caja Fuerte"}:
             return jsonify({"ok": False, "msg": "Fuente de dinero invalida para efectivo."}), 400
     else:
         fuente_dinero = "Bancos"

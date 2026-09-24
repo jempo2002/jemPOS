@@ -219,19 +219,6 @@
   margin-bottom: 0.65rem;
 }
 
-.card-icon {
-  width: 2.6rem;
-  height: 2.6rem;
-  border-radius: 0.7rem;
-  background: #BFDBFE;
-  color: #1D4ED8;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1.05rem;
-  flex-shrink: 0;
-}
-
 .card-info { flex: 1; min-width: 0; }
 
 .card-name {
@@ -359,24 +346,11 @@
   background: #F8FAFC;
 }
 
-/* Celda de nombre: icono + texto */
+/* Celda de nombre */
 .td-name {
   display: flex;
   align-items: center;
-  gap: 0.7rem;
-}
-
-.td-icon {
-  width: 2rem;
-  height: 2rem;
-  border-radius: 0.5rem;
-  background: #BFDBFE;
-  color: #1D4ED8;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.85rem;
-  flex-shrink: 0;
+  min-width: 0;
 }
 
 .td-name-text {
@@ -1231,3 +1205,67 @@
 @media (min-width: 1100px) {
   .prov-cards { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
+
+
+/* ══════════════════════════════════════════════════════════
+   MOVIL — DENSIDAD
+   Reduce texto, espaciado y altura de los modales para que quepa mas
+   informacion sin scroll. No se tocan los objetivos tactiles: .action-btn
+   mantiene sus 44px (--touch-target-min) y los <input> su font-size de 16px,
+   porque por debajo de eso iOS hace zoom automatico al enfocar el campo y el
+   usuario acaba peleando con la pagina.
+   ══════════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+
+  /* ── Lista de productos ─────────────────────────────────── */
+  .cards-list { gap: 0.5rem; }
+
+  .product-card { padding: 0.7rem 0.8rem; }
+
+  .card-top { gap: 0.5rem; margin-bottom: 0.5rem; }
+
+  .card-name { font-size: 0.87rem; }
+  .card-category { font-size: 0.72rem; }
+
+  .card-actions { gap: 0.25rem; }
+
+  .card-bottom { padding-top: 0.45rem; gap: 0.4rem; }
+  .card-price-label { font-size: 0.65rem; }
+  .card-price-value { font-size: 0.87rem; }
+
+  .stock-badge { font-size: 0.7rem; padding: 0.25rem 0.55rem; }
+
+  /* ── Modales ────────────────────────────────────────────── */
+  .modal-backdrop { padding: 0.6rem; }
+
+  .modal-card {
+    padding: 1rem;
+    border-radius: 1.1rem;
+    /* Mas alto disponible que el 90vh anterior, y en dvh para que la barra
+       de direcciones del navegador movil no recorte el modal al replegarse. */
+    max-height: calc(100dvh - 1.2rem);
+  }
+
+  .modal-header { margin-bottom: 0.75rem; }
+
+  /* Cabecera sin titulo (alta de producto): solo queda la X, alineada a la
+     derecha y pegada al contenido. */
+  .modal-header-bare {
+    justify-content: flex-end;
+    margin-bottom: 0.35rem;
+  }
+
+  .modal-field { margin-bottom: 0.7rem; }
+  .modal-field label { font-size: 0.8rem; margin-bottom: 0.25rem; }
+  .modal-field input,
+  .modal-field select { padding: 0.55rem 0.75rem; border-radius: 0.65rem; }
+  .modal-field .field-help { font-size: 0.72rem; margin-top: 0.25rem; }
+
+  .modal-field-row { gap: 0.5rem; }
+
+  .modal-footer { gap: 0.5rem; margin-top: 0.75rem; }
+}
+
+/* Fuera de movil la cabecera sin titulo tambien alinea la X a la derecha:
+   sin esto, space-between la dejaria pegada al borde izquierdo. */
+.modal-header-bare { justify-content: flex-end; }

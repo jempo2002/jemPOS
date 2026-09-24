@@ -357,7 +357,6 @@ document.addEventListener('DOMContentLoaded', () => {
           </button>`;
     return `
       <div class="card-top">
-        <div class="card-icon"><i class="fa-solid fa-box"></i></div>
         <div class="card-info">
           <div class="card-name">${esc(p.name)}</div>
           <div class="card-category">${esc(p.category)}</div>
@@ -398,7 +397,6 @@ document.addEventListener('DOMContentLoaded', () => {
     return `
       <td>
         <div class="td-name">
-          <div class="td-icon"><i class="fa-solid fa-box"></i></div>
           <span class="td-name-text">${esc(p.name)}</span>
         </div>
       </td>

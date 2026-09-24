@@ -130,8 +130,13 @@
 <div class="modal-backdrop" id="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
   <div class="modal-card">
 
-    <div class="modal-header">
-      <span class="modal-title" id="modal-title">Anadir Producto</span>
+    {# Cabecera sin titulo visible: en movil ocupaba una linea entera y era lo
+       que obligaba a hacer scroll dentro del modal para llegar al boton de
+       guardar. El texto se conserva para lectores de pantalla porque el
+       dialogo se nombra con aria-labelledby="modal-title", y inventario.js
+       lo sigue alternando entre "Anadir" y "Editar". #}
+    <div class="modal-header modal-header-bare">
+      <span class="modal-title sr-only" id="modal-title">Anadir Producto</span>
       <button class="modal-close" id="modal-close" type="button" aria-label="Cerrar">
         <img src="/static/img/equis.png" alt="" aria-hidden="true" width="20" height="20" decoding="async" />
       </button>
@@ -395,7 +400,6 @@
        data-subs-dias="{{ dias_restantes }}"
        hidden></div>
   <script src="/static/js/subs-context.js" defer></script>
-  <script src="/static/js/nav-rbac.js" defer></script>
   <script src="/static/js/subs-modal.js" defer></script>
 
 </body>

@@ -7,7 +7,8 @@
 {% set nav_items = [
   {'endpoint': 'sales_bp.turno', 'icon': 'fa-business-time', 'label': 'Mi Turno'},
   {'endpoint': 'core_bp.dashboard_page', 'icon': 'fa-gauge-high',
-   'label': 'Panel de Control' if session.get('rol') == 'Admin' else 'Inicio'},
+   'label': 'Panel de Control' if session.get('rol') == 'Admin' else 'Inicio',
+   'roles': ['admin', 'master']},
   {'endpoint': 'sales_bp.caja', 'icon': 'fa-cash-register', 'label': 'Caja'},
   {'endpoint': 'inventory_bp.inventario_page', 'icon': 'fa-boxes-stacked', 'label': 'Inventario'},
   {'endpoint': 'sales_bp.fiados', 'icon': 'fa-handshake-simple', 'label': 'Cartera'},
@@ -17,7 +18,13 @@
   {'endpoint': 'sales_bp.gastos', 'icon': 'fa-receipt', 'label': 'Gastos'},
   {'endpoint': 'core_bp.perfil_page', 'icon': 'fa-circle-user', 'label': 'Mi Perfil', 'admin_only': true},
 ] %}
-{% set is_admin = (session.get('rol') or '')|lower == 'admin' %}
+{% set rol_actual = (session.get('rol') or '')|lower %}
+{% set is_admin = rol_actual == 'admin' %}
+{# 'roles' replica el @roles_required de la ruta. El enlace al panel se ocultaba
+   antes con JS (nav-rbac.js) despues de cargar la pagina; filtrarlo aqui deja
+   la barra con su forma definitiva desde el primer pintado, que es lo que
+   necesita la restauracion del scroll de abajo: si un boton desaparece
+   despues de restaurar, todo se corre un boton y la posicion no coincide. #}
 
 <aside class="sidebar" role="navigation" aria-label="Menu principal">
   <div class="sidebar-logo">
@@ -26,7 +33,7 @@
   </div>
 
   <nav class="sidebar-nav">
-    {% for item in nav_items if not item.admin_only or is_admin %}
+    {% for item in nav_items if (not item.admin_only or is_admin) and (not item.roles or rol_actual in item.roles) %}
     {% set href = url_for(item.endpoint) %}
     {% set is_active = request.path == href or request.path.startswith(href ~ '/') %}
     <a href="{{ href }}" class="nav-link{% if is_active %} active{% endif %}"{% if is_active %} aria-current="page"{% endif %}>
@@ -58,7 +65,7 @@
 </aside>
 
 <nav class="bottom-bar" role="navigation" aria-label="Navegacion principal" data-bottom-nav>
-  {% for item in nav_items if not item.admin_only or is_admin %}
+  {% for item in nav_items if (not item.admin_only or is_admin) and (not item.roles or rol_actual in item.roles) %}
   {% set href = url_for(item.endpoint) %}
   {% set is_active = request.path == href or request.path.startswith(href ~ '/') %}
   <a href="{{ href }}" class="bottom-btn{% if is_active %} active{% endif %}"{% if is_active %} aria-current="page"{% endif %} aria-label="{{ item.label }}">
@@ -71,3 +78,69 @@
     <span>Salir</span>
   </a>
 </nav>
+
+{# Memoria del scroll horizontal de la barra inferior entre paginas.
+
+   Inline y justo despues de </nav>, a proposito:
+   - El elemento ya existe cuando esto corre, asi que no hace falta esperar a
+     DOMContentLoaded. Esperarlo seria peor: restauraria despues de que el
+     navegador pudo pintar la barra en su posicion inicial, y el usuario veria
+     un salto de izquierda a derecha en cada navegacion.
+   - Un <script src> sin defer aqui bloquearia el parseo con una peticion de
+     red; con defer llegaria tarde por la misma razon que DOMContentLoaded.
+
+   El scroll-behavior: smooth de .bottom-bar se anula durante la restauracion:
+   con el, asignar scrollLeft anima el desplazamiento en cada carga.
+
+   sessionStorage (no localStorage): la posicion es de esta pestana y de esta
+   visita; al abrir la app de cero lo natural es empezar por la izquierda.
+   try/catch porque el acceso lanza con el almacenamiento bloqueado (Safari
+   en modo privado antiguo, cookies de terceros desactivadas). #}
+<script>
+(function () {
+  var nav = document.querySelector('[data-bottom-nav]');
+  if (!nav) return;
+  var KEY = 'jempos_nav_scroll_x';
+
+  var saved = NaN;
+  try { saved = parseInt(sessionStorage.getItem(KEY), 10); } catch (e) {}
+
+  var x = Number.isFinite(saved) ? saved : 0;
+  var active = nav.querySelector('.bottom-btn.active');
+  if (active) {
+    /* offsetLeft se mide contra .bottom-bar (position: fixed la convierte en
+       su offsetParent), sin depender del scroll actual. */
+    var left = active.offsetLeft;
+    var right = left + active.offsetWidth;
+    var width = nav.clientWidth;
+    if (!Number.isFinite(saved)) {
+      /* Primera pagina de la sesion: centrar el activo, como hacia antes
+         nav-rbac.js. */
+      x = left - (width - active.offsetWidth) / 2;
+    } else if (left < saved || right > saved + width) {
+      /* Se llego a esta pagina desde otro sitio (un enlace del panel, un
+         redirect) y la posicion guardada deja el activo fuera de vista:
+         moverlo lo justo para mostrarlo, no recentrar. */
+      x = left < saved ? left : right - width;
+    }
+  }
+
+  if (x > 0) {
+    nav.style.scrollBehavior = 'auto';
+    nav.scrollLeft = x;
+    nav.style.scrollBehavior = '';
+  }
+
+  /* Un guardado por frame como maximo: el evento scroll dispara decenas de
+     veces por segundo al deslizar el dedo. */
+  var queued = false;
+  nav.addEventListener('scroll', function () {
+    if (queued) return;
+    queued = true;
+    requestAnimationFrame(function () {
+      queued = false;
+      try { sessionStorage.setItem(KEY, String(Math.round(nav.scrollLeft))); } catch (e) {}
+    });
+  }, { passive: true });
+})();
+</script>

@@ -556,27 +556,113 @@ def get_ventas(
     return lista, filtro_final, meta
 
 
+def _resumen_turno(cur, id_tienda: int, turno: dict) -> dict:
+    """Desglose del arqueo del turno abierto, con el cursor de quien llama.
+
+    El total se calcula sumando sus componentes, no leyendo
+    `monto_final_esperado`, para que la cifra grande y el desglose que la
+    acompana en pantalla no puedan contradecirse:
+
+        esperado = base + ventas en efectivo + abonos en efectivo
+                        - gastos pagados con la base o la caja menor
+
+    La columna se sigue manteniendo transaccionalmente y se devuelve aparte
+    como `esperado_registrado`. Difieren solo cuando hay filas que entraron a
+    la base sin pasar por la aplicacion (una carga manual, un volcado), y en
+    ese caso el calculo de aqui es el fiel: la columna nunca se entero de esos
+    movimientos.
+
+    Dos precisiones que cambian el resultado:
+
+    * Las ventas en efectivo excluyen las que tienen abonos. Un fiado se
+      guarda con metodo_pago 'Efectivo' y, al terminar de pagarse, su
+      estado_venta pasa a 'Pagada'. Contarlo como venta ademas de contar sus
+      abonos mete el mismo dinero dos veces en el arqueo.
+    * Los abonos se filtran por `abonos_fiados.id_turno`, que se graba al
+      registrarlos. Antes se deducian por fecha, y como `fecha_creacion` tiene
+      precision de segundos, un abono hecho en el mismo segundo en que se abre
+      un turno entraba en el arqueo de dos turnos distintos.
+    """
+    id_turno = turno["id_turno"]
+    base = float(turno["monto_inicial"] or 0)
+
+    cur.execute(
+        "SELECT COALESCE(SUM(v.total_final), 0) AS total, "
+        "       COALESCE(SUM(CASE WHEN v.metodo_pago = 'Efectivo' "
+        "                          AND NOT EXISTS (SELECT 1 FROM abonos_fiados a "
+        "                                          WHERE a.id_venta = v.id_venta) "
+        "                         THEN v.total_final ELSE 0 END), 0) AS efectivo "
+        "FROM ventas v "
+        "WHERE v.id_tienda = %s AND v.id_turno = %s AND v.estado_venta = 'Pagada'",
+        (id_tienda, id_turno),
+    )
+    ventas = cur.fetchone() or {}
+
+    cur.execute(
+        "SELECT COALESCE(SUM(a.monto_abonado), 0) AS efectivo "
+        "FROM abonos_fiados a "
+        "WHERE a.id_tienda = %s AND a.id_turno = %s AND a.metodo_pago = 'Efectivo'",
+        (id_tienda, id_turno),
+    )
+    abonos = cur.fetchone() or {}
+
+    marcadores = ", ".join(["%s"] * len(FUENTES_QUE_SALEN_DE_CAJA))
+    cur.execute(
+        "SELECT COALESCE(SUM(monto), 0) AS total, "
+        f"       COALESCE(SUM(CASE WHEN fuente_dinero IN ({marcadores}) "
+        "                         THEN monto ELSE 0 END), 0) AS de_caja, "
+        "       COALESCE(SUM(CASE WHEN fuente_dinero = 'Base' "
+        "                         THEN monto ELSE 0 END), 0) AS de_base "
+        "FROM gastos_caja "
+        "WHERE id_tienda = %s AND id_turno = %s",
+        (*FUENTES_QUE_SALEN_DE_CAJA, id_tienda, id_turno),
+    )
+    gastos = cur.fetchone() or {}
+
+    registrado = turno.get("monto_final_esperado")
+    registrado = float(registrado) if registrado is not None else base
+
+    ventas_efectivo = float(ventas.get("efectivo") or 0)
+    abonos_efectivo = float(abonos.get("efectivo") or 0)
+    gastos_de_caja = float(gastos.get("de_caja") or 0)
+    total_esperado = round(base + ventas_efectivo + abonos_efectivo - gastos_de_caja, 2)
+
+    return {
+        "base": base,
+        "ventas_total": float(ventas.get("total") or 0),
+        "ventas_efectivo": ventas_efectivo,
+        "abonos_efectivo": abonos_efectivo,
+        "gastos_total": float(gastos.get("total") or 0),
+        "gastos_de_caja": gastos_de_caja,
+        "gastos_de_base": float(gastos.get("de_base") or 0),
+        "total_esperado": total_esperado,
+        "esperado_registrado": registrado,
+    }
+
+
 def get_turno_estado(id_tienda: int) -> dict | None:
     conn = get_db()
     try:
         cur = conn.cursor(dictionary=True)
         cur.execute(
-            "SELECT id_turno, fecha_apertura, monto_inicial "
+            "SELECT id_turno, fecha_apertura, monto_inicial, monto_final_esperado "
             "FROM turnos_caja "
             "WHERE id_tienda = %s AND estado_turno = 'Abierto' "
             "ORDER BY fecha_apertura DESC LIMIT 1",
             (id_tienda,),
         )
         turno = cur.fetchone()
+        if not turno:
+            return None
+        resumen = _resumen_turno(cur, id_tienda, turno)
     finally:
         conn.close()
 
-    if not turno:
-        return None
     return {
         "id_turno": turno["id_turno"],
         "hora_apertura": turno["fecha_apertura"].strftime("%I:%M %p"),
         "monto_inicial": float(turno["monto_inicial"]),
+        **resumen,
     }
 
 
@@ -613,7 +699,18 @@ def abrir_turno(id_tienda: int, id_usuario: int, monto_inicial: float) -> int:
         conn.close()
 
 
-def cerrar_turno(id_tienda: int, id_usuario: int, monto_final: float) -> None:
+def cerrar_turno(id_tienda: int, id_usuario: int, monto_final: float) -> dict:
+    """Cierra el turno abierto y devuelve el arqueo.
+
+    Devuelve el desglose ademas de cerrar para que la pantalla pueda decir si
+    la caja quedo cuadrada sin tener que volver a pedirlo: despues del cierre
+    ya no hay turno abierto que consultar.
+
+    La diferencia se calcula contra el `monto_final_esperado` leido dentro de
+    la misma transaccion que hace el UPDATE. Leerlo antes, fuera de ella,
+    dejaria una ventana en la que una venta simultanea cambia el esperado y el
+    cajero recibe un descuadre que no existe.
+    """
     try:
         id_tienda = parse_int(id_tienda, "Tienda", min_value=1)
         id_usuario = parse_int(id_usuario, "Usuario", min_value=1)
@@ -624,14 +721,17 @@ def cerrar_turno(id_tienda: int, id_usuario: int, monto_final: float) -> None:
     try:
         cur = conn.cursor(dictionary=True)
         cur.execute(
-            "SELECT id_turno FROM turnos_caja "
+            "SELECT id_turno, fecha_apertura, monto_inicial, monto_final_esperado "
+            "FROM turnos_caja "
             "WHERE id_tienda = %s AND estado_turno = 'Abierto' "
-            "ORDER BY fecha_apertura DESC LIMIT 1",
+            "ORDER BY fecha_apertura DESC LIMIT 1 FOR UPDATE",
             (id_tienda,),
         )
         turno = cur.fetchone()
         if not turno:
             raise SalesNotFoundError("No hay turno abierto.")
+
+        resumen = _resumen_turno(cur, id_tienda, turno)
 
         cur.execute(
             "UPDATE turnos_caja "
@@ -646,6 +746,16 @@ def cerrar_turno(id_tienda: int, id_usuario: int, monto_final: float) -> None:
         raise
     finally:
         conn.close()
+
+    diferencia = round(monto_final - resumen["total_esperado"], 2)
+    return {
+        **resumen,
+        "monto_reportado": monto_final,
+        "diferencia": diferencia,
+        # El redondeo a 2 decimales evita que un centavo de coma flotante
+        # marque descuadre en una caja que en pesos esta perfecta.
+        "cuadrado": diferencia == 0,
+    }
 
 
 def get_caja_productos(id_tienda: int, q: str) -> list[dict]:
@@ -1169,17 +1279,23 @@ def abonar_fiado(id_tienda: int, id_usuario: int, id_cliente: int, monto: float,
         if monto <= 0 or monto > deuda_actual:
             raise SalesValidationError("El monto debe ser mayor a 0 y no puede superar la deuda actual.")
 
+        # El turno se resuelve ANTES de insertar para poder grabarlo en la
+        # fila. El arqueo lo lee de ahi en vez de deducirlo por fecha:
+        # fecha_creacion tiene precision de segundos y un abono hecho en el
+        # mismo segundo en que se abre un turno caia dentro de la ventana de
+        # dos turnos, contando el mismo dinero dos veces.
+        id_turno = _obtener_turno_abierto(id_tienda, cur)
+        if metodo == "Efectivo" and not id_turno:
+            raise SalesConflictError("No hay turno abierto para registrar abonos en efectivo.")
+
         cur.execute(
             "INSERT INTO abonos_fiados "
-            "(id_tienda, id_venta, id_usuario, monto_abonado, metodo_pago) "
-            "VALUES (%s,%s,%s,%s,%s)",
-            (id_tienda, venta["id_venta"], id_usuario, monto, metodo),
+            "(id_tienda, id_venta, id_turno, id_usuario, monto_abonado, metodo_pago) "
+            "VALUES (%s,%s,%s,%s,%s,%s)",
+            (id_tienda, venta["id_venta"], id_turno, id_usuario, monto, metodo),
         )
 
         if metodo == "Efectivo":
-            id_turno = _obtener_turno_abierto(id_tienda, cur)
-            if not id_turno:
-                raise SalesConflictError("No hay turno abierto para registrar abonos en efectivo.")
             cur.execute(
                 "UPDATE turnos_caja "
                 "SET monto_final_esperado = COALESCE(monto_final_esperado, monto_inicial, 0) + %s "
@@ -1283,7 +1399,19 @@ def get_gastos(
     return gastos, filtro_final, meta, totales
 
 
-FUENTES_DINERO = ("Caja Menor", "Caja Fuerte", "Bancos")
+# Fuentes de dinero de un gasto.
+#
+# Las dos que salen del cajon fisico y por tanto mueven el cuadre del turno:
+#   Base       -> el cajero pago con los billetes de la apertura
+#   Caja Menor -> salio del efectivo acumulado durante el turno
+# Las otras dos no tocan el cajon: 'Caja Fuerte' y 'Bancos'.
+FUENTES_DINERO = ("Caja Menor", "Caja Fuerte", "Bancos", "Base")
+
+# Subconjunto que descuenta del efectivo esperado al cerrar. Se define aparte
+# para que la regla viva en un solo sitio: insertar_gasto la usa para decidir
+# si baja monto_final_esperado, y get_turno_resumen para sumar los gastos que
+# el cajero vera restados en su arqueo. Si divergen, el arqueo miente.
+FUENTES_QUE_SALEN_DE_CAJA = ("Base", "Caja Menor")
 
 
 def insertar_gasto(
@@ -1310,8 +1438,11 @@ def insertar_gasto(
 
     id_turno = _obtener_turno_abierto(id_tienda, cur)
 
-    if metodo_pago == "Efectivo" and fuente_dinero == "Caja Menor" and not id_turno:
-        raise SalesConflictError("No hay turno activo para cargar gastos de Caja Menor.")
+    sale_de_caja = metodo_pago == "Efectivo" and fuente_dinero in FUENTES_QUE_SALEN_DE_CAJA
+    if sale_de_caja and not id_turno:
+        raise SalesConflictError(
+            f"No hay turno activo para cargar gastos de {fuente_dinero}."
+        )
 
     if not id_turno:
         cur.execute(
@@ -1333,7 +1464,11 @@ def insertar_gasto(
     )
     nuevo_id = int(cur.lastrowid or 0)
 
-    if metodo_pago == "Efectivo" and fuente_dinero == "Caja Menor":
+    if sale_de_caja:
+        # Un gasto pagado con la base o con la caja menor saca billetes del
+        # cajon, asi que baja el efectivo que debe aparecer en el arqueo.
+        # 'Caja Fuerte' y 'Bancos' no entran aqui: ese dinero nunca estuvo en
+        # el cajon del turno.
         cur.execute(
             "UPDATE turnos_caja "
             "SET monto_final_esperado = COALESCE(monto_final_esperado, monto_inicial, 0) - %s "

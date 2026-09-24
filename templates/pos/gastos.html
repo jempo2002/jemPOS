@@ -104,7 +104,7 @@
 
   <button class="gast-fab" id="btn-gasto-fab" type="button" data-fab-smart aria-label="Nuevo gasto">
     <i class="fa-solid fa-plus"></i>
-    <span class="fab-label">+ Nuevo</span>
+    <span class="fab-label">Nuevo</span>
   </button>
 
 
@@ -184,8 +184,12 @@
 
       <div class="gast-field" id="g-fuente-wrap">
         <label for="g-fuente">Fuente del dinero</label>
+        {# "Base" y "Caja Menor" descuentan del efectivo esperado al cerrar el
+           turno; "Caja Fuerte" no, porque ese dinero no esta en el cajon.
+           La regla vive en FUENTES_QUE_SALEN_DE_CAJA (sales_service.py). #}
         <select id="g-fuente" class="gast-select">
           <option value="Caja Menor" selected>Caja Menor</option>
+          <option value="Base">Base (efectivo de apertura)</option>
           <option value="Caja Fuerte">Caja Fuerte</option>
         </select>
       </div>
@@ -220,7 +224,6 @@
        data-subs-dias="{{ dias_restantes }}"
        hidden></div>
   <script src="/static/js/subs-context.js" defer></script>
-  <script src="/static/js/nav-rbac.js" defer></script>
   <script src="/static/js/subs-modal.js" defer></script>
 
 </body>

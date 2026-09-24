@@ -12,6 +12,9 @@ Admin id=6 y un Cajero id=8).
   4) Editar: nombre/cc/rol, sin cc duplicada, sin cambiar el rol propio ni
      dejar una tienda sin Admin.
   5) Eliminar: ni a uno mismo, ni a un Master, ni al ultimo Admin.
+  6) Eliminar libera correo, cc y NIT (prefijo deleted_<ts>_): se pueden
+     reutilizar en el panel y en el registro publico, el id y el historial
+     no cambian, y un correo activo sigue bloqueado.
 
     python scripts/check_panel_master.py
 """
@@ -54,9 +57,9 @@ class _NoCommit:
 
 
 from app import create_app  # noqa: E402
-from app.routes import core  # noqa: E402
+from app.routes import auth, core  # noqa: E402
 
-core.get_db = lambda: _NoCommit()
+core.get_db = auth.get_db = lambda: _NoCommit()
 app = create_app()
 app.config.update(WTF_CSRF_ENABLED=False, RATELIMIT_ENABLED=False)
 client = app.test_client()
@@ -97,6 +100,8 @@ try:
     login(1, 1, "Master")
 
     # 2) Eliminar tienda
+    q("UPDATE tiendas SET nit='900123999' WHERE id_tienda=2")
+    brayan = q("SELECT correo FROM usuarios WHERE id_usuario=3")[0]["correo"]
     check(client.delete("/api/master/tiendas/1"), 400, "propia")
     check(client.delete("/api/master/tiendas/2"), 200, "eliminada")
     assert q("SELECT estado FROM tiendas WHERE id_tienda=2")[0]["estado"] == "Eliminado"
@@ -135,12 +140,39 @@ try:
     check(client.put("/api/master/usuarios/6", json={"nombre": "A", "cc": "9990098", "rol": "Cajero"}), 400, "unico Admin")
 
     # 5) Eliminar
+    q("UPDATE usuarios SET cc='9990088' WHERE id_usuario=8")
+    cajero8 = q("SELECT correo, cc FROM usuarios WHERE id_usuario=8")[0]
     check(client.delete("/api/master/usuarios/1"), 400, "propia cuenta")
     check(client.delete(f"/api/master/usuarios/{otro_master['id_usuario']}"), 403, "Master")
     check(client.delete("/api/master/usuarios/6"), 400, "unico Admin")
     check(client.delete("/api/master/usuarios/8"), 200)
     assert q("SELECT estado_activo FROM usuarios WHERE id_usuario=8")[0]["estado_activo"] == 0
     check(client.delete("/api/master/usuarios/8"), 404)
+
+    # 6) Correo/cc/NIT liberados
+    assert q("SELECT nit FROM tiendas WHERE id_tienda=2")[0]["nit"].startswith("deleted_")
+    borrado = q("SELECT correo FROM usuarios WHERE id_usuario=3")[0]["correo"]
+    assert borrado.startswith("deleted_") and borrado.endswith("_" + brayan), borrado
+    ventas_3 = q("SELECT COUNT(*) n FROM ventas WHERE id_cajero=3")[0]["n"]
+    assert ventas_3 > 0, "historial de ventas del usuario eliminado sigue ligado a su id"
+
+    fila8 = q("SELECT correo, cc FROM usuarios WHERE id_usuario=8")[0]
+    assert fila8["correo"].startswith("deleted_") and fila8["correo"].endswith("_" + cajero8["correo"])
+    assert fila8["cc"].startswith("deleted_") and fila8["cc"].endswith("_9990088"), fila8
+    check(crear("9990088", cajero8["correo"]), 200)  # panel: reusar correo + cc
+
+    def registro(correo, nit):
+        return client.post("/registro", data={
+            "nombre_dueno": "QA Dueno", "nombre_negocio": "QA Reuso", "nit": nit,
+            "telefono": "3000000000", "correo": correo, "contrasena": PWD, "acepta_terminos": "1",
+        })
+
+    r = registro(brayan, "900123999")  # registro publico: reusar correo y NIT
+    assert r.status_code == 302 and r.location.endswith("/login"), (r.status_code, r.location)
+    assert q("SELECT COUNT(*) n FROM usuarios WHERE correo=%s AND estado_activo=1", (brayan,))[0]["n"] == 1
+    r = registro(brayan, "900123998")  # ahora esta activo: bloquea
+    assert r.status_code == 302 and r.location.endswith("/registro"), r.location
+    check(crear("9990066", brayan), 409, "correo")
 
     print("OK check_panel_master: todos los casos pasan.")
 finally:

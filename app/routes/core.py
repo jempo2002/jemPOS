@@ -146,6 +146,15 @@ def _get_master_proximos_vencer() -> list:
 
 _CC_DUPLICADA = "Ya existe un usuario con esa cedula."
 
+# Soft delete de usuarios: libera correo y cc (UNIQUE) anteponiendo
+# 'deleted_<unix_ts>_'. CONCAT con cc NULL da NULL. SQL fijo, sin datos del
+# usuario. Ver migrations/2026-09-23_liberar_unicos_eliminados.sql
+_LIBERAR_USUARIO_SQL = (
+    "estado_activo = 0, "
+    "correo = CONCAT('deleted_', UNIX_TIMESTAMP(), '_', correo), "
+    "cc = CONCAT('deleted_', UNIX_TIMESTAMP(), '_', cc)"
+)
+
 
 def _parse_cc(raw) -> str:
     cc = only_digits(raw)
@@ -768,7 +777,7 @@ def api_master_tiendas_delete(id_tienda):
         # fecha_fin = hoy: _render_protected ve 0 dias y saca a las sesiones abiertas.
         cur.execute(
             "UPDATE tiendas SET estado='Eliminado', estado_suscripcion='suspendida', "
-            "fecha_fin_suscripcion=CURDATE() "
+            "fecha_fin_suscripcion=CURDATE(), nit=CONCAT('deleted_', UNIX_TIMESTAMP(), '_', nit) "
             "WHERE id_tienda=%s AND estado <> 'Eliminado'",
             (id_tienda,),
         )
@@ -776,7 +785,9 @@ def api_master_tiendas_delete(id_tienda):
             conn.rollback()
             return jsonify({"ok": False, "msg": "Tienda no encontrada."}), 404
         cur.execute(
-            "UPDATE usuarios SET estado_activo=0 WHERE id_tienda=%s AND rol <> 'Master'",
+            # estado_activo = 1: no volver a prefijar a los ya eliminados.
+            "UPDATE usuarios SET " + _LIBERAR_USUARIO_SQL +
+            " WHERE id_tienda=%s AND rol <> 'Master' AND estado_activo = 1",
             (id_tienda,),
         )
         conn.commit()
@@ -1020,7 +1031,10 @@ def api_master_usuarios_delete(id_usuario):
         if _es_ultimo_admin(cur, usuario):
             return jsonify({"ok": False, "msg": "Es el unico Admin de su tienda; no se puede eliminar."}), 400
         # Soft delete: ventas/turnos/gastos referencian al usuario con FK RESTRICT.
-        cur.execute("UPDATE usuarios SET estado_activo = 0 WHERE id_usuario = %s", (id_usuario,))
+        cur.execute(
+            "UPDATE usuarios SET " + _LIBERAR_USUARIO_SQL + " WHERE id_usuario = %s AND estado_activo = 1",
+            (id_usuario,),
+        )
         conn.commit()
     finally:
         conn.close()

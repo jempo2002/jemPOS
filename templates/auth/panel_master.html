@@ -21,6 +21,7 @@
     referrerpolicy="no-referrer"
   />
   <link rel="stylesheet" href="/static/css/global.css" />
+  <link rel="stylesheet" href="/static/css/toast.css" />
   <meta name="csrf-token" content="{{ csrf_token() }}" />
 </head>
 
@@ -52,13 +53,21 @@
 
     <section class="mb-8">
       <h3 class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Acciones rapidas</h3>
-      <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         <button type="button" id="btn-abrir-crear-usuario" class="bg-white rounded-2xl p-4 text-left shadow-lg border-none transition-all hover:-translate-y-1 hover:shadow-xl group">
           <div class="w-9 h-9 rounded-lg bg-blue-50 flex items-center justify-center mb-2.5 group-hover:bg-brand-500 transition-colors">
             <i class="fa-solid fa-user-plus text-brand-500 text-sm group-hover:text-white transition-colors"></i>
           </div>
           <p class="text-sm font-semibold text-slate-800">Crear Usuario</p>
           <p class="text-xs text-slate-500 mt-0.5">Nuevo admin o cajero</p>
+        </button>
+
+        <button type="button" id="btn-abrir-gestion-usuarios" class="bg-white rounded-2xl p-4 text-left shadow-lg border-none transition-all hover:-translate-y-1 hover:shadow-xl group">
+          <div class="w-9 h-9 rounded-lg bg-violet-50 flex items-center justify-center mb-2.5 group-hover:bg-violet-500 transition-colors">
+            <i class="fa-solid fa-users-gear text-violet-600 text-sm group-hover:text-white transition-colors"></i>
+          </div>
+          <p class="text-sm font-semibold text-slate-800">Gestion de Usuarios</p>
+          <p class="text-xs text-slate-500 mt-0.5">Editar y eliminar</p>
         </button>
 
         <button type="button" id="btn-abrir-crear-tienda" class="bg-white rounded-2xl p-4 text-left shadow-lg border-none transition-all hover:-translate-y-1 hover:shadow-xl group">
@@ -87,7 +96,7 @@
 
       <div class="block md:hidden p-4 space-y-3">
         {% for p in proximos_vencer %}
-        <div class="rounded-xl border border-slate-200 p-4 bg-slate-50">
+        <div data-tienda-row="{{ p.id_tienda }}" class="rounded-xl border border-slate-200 p-4 bg-slate-50">
           <div class="flex items-start justify-between gap-2">
             <div>
               <p class="text-sm font-bold text-slate-900">{{ p.nombre_negocio }}</p>
@@ -129,7 +138,7 @@
           </thead>
           <tbody>
             {% for p in proximos_vencer %}
-            <tr class="border-t border-slate-100">
+            <tr data-tienda-row="{{ p.id_tienda }}" class="border-t border-slate-100">
               <td class="px-6 py-3 font-semibold text-slate-800">{{ p.nombre_negocio }}</td>
               <td class="px-6 py-3 text-slate-600">{{ p.telefono }}</td>
               <td class="px-6 py-3 text-slate-600">{{ p.fecha_fin_suscripcion }}</td>
@@ -168,7 +177,7 @@
       <div class="block md:hidden p-4 space-y-3">
         {% for t in tiendas %}
         {% set vencida = (t.fecha_fin_suscripcion and t.fecha_fin_suscripcion < hoy) %}
-        <div class="rounded-xl border border-slate-200 p-4 bg-slate-50">
+        <div data-tienda-row="{{ t.id_tienda }}" class="rounded-xl border border-slate-200 p-4 bg-slate-50">
           <div class="flex items-start justify-between gap-2">
             <div>
               <p class="text-sm font-bold text-slate-900">{{ t.nombre_negocio }}</p>
@@ -221,7 +230,7 @@
           <tbody>
             {% for t in tiendas %}
             {% set vencida = (t.fecha_fin_suscripcion and t.fecha_fin_suscripcion < hoy) %}
-            <tr class="border-t border-slate-100">
+            <tr data-tienda-row="{{ t.id_tienda }}" class="border-t border-slate-100">
               <td class="px-6 py-3 font-semibold text-slate-800">{{ t.nombre_negocio }}</td>
               <td class="px-6 py-3 text-slate-600">{{ t.owner_name }}</td>
               <td class="px-6 py-3 text-slate-600">{{ t.telefono }}</td>
@@ -274,6 +283,7 @@
       <form id="form-crear-usuario" class="p-5 space-y-3" novalidate>
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
         <input id="cu-nombre" type="text" placeholder="Nombre completo" class="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3" />
+        <input id="cu-cc" type="text" inputmode="numeric" maxlength="15" required oninput="this.value=this.value.replace(/[^0-9]/g,'')" placeholder="Cedula (CC)" class="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3" />
         <input id="cu-correo" type="email" placeholder="correo@ejemplo.com" class="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3" />
         <select id="cu-rol" class="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
           <option value="Cajero">Cajero</option>
@@ -393,6 +403,68 @@
     </div>
   </div>
 
+  <!-- Modal Gestion de Usuarios -->
+  <div id="modal-gestion-usuarios" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center hidden">
+    <div class="bg-white w-full max-w-4xl mx-4 rounded-2xl relative max-h-[90vh] overflow-y-auto">
+      <button type="button" aria-label="Cerrar"
+              data-close-modal="modal-gestion-usuarios"
+              class="absolute top-4 right-4 w-11 h-11 -mt-2.5 -mr-2.5 flex items-center justify-center bg-transparent border-none rounded-full cursor-pointer hover:bg-slate-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 transition-colors">
+        <img src="{{ url_for('static', filename='img/equis.png') }}" alt="" aria-hidden="true"
+             width="24" height="24" decoding="async" class="w-6 h-6 pointer-events-none" />
+      </button>
+      <div class="p-5 border-b border-slate-100">
+        <h3 class="text-lg font-bold text-slate-900">Gestion de Usuarios</h3>
+        <p class="text-sm text-slate-500 mt-1">Usuarios activos de todas las tiendas.</p>
+      </div>
+
+      <form id="form-editar-usuario" class="hidden m-5 p-4 rounded-xl border border-blue-200 bg-blue-50/50 grid grid-cols-1 sm:grid-cols-2 gap-3" novalidate>
+        <input type="hidden" id="eu-id" />
+        <p class="sm:col-span-2 text-sm font-semibold text-slate-800">Editar usuario <span id="eu-correo" class="font-normal text-slate-500"></span></p>
+        <label class="text-xs font-semibold text-slate-600">Nombre completo
+          <input id="eu-nombre" type="text" maxlength="150" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-normal" />
+        </label>
+        <label class="text-xs font-semibold text-slate-600">Cedula (CC)
+          <input id="eu-cc" type="text" inputmode="numeric" maxlength="15" oninput="this.value=this.value.replace(/[^0-9]/g,'')" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-normal" />
+        </label>
+        <label class="text-xs font-semibold text-slate-600">Rol
+          <select id="eu-rol" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-normal">
+            <option value="Cajero">Cajero</option>
+            <option value="Admin">Administrador</option>
+            <option value="Master">Master</option>
+          </select>
+        </label>
+        <label class="text-xs font-semibold text-slate-600">Nueva contrasena (opcional)
+          <input id="eu-password" type="password" autocomplete="new-password" placeholder="Dejar vacio para no cambiar" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-normal" />
+        </label>
+        <p id="eu-error" class="hidden sm:col-span-2 rounded-xl px-4 py-3 text-sm bg-red-50 text-red-700 border border-red-200"></p>
+        <div class="sm:col-span-2 flex gap-2 justify-end">
+          <button type="button" id="eu-cancelar" class="rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold px-4 py-2.5 text-sm">Cancelar</button>
+          <button type="submit" class="rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold px-4 py-2.5 text-sm">Guardar cambios</button>
+        </div>
+      </form>
+
+      <div class="px-5 pt-4">
+        <input id="gu-buscar" type="search" placeholder="Buscar por nombre, cedula, correo o tienda..." class="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm" />
+      </div>
+      <div class="p-5 overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead class="bg-slate-50 text-slate-600">
+            <tr>
+              <th class="text-left px-4 py-3 font-semibold">Nombre</th>
+              <th class="text-left px-4 py-3 font-semibold">Rol</th>
+              <th class="text-left px-4 py-3 font-semibold">CC</th>
+              <th class="text-left px-4 py-3 font-semibold hidden sm:table-cell">Tienda</th>
+              <th class="text-left px-4 py-3 font-semibold">Acciones</th>
+            </tr>
+          </thead>
+          <tbody id="gu-tbody">
+            <tr><td colspan="5" class="px-4 py-8 text-center text-slate-500">Cargando...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
   <!-- Modal Eliminar Tienda -->
   <div id="modal-eliminar-tienda" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center hidden">
     <div class="bg-white w-full max-w-md mx-4 rounded-2xl relative max-h-[90vh] overflow-y-auto border border-red-200">
@@ -417,6 +489,7 @@
     </div>
   </div>
 
+  <script src="/static/js/toast.js" defer></script>
   <script src="/static/js/panel_master.js" defer></script>
 </body>
 </html>

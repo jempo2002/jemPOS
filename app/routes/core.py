@@ -5,6 +5,7 @@ import re
 from datetime import date, datetime, timedelta
 
 from flask import Blueprint, jsonify, redirect, render_template, request, session, url_for
+from mysql.connector import IntegrityError
 from werkzeug.security import generate_password_hash
 
 from app.services.auth_service import (
@@ -77,6 +78,7 @@ def _get_master_tiendas() -> list:
             FROM tiendas t
             LEFT JOIN usuarios u
               ON u.id_tienda = t.id_tienda AND u.rol = 'Admin' AND u.estado_activo = 1
+            WHERE t.estado <> 'Eliminado'
             ORDER BY t.nombre_negocio
             """
         )
@@ -117,7 +119,7 @@ def _get_master_proximos_vencer() -> list:
             FROM tiendas t
             WHERE t.fecha_fin_suscripcion IS NOT NULL
               AND t.fecha_fin_suscripcion <= DATE_ADD(CURDATE(), INTERVAL 5 DAY)
-              AND COALESCE(t.estado_suscripcion, '') <> 'eliminada'
+              AND t.estado <> 'Eliminado'
             ORDER BY t.fecha_fin_suscripcion ASC
             """
         )
@@ -140,6 +142,38 @@ def _get_master_proximos_vencer() -> list:
             }
         )
     return data
+
+
+_CC_DUPLICADA = "Ya existe un usuario con esa cedula."
+
+
+def _parse_cc(raw) -> str:
+    cc = only_digits(raw)
+    if not cc:
+        raise ValueError("La cedula es requerida.")
+    if not 5 <= len(cc) <= 15:
+        raise ValueError("La cedula debe tener entre 5 y 15 digitos.")
+    return cc
+
+
+def _cc_en_uso(cur, cc: str, excluir_id: int | None = None) -> bool:
+    # Incluye inactivos: uq_usuarios_cc aplica a toda la tabla.
+    cur.execute(
+        "SELECT 1 FROM usuarios WHERE cc = %s AND id_usuario <> %s LIMIT 1",
+        (cc, excluir_id or 0),
+    )
+    return cur.fetchone() is not None
+
+
+def _es_ultimo_admin(cur, usuario: dict) -> bool:
+    if usuario["rol"] != "Admin" or not usuario["id_tienda"]:
+        return False
+    cur.execute(
+        "SELECT COUNT(*) AS n FROM usuarios "
+        "WHERE id_tienda = %s AND rol = 'Admin' AND estado_activo = 1 AND id_usuario <> %s",
+        (usuario["id_tienda"], usuario["id_usuario"]),
+    )
+    return cur.fetchone()["n"] == 0
 
 
 def _registrar_auditoria(id_tienda, id_usuario, accion, detalles) -> None:
@@ -539,7 +573,7 @@ def perfil_page():
 
 @core_bp.route("/panel-master")
 @login_required
-@roles_required("Admin", "Master")
+@roles_required("Master")
 def panel_master_page():
     return render_template(
         "auth/panel_master.html",
@@ -553,7 +587,7 @@ def panel_master_page():
 
 @core_bp.route("/api/tiendas", methods=["GET"])
 @login_required
-@roles_required("Admin", "Master")
+@roles_required("Master")
 def api_tiendas():
     q = request.args.get("q", "").strip()
     conn = get_db()
@@ -562,13 +596,14 @@ def api_tiendas():
         if q:
             cur.execute(
                 "SELECT id_tienda, nombre_negocio FROM tiendas "
-                "WHERE nombre_negocio LIKE %s ORDER BY nombre_negocio LIMIT 20",
+                "WHERE estado <> 'Eliminado' AND nombre_negocio LIKE %s "
+                "ORDER BY nombre_negocio LIMIT 20",
                 (f"%{q}%",),
             )
         else:
             cur.execute(
                 "SELECT id_tienda, nombre_negocio FROM tiendas "
-                "ORDER BY nombre_negocio LIMIT 20"
+                "WHERE estado <> 'Eliminado' ORDER BY nombre_negocio LIMIT 20"
             )
         tiendas = cur.fetchall()
     finally:
@@ -578,7 +613,7 @@ def api_tiendas():
 
 @core_bp.route("/api/master/admins", methods=["GET"])
 @login_required
-@roles_required("Admin", "Master")
+@roles_required("Master")
 def api_master_admins_search():
     q = request.args.get("q", "").strip()
     conn = get_db()
@@ -608,7 +643,7 @@ def api_master_admins_search():
 
 @core_bp.route("/api/master/tiendas", methods=["POST"])
 @login_required
-@roles_required("Admin", "Master")
+@roles_required("Master")
 def api_master_tiendas_create():
     data = request.get_json(silent=True) or {}
     try:
@@ -661,7 +696,7 @@ def api_master_tiendas_create():
 
 @core_bp.route("/api/master/tiendas/<int:id_tienda>", methods=["PUT"])
 @login_required
-@roles_required("Admin", "Master")
+@roles_required("Master")
 def api_master_tiendas_update(id_tienda):
     data = request.get_json(silent=True) or {}
     try:
@@ -680,7 +715,10 @@ def api_master_tiendas_update(id_tienda):
     conn = get_db()
     try:
         cur = conn.cursor(dictionary=True)
-        cur.execute("SELECT id_tienda FROM tiendas WHERE id_tienda=%s LIMIT 1", (id_tienda,))
+        cur.execute(
+            "SELECT id_tienda FROM tiendas WHERE id_tienda=%s AND estado <> 'Eliminado' LIMIT 1",
+            (id_tienda,),
+        )
         if not cur.fetchone():
             return jsonify({"ok": False, "msg": "Tienda no encontrada."}), 404
 
@@ -717,15 +755,34 @@ def api_master_tiendas_update(id_tienda):
 
 @core_bp.route("/api/master/tiendas/<int:id_tienda>", methods=["DELETE"])
 @login_required
-@roles_required("Admin", "Master")
+@roles_required("Master")
 def api_master_tiendas_delete(id_tienda):
+    if id_tienda == session.get("id_tienda"):
+        return jsonify({"ok": False, "msg": "No puedes eliminar la tienda de tu propia cuenta."}), 400
+
+    # Soft delete: un DELETE real choca con FKs RESTRICT (ventas, turnos, detalle)
+    # y borraria el historial contable. Ver migrations/2026-09-23_tiendas_estado_eliminado.sql
     conn = get_db()
     try:
         cur = conn.cursor()
-        cur.execute("DELETE FROM tiendas WHERE id_tienda = %s", (id_tienda,))
-        conn.commit()
+        # fecha_fin = hoy: _render_protected ve 0 dias y saca a las sesiones abiertas.
+        cur.execute(
+            "UPDATE tiendas SET estado='Eliminado', estado_suscripcion='suspendida', "
+            "fecha_fin_suscripcion=CURDATE() "
+            "WHERE id_tienda=%s AND estado <> 'Eliminado'",
+            (id_tienda,),
+        )
         if cur.rowcount == 0:
+            conn.rollback()
             return jsonify({"ok": False, "msg": "Tienda no encontrada."}), 404
+        cur.execute(
+            "UPDATE usuarios SET estado_activo=0 WHERE id_tienda=%s AND rol <> 'Master'",
+            (id_tienda,),
+        )
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        return jsonify({"ok": False, "msg": "No se pudo eliminar la tienda."}), 500
     finally:
         conn.close()
 
@@ -740,7 +797,7 @@ def api_master_tiendas_delete(id_tienda):
 
 @core_bp.route("/api/master/suscripciones", methods=["POST"])
 @login_required
-@roles_required("Admin", "Master")
+@roles_required("Master")
 def api_master_suscripcion_renovar():
     data = request.get_json(silent=True) or {}
     id_tienda = data.get("id_tienda")
@@ -775,7 +832,7 @@ def api_master_suscripcion_renovar():
         cur = conn.cursor()
         cur.execute(
             "UPDATE tiendas SET fecha_inicio_suscripcion=%s, fecha_fin_suscripcion=%s, estado_suscripcion='activa' "
-            "WHERE id_tienda=%s",
+            "WHERE id_tienda=%s AND estado <> 'Eliminado'",
             (fecha_inicio, fecha_fin, id_tienda),
         )
         conn.commit()
@@ -794,6 +851,7 @@ def api_crear_usuario():
     data = request.get_json(silent=True) or {}
     try:
         nombre = sanitize_text(data.get("nombre"), "El nombre completo", max_len=150)
+        cc = _parse_cc(data.get("cc"))
     except ValueError as exc:
         return jsonify({"ok": False, "msg": str(exc)}), 400
     correo = str(data.get("correo", "")).strip().lower()
@@ -831,18 +889,147 @@ def api_crear_usuario():
         )
         if cur.fetchone():
             return jsonify({"ok": False, "msg": "Ya existe un usuario con ese correo."}), 409
+        if _cc_en_uso(cur, cc):
+            return jsonify({"ok": False, "msg": _CC_DUPLICADA}), 409
 
         clave_hash = generate_password_hash(password)
         cur.execute(
-            "INSERT INTO usuarios (id_tienda, nombre_completo, correo, clave_hash, rol) "
-            "VALUES (%s, %s, %s, %s, %s)",
-            (id_tienda, nombre, correo, clave_hash, nuevo_rol),
+            "INSERT INTO usuarios (id_tienda, nombre_completo, correo, clave_hash, rol, cc) "
+            "VALUES (%s, %s, %s, %s, %s, %s)",
+            (id_tienda, nombre, correo, clave_hash, nuevo_rol, cc),
         )
         conn.commit()
+    except IntegrityError:
+        # Carrera entre el SELECT y el INSERT: uq_usuarios_correo / uq_usuarios_cc.
+        conn.rollback()
+        return jsonify({"ok": False, "msg": "Ya existe un usuario con ese correo o cedula."}), 409
     finally:
         conn.close()
 
     return jsonify({"ok": True, "msg": "Usuario creado exitosamente."})
+
+
+@core_bp.route("/api/master/usuarios", methods=["GET"])
+@login_required
+@roles_required("Master")
+def api_master_usuarios_list():
+    conn = get_db()
+    try:
+        cur = conn.cursor(dictionary=True)
+        cur.execute(
+            "SELECT u.id_usuario, u.nombre_completo, u.correo, u.rol, u.cc, u.id_tienda, "
+            "t.nombre_negocio, (u.id_usuario = %s) AS es_actual "
+            "FROM usuarios u LEFT JOIN tiendas t ON t.id_tienda = u.id_tienda "
+            "WHERE u.estado_activo = 1 "
+            "ORDER BY t.nombre_negocio, FIELD(u.rol, 'Master', 'Admin', 'Cajero'), u.nombre_completo",
+            (session["id_usuario"],),
+        )
+        usuarios = cur.fetchall()
+    finally:
+        conn.close()
+    for u in usuarios:
+        u["es_actual"] = bool(u["es_actual"])
+    return jsonify({"ok": True, "usuarios": usuarios})
+
+
+def _get_usuario_activo(cur, id_usuario: int) -> dict | None:
+    cur.execute(
+        "SELECT id_usuario, id_tienda, rol FROM usuarios "
+        "WHERE id_usuario = %s AND estado_activo = 1 LIMIT 1",
+        (id_usuario,),
+    )
+    return cur.fetchone()
+
+
+@core_bp.route("/api/master/usuarios/<int:id_usuario>", methods=["PUT"])
+@login_required
+@roles_required("Master")
+def api_master_usuarios_update(id_usuario):
+    data = request.get_json(silent=True) or {}
+    try:
+        nombre = sanitize_text(data.get("nombre"), "El nombre completo", max_len=150)
+        cc = _parse_cc(data.get("cc"))
+    except ValueError as exc:
+        return jsonify({"ok": False, "msg": str(exc)}), 400
+    nuevo_rol = str(data.get("rol", ""))
+    if nuevo_rol not in ("Master", "Admin", "Cajero"):
+        return jsonify({"ok": False, "msg": "Rol invalido."}), 400
+
+    password = str(data.get("password") or "")
+    if password:
+        if len(password) > 128:
+            return jsonify({"ok": False, "msg": "La contrasena supera el maximo permitido."}), 400
+        pwd_error = first_password_policy_error(password)
+        if pwd_error:
+            return jsonify({"ok": False, "msg": pwd_error}), 400
+
+    es_actual = id_usuario == session["id_usuario"]
+    conn = get_db()
+    try:
+        cur = conn.cursor(dictionary=True)
+        usuario = _get_usuario_activo(cur, id_usuario)
+        if not usuario:
+            return jsonify({"ok": False, "msg": "Usuario no encontrado."}), 404
+        if es_actual and nuevo_rol != usuario["rol"]:
+            return jsonify({"ok": False, "msg": "No puedes cambiar tu propio rol."}), 400
+        if nuevo_rol != "Admin" and _es_ultimo_admin(cur, usuario):
+            return jsonify({"ok": False, "msg": "Es el unico Admin de su tienda; asigna otro Admin antes de cambiar su rol."}), 400
+        if _cc_en_uso(cur, cc, id_usuario):
+            return jsonify({"ok": False, "msg": _CC_DUPLICADA}), 409
+
+        cur.execute(
+            "UPDATE usuarios SET nombre_completo = %s, rol = %s, cc = %s WHERE id_usuario = %s",
+            (nombre, nuevo_rol, cc, id_usuario),
+        )
+        if password:
+            cur.execute(
+                "UPDATE usuarios SET clave_hash = %s WHERE id_usuario = %s",
+                (generate_password_hash(password), id_usuario),
+            )
+        conn.commit()
+    except IntegrityError:
+        conn.rollback()
+        return jsonify({"ok": False, "msg": _CC_DUPLICADA}), 409
+    finally:
+        conn.close()
+
+    if es_actual:
+        session["nombre_completo"] = nombre
+    _registrar_auditoria(
+        session.get("id_tienda"), session.get("id_usuario"), "editar_usuario",
+        f"Se edito usuario id={id_usuario}" + (" (reset contrasena)" if password else ""),
+    )
+    return jsonify({"ok": True, "msg": "Usuario actualizado."})
+
+
+@core_bp.route("/api/master/usuarios/<int:id_usuario>", methods=["DELETE"])
+@login_required
+@roles_required("Master")
+def api_master_usuarios_delete(id_usuario):
+    if id_usuario == session["id_usuario"]:
+        return jsonify({"ok": False, "msg": "No puedes eliminar tu propia cuenta."}), 400
+
+    conn = get_db()
+    try:
+        cur = conn.cursor(dictionary=True)
+        usuario = _get_usuario_activo(cur, id_usuario)
+        if not usuario:
+            return jsonify({"ok": False, "msg": "Usuario no encontrado."}), 404
+        if usuario["rol"] == "Master":
+            return jsonify({"ok": False, "msg": "No se puede eliminar un usuario Master."}), 403
+        if _es_ultimo_admin(cur, usuario):
+            return jsonify({"ok": False, "msg": "Es el unico Admin de su tienda; no se puede eliminar."}), 400
+        # Soft delete: ventas/turnos/gastos referencian al usuario con FK RESTRICT.
+        cur.execute("UPDATE usuarios SET estado_activo = 0 WHERE id_usuario = %s", (id_usuario,))
+        conn.commit()
+    finally:
+        conn.close()
+
+    _registrar_auditoria(
+        session.get("id_tienda"), session.get("id_usuario"), "eliminar_usuario",
+        f"Se desactivo usuario id={id_usuario}",
+    )
+    return jsonify({"ok": True, "msg": "Usuario eliminado."})
 
 
 @core_bp.route("/api/dashboard", methods=["GET"])

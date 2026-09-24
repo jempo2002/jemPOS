@@ -404,11 +404,12 @@
       if (errBox) errBox.hidden = true;
 
       var nombre = document.getElementById('cc-nombre').value.trim();
+      var cc = document.getElementById('cc-cedula').value.trim();
       var correo = document.getElementById('cc-correo').value.trim();
       var password = document.getElementById('cc-password').value;
       var confirm = document.getElementById('cc-confirm').value;
 
-      if (!nombre || !correo || !password) {
+      if (!nombre || !cc || !correo || !password) {
         showErr('Completa los campos requeridos.');
         return;
       }
@@ -421,7 +422,7 @@
         var res = await fetch('/api/crear_usuario', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
-          body: JSON.stringify({ nombre: nombre, correo: correo, password: password, confirm_password: confirm }),
+          body: JSON.stringify({ nombre: nombre, cc: cc, correo: correo, password: password, confirm_password: confirm }),
         });
         var data = await res.json().catch(function () { return null; });
         if (!data || !data.ok) {

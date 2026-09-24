@@ -183,6 +183,10 @@
           <input id="cc-nombre" type="text" autocomplete="name" required />
         </label>
         <label class="dash-field">
+          <span>Cédula (CC)</span>
+          <input id="cc-cedula" type="text" inputmode="numeric" maxlength="15" oninput="this.value=this.value.replace(/[^0-9]/g,'')" required />
+        </label>
+        <label class="dash-field">
           <span>Correo</span>
           <input id="cc-correo" type="email" autocomplete="email" placeholder="correo@ejemplo.com" required />
         </label>

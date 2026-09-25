@@ -14,6 +14,16 @@
   z-index: 9999;
   pointer-events: none;
   width: min(92vw, 26rem);
+  /* toast.js lo abre como popover (top layer, por encima de los <dialog>
+     modales). Estas lineas anulan el estilo que el navegador da a [popover]. */
+  top: auto;
+  right: auto;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  overflow: visible;
 }
 
 @media (min-width: 768px) {

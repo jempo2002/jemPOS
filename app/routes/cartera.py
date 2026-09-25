@@ -2,8 +2,10 @@
 
 Reglas de acceso:
   * Ver cuentas por cobrar: cualquier usuario autenticado (ya era asi en fiados).
-  * Todo lo de cuentas por pagar y B2B: solo Admin/Master. Incluye nomina y
-    listas mayoristas, que no son datos de caja.
+  * Todo lo de cuentas por pagar y el modulo Mayorista: solo Admin/Master.
+    Incluye nomina y el dashboard de compras de cada cliente.
+  * El selector de clientes de Venta Mayorista: cualquier usuario (id, nombre
+    y NIT; nada de compras ni deuda).
   * Aprobar pagos, anular obligaciones y borrar deudas: solo Admin/Master.
 """
 
@@ -15,16 +17,12 @@ from app import limiter
 from app.services.cartera_service import (
     CATEGORIAS_POR_PAGAR,
     ORIGENES_PAGO,
-    actualizar_lista_precios,
     anular_cuenta_por_pagar,
-    asignar_lista_cliente,
     crear_cuenta_por_pagar,
-    crear_lista_precios,
-    eliminar_lista_precios,
     get_cliente_b2b_dashboard,
     get_clientes_b2b,
+    get_clientes_mayoristas_min,
     get_cuentas_por_pagar,
-    get_listas_precios,
     get_proveedores_min,
     get_resumen_cartera,
     pagar_cuenta_por_pagar,
@@ -171,59 +169,6 @@ def api_por_pagar_anular(id_cuenta: int):
 
 
 # ══════════════════════════════════════════════════════════════
-# API — LISTAS DE PRECIOS MAYORISTAS
-# ══════════════════════════════════════════════════════════════
-
-@cartera_api_bp.get("/api/b2b/listas")
-@login_required
-@roles_required(*ADMIN_ROLES)
-def api_listas_listar():
-    return jsonify({"ok": True, "listas": get_listas_precios(_tienda())})
-
-
-@cartera_api_bp.post("/api/b2b/listas")
-@login_required
-@roles_required(*ADMIN_ROLES)
-def api_listas_crear():
-    datos = request.get_json(silent=True) or {}
-    return _manejar(
-        lambda: {
-            "id": crear_lista_precios(
-                _tienda(),
-                _usuario(),
-                datos.get("nombre"),
-                datos.get("descuento_pct"),
-                datos.get("min_pedidos") or 0,
-            )
-        }
-    )
-
-
-@cartera_api_bp.put("/api/b2b/listas/<int:id_lista>")
-@login_required
-@roles_required(*ADMIN_ROLES)
-def api_listas_actualizar(id_lista: int):
-    datos = request.get_json(silent=True) or {}
-    return _manejar(
-        lambda: actualizar_lista_precios(
-            _tienda(),
-            _usuario(),
-            id_lista,
-            datos.get("nombre"),
-            datos.get("descuento_pct"),
-            datos.get("min_pedidos") or 0,
-        )
-    )
-
-
-@cartera_api_bp.delete("/api/b2b/listas/<int:id_lista>")
-@login_required
-@roles_required(*ADMIN_ROLES)
-def api_listas_eliminar(id_lista: int):
-    return _manejar(lambda: eliminar_lista_precios(_tienda(), _usuario(), id_lista))
-
-
-# ══════════════════════════════════════════════════════════════
 # API — CLIENTES B2B
 # ══════════════════════════════════════════════════════════════
 
@@ -231,13 +176,13 @@ def api_listas_eliminar(id_lista: int):
 @login_required
 @roles_required(*ADMIN_ROLES)
 def api_b2b_clientes_listar():
-    return jsonify(
-        {
-            "ok": True,
-            "clientes": get_clientes_b2b(_tienda()),
-            "listas": get_listas_precios(_tienda()),
-        }
-    )
+    return jsonify({"ok": True, "clientes": get_clientes_b2b(_tienda())})
+
+
+@cartera_api_bp.get("/api/mayorista/clientes")
+@login_required
+def api_mayorista_clientes():
+    return jsonify({"ok": True, "clientes": get_clientes_mayoristas_min(_tienda())})
 
 
 @cartera_api_bp.get("/api/b2b/clientes/<int:id_cliente>")
@@ -260,22 +205,9 @@ def api_b2b_cliente_crear():
                 datos.get("nombre"),
                 datos.get("telefono"),
                 datos.get("nit"),
-                _id_opcional(datos.get("id_lista")),
                 _id_opcional(datos.get("id_cliente")),
             )
         }
-    )
-
-
-@cartera_api_bp.put("/api/b2b/clientes/<int:id_cliente>/lista")
-@login_required
-@roles_required(*ADMIN_ROLES)
-def api_b2b_asignar_lista(id_cliente: int):
-    datos = request.get_json(silent=True) or {}
-    return _manejar(
-        lambda: asignar_lista_cliente(
-            _tienda(), _usuario(), id_cliente, _id_opcional(datos.get("id_lista"))
-        )
     )
 
 

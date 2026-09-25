@@ -20,6 +20,7 @@
 
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="/static/css/caja.css" />
+  <link rel="stylesheet" href="/static/css/gastos.css" />
   <link rel="stylesheet" href="/static/css/ventas.css" />
   <meta name="csrf-token" content="{{ csrf_token() }}" />
   <link rel="stylesheet" href="/static/css/global.css" />
@@ -29,86 +30,82 @@
 <div class="app-shell">
   {% include "pos/_nav.html" %}
 
-  <main class="main-area">
-    <div class="bg-gray-50 min-h-full p-4 md:p-6">
-      <div class="max-w-7xl mx-auto space-y-6">
-        <div class="bg-white rounded-[2rem] shadow-sm p-6 md:p-8 border border-gray-100">
-          <div class="mb-6 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-            <div>
-              <h1 class="text-2xl font-bold text-gray-800">Historial de Ventas</h1>
-              <p class="mt-1 text-sm text-gray-500">Consulta de ventas por periodo y detalle de ticket.</p>
-            </div>
-          </div>
+  {# Mismo esqueleto que Gastos (gastos.css): cabecera fija con las tarjetas
+     de resumen y las capsulas, cuerpo con tarjetas en movil y tabla en
+     escritorio. ventas.css solo cambia el color (verde = entrada). #}
+  <div class="gast-main vent-main">
+    <header class="gast-topbar">
+      <div class="gast-title-row">
+        <div class="gast-logo" aria-hidden="true">
+          <span class="jem">jem</span><span class="pos">POS</span>
+        </div>
+        <h1 class="gast-title">Ventas</h1>
+      </div>
+      <p class="text-sm text-slate-500">
+        {% if rol == 'Cajero' %}Mostrando tus ventas de las ultimas 24 horas.{% else %}Historial de ventas de la tienda y detalle de cada ticket.{% endif %}
+      </p>
 
-          {% if rol == 'Cajero' %}
-          <div class="mb-6 inline-flex items-center gap-2 rounded-full bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-700 ring-1 ring-blue-100">
-            <i class="fa-solid fa-clock"></i> Mostrando ultimas 24 horas
-          </div>
-          {% else %}
-          {% with filtros_id='ventas' %}
-            {% include "pos/_filtros.html" %}
-          {% endwith %}
-          {% endif %}
-
-          <!-- Lista renderizada por static/js/ventas.js desde /pos/api/ventas -->
-          <div class="ventas-mobile-only space-y-4" id="ventas-cards"></div>
-
-          <div class="ventas-desktop-only overflow-x-auto" id="ventas-table-wrap">
-            <table class="w-full">
-              <thead>
-                <tr class="text-gray-500 uppercase text-xs">
-                  <th class="py-3 text-left">ID Venta</th>
-                  <th class="py-3 text-left">Fecha</th>
-                  <th class="py-3 text-left">Cliente</th>
-                  <th class="py-3 text-left">Cajero</th>
-                  <th class="py-3 text-left">Total</th>
-                  <th class="py-3 text-left">Estado</th>
-                  <th class="py-3 text-left">Accion</th>
-                </tr>
-              </thead>
-              <tbody id="ventas-table-body"></tbody>
-            </table>
-          </div>
-
-          <div class="hidden p-12 text-center" id="ventas-empty">
-            <i class="fa-solid fa-receipt text-6xl text-gray-200 mb-4"></i>
-            <p class="font-semibold text-gray-700">No se encontraron ventas para este filtro</p>
-          </div>
-
-          {% with filtros_id='ventas' %}
-            {% include "pos/_paginador.html" %}
-          {% endwith %}
+      <!-- Tarjetas de resumen: totales del servidor, no de la pagina -->
+      <div class="gast-summary">
+        <div class="gast-summary-card gast-summary-hoy vent-summary-hoy">
+          <div class="gast-summary-label">Ventas de hoy</div>
+          <div class="gast-summary-amount" id="stat-hoy">$0</div>
+        </div>
+        <div class="gast-summary-card gast-summary-mes">
+          <div class="gast-summary-label">Ventas del mes</div>
+          <div class="gast-summary-amount" id="stat-mes">$0</div>
         </div>
       </div>
-      <div id="modal-detalle" class="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
-        <div class="bg-white rounded-[2rem] p-6 w-full max-w-md shadow-2xl relative max-h-[90vh] overflow-y-auto">
-          <img src="/static/img/equis.png" alt="" aria-hidden="true" width="24" height="24" decoding="async" id="btn-cerrar-modal" class="absolute right-4 top-4 h-6 w-6 cursor-pointer" />
 
-          <div id="ticket-content" class="pr-6">
-            <h2 class="text-lg font-bold text-gray-800">Detalle del Ticket <span id="ticket-numero">-</span></h2>
-            <p id="ticket-loading" class="mt-2 text-sm text-gray-500">Cargando...</p>
-            <div id="ticket-detalle" class="mt-4"></div>
-            <div class="mt-4 pt-3 border-t border-gray-200 flex items-center justify-between">
-              <span class="text-sm text-gray-600">Total</span>
-              <strong id="ticket-total" class="text-lg font-bold text-gray-900">$0</strong>
-            </div>
-          </div>
+      {% if rol != 'Cajero' %}
+      {% with filtros_id='ventas' %}
+        {% include "pos/_filtros.html" %}
+      {% endwith %}
+      {% endif %}
+    </header>
 
-          <button id="btn-pdf" type="button" class="mt-5 w-full rounded-lg bg-gray-900 text-white py-2.5 text-sm font-medium hover:bg-gray-700 transition-colors">
-            Descargar PDF
-          </button>
-        </div>
+    <div class="gast-body">
+      <!-- Lista renderizada por static/js/ventas.js desde /pos/api/ventas -->
+      <div class="gast-cards" id="ventas-cards" aria-label="Lista de ventas"></div>
+
+      <div class="gast-table-wrap" id="ventas-table-wrap">
+        <table class="gast-table vent-table" aria-label="Historial de ventas">
+          <thead>
+            <tr>
+              <th>Venta</th>
+              <th>Fecha</th>
+              <th>Cliente</th>
+              <th>Cajero</th>
+              <th>Metodo de pago</th>
+              <th>Estado</th>
+              <th class="th-monto">Total</th>
+              <th><span class="sr-only">Accion</span></th>
+            </tr>
+          </thead>
+          <tbody id="ventas-table-body"></tbody>
+        </table>
+      </div>
+
+      {% with filtros_id='ventas' %}
+        {% include "pos/_paginador.html" %}
+      {% endwith %}
+
+      <div class="gast-empty hidden" id="ventas-empty">
+        <i class="fa-solid fa-receipt"></i>
+        <p>No se encontraron ventas para este filtro</p>
       </div>
     </div>
-  </main>
+  </div>
 
-
+  {% include "pos/_ticket_modal.html" %}
 </div>
 
 <script src="/static/js/logout.js" defer></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" defer></script>
+<script src="/static/js/cop-format.js" defer></script>
 <script src="/static/js/toast.js" defer></script>
 <script src="/static/js/filtros-paginacion.js" defer></script>
+<script src="/static/js/ventas-comun.js" defer></script>
 <script src="/static/js/ventas.js" defer></script>
 <div id="app-context"
      data-user-rol="{{ rol }}"

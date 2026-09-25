@@ -17,6 +17,64 @@ class InventoryNotFoundError(ValueError):
     pass
 
 
+TIPOS_ITEM = ("Producto", "Servicio")
+
+# Unidad base del stock y de precio_venta. La lista vive aqui (no en un ENUM de
+# la tabla) para sumar unidades sin migracion; el servidor rechaza cualquier otra.
+UNIDADES_MEDIDA = (
+    "Unidad", "Paquete", "Caja", "Docena", "Rollo", "Bulto",
+    "Libra", "Kilogramo", "Gramo", "Metro", "Centimetro", "Litro", "Mililitro", "Galon",
+)
+# Las que se venden por fraccion (2.5 libras, 0.75 metros). El resto, enteras.
+UNIDADES_FRACCIONABLES = frozenset(
+    {"Libra", "Kilogramo", "Gramo", "Metro", "Centimetro", "Litro", "Mililitro", "Galon"}
+)
+
+
+def _precio_opcional(value, label: str) -> float | None:
+    """'' / None / 0 = sin precio; si no, un numero positivo."""
+    if value in (None, ""):
+        return None
+    precio = parse_float(value, label, min_value=0)
+    return precio or None
+
+
+def _datos_venta(tipo, unidad, mayorista, empaque_nombre, empaque_cantidad, precio_empaque) -> dict:
+    """Valida los campos de presentacion comunes a crear y editar.
+
+    El empaque va completo o no va: un "Rollo" sin cantidad no dice cuanto
+    stock descuenta, y sin precio no se puede cobrar. Un servicio no tiene
+    empaque (no hay stock que partir).
+    """
+    tipo = str(tipo or "Producto").strip().capitalize()
+    if tipo not in TIPOS_ITEM:
+        raise ValueError("Tipo invalido.")
+    unidad = str(unidad or "Unidad").strip().capitalize()
+    if unidad not in UNIDADES_MEDIDA:
+        raise ValueError("Unidad de medida invalida.")
+
+    empaque = sanitize_optional_text(empaque_nombre, "El empaque", max_len=30)
+    cantidad = _precio_opcional(empaque_cantidad, "Unidades por empaque")
+    precio = _precio_opcional(precio_empaque, "Precio del empaque")
+    if tipo == "Servicio" or not (empaque or cantidad or precio):
+        empaque = cantidad = precio = None
+    elif not (empaque and cantidad and precio):
+        raise ValueError("Para vender por empaque indica nombre, unidades y precio del empaque.")
+
+    return {
+        "tipo": tipo,
+        "unidad": unidad,
+        "mayorista": _precio_opcional(mayorista, "Precio mayorista"),
+        "empaque_nombre": empaque,
+        "empaque_cantidad": round(cantidad, 3) if cantidad else None,
+        "precio_empaque": precio,
+    }
+
+
+def _num(value) -> float | None:
+    return float(value) if value is not None else None
+
+
 def _registrar_auditoria(id_tienda, id_usuario, accion, detalles) -> None:
     conn = None
     cur = None
@@ -258,8 +316,10 @@ def list_inventario_api(id_tienda: int) -> list:
     try:
         cur = conn.cursor(dictionary=True)
         cur.execute(
-            "SELECT p.id_producto, p.nombre, c.nombre AS categoria, "
-            "p.codigo_barras, p.precio_costo, p.precio_venta, p.stock_actual, p.stock_minimo_alerta, "
+            "SELECT p.id_producto, p.nombre, p.tipo, p.unidad_medida, c.nombre AS categoria, "
+            "p.codigo_barras, p.precio_costo, p.precio_venta, p.precio_mayorista, "
+            "p.empaque_nombre, p.empaque_cantidad, p.precio_empaque, "
+            "p.stock_actual, p.stock_minimo_alerta, "
             "p.id_proveedor, pr.nombre_empresa AS proveedor_nombre "
             "FROM productos p "
             "LEFT JOIN categorias c ON c.id_categoria = p.id_categoria "
@@ -276,12 +336,19 @@ def list_inventario_api(id_tienda: int) -> list:
         {
             "id": r["id_producto"],
             "name": r["nombre"],
+            "tipo": r["tipo"],
+            "unidad": r["unidad_medida"],
             "category": r["categoria"] or "",
             "barcode": r.get("codigo_barras") or "",
             "cost": float(r["precio_costo"]),
             "sale": float(r["precio_venta"]),
-            "stock": r["stock_actual"],
-            "stock_min": r["stock_minimo_alerta"] or 0,
+            "mayorista": _num(r["precio_mayorista"]),
+            "empaque_nombre": r["empaque_nombre"] or "",
+            "empaque_cantidad": _num(r["empaque_cantidad"]),
+            "precio_empaque": _num(r["precio_empaque"]),
+            # decimal(12,3): Decimal viajaria como texto ("9.000") al JSON.
+            "stock": float(r["stock_actual"] or 0),
+            "stock_min": float(r["stock_minimo_alerta"] or 0),
             "proveedor_id": r.get("id_proveedor"),
             "proveedor_nombre": r.get("proveedor_nombre") or "",
         }
@@ -316,6 +383,17 @@ def _codigo_barras(value) -> str | None:
     return codigo or None
 
 
+def _stock(stock, stock_min, datos: dict) -> tuple[float | None, float | None]:
+    """Stock en la unidad base. Un servicio no lleva stock (NULL: nunca alerta)."""
+    if datos["tipo"] == "Servicio":
+        return None, None
+    stock = round(parse_float(stock, "Stock", min_value=0), 3)
+    stock_min = round(parse_float(stock_min, "Alerta de stock", min_value=0), 3)
+    if datos["unidad"] not in UNIDADES_FRACCIONABLES and stock != int(stock):
+        raise ValueError(f"El stock en {datos['unidad']} debe ser un numero entero.")
+    return stock, stock_min
+
+
 def create_producto(
     id_tienda: int,
     id_usuario: int,
@@ -327,13 +405,20 @@ def create_producto(
     proveedor_id: int | None,
     stock_min: float = 0,
     codigo_barras: str | None = None,
+    *,
+    tipo: str = "Producto",
+    unidad: str = "Unidad",
+    mayorista: float | None = None,
+    empaque_nombre: str | None = None,
+    empaque_cantidad: float | None = None,
+    precio_empaque: float | None = None,
 ) -> int:
     nombre = sanitize_text(nombre, "El nombre del producto", max_len=150)
     categoria = sanitize_text(categoria, "La categoria", max_len=120)
     costo = parse_float(costo, "Precio de costo", min_value=0)
     venta = parse_float(venta, "Precio de venta", min_value=0)
-    stock = parse_float(stock, "Stock", min_value=0)
-    stock_min = parse_float(stock_min, "Alerta de stock", min_value=0)
+    datos = _datos_venta(tipo, unidad, mayorista, empaque_nombre, empaque_cantidad, precio_empaque)
+    stock, stock_min = _stock(stock, stock_min, datos)
     codigo_barras = _codigo_barras(codigo_barras)
     if proveedor_id is not None:
         proveedor_id = parse_int(proveedor_id, "Proveedor", min_value=1)
@@ -355,9 +440,15 @@ def create_producto(
 
         cur.execute(
             "INSERT INTO productos "
-            "(id_tienda, id_categoria, nombre, codigo_barras, precio_costo, precio_venta, stock_actual, stock_minimo_alerta, id_proveedor) "
-            "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
-            (id_tienda, id_cat, nombre, codigo_barras, costo, venta, stock, stock_min, proveedor_id),
+            "(id_tienda, id_categoria, nombre, tipo, unidad_medida, codigo_barras, precio_costo, precio_venta, "
+            " precio_mayorista, empaque_nombre, empaque_cantidad, precio_empaque, "
+            " stock_actual, stock_minimo_alerta, id_proveedor) "
+            "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+            (
+                id_tienda, id_cat, nombre, datos["tipo"], datos["unidad"], codigo_barras, costo, venta,
+                datos["mayorista"], datos["empaque_nombre"], datos["empaque_cantidad"], datos["precio_empaque"],
+                stock, stock_min, proveedor_id,
+            ),
         )
         new_id = cur.lastrowid
 
@@ -384,19 +475,31 @@ def update_producto(
     nombre: str,
     categoria: str,
     costo: float,
-    venta: float,
+    venta: float | None,
     stock: float,
     proveedor_id: int | None,
     stock_min: float = 0,
     codigo_barras: str | None = None,
+    precio_bloqueado: bool = False,
+    *,
+    tipo: str = "Producto",
+    unidad: str = "Unidad",
+    mayorista: float | None = None,
+    empaque_nombre: str | None = None,
+    empaque_cantidad: float | None = None,
+    precio_empaque: float | None = None,
 ) -> None:
+    """venta=None conserva el precio actual. Con precio_bloqueado (Cajero)
+    cualquier precio (venta, mayorista, empaque) distinto al guardado se
+    rechaza con PermissionError: su formulario los manda sin tocar."""
     id_producto = parse_int(id_producto, "Producto", min_value=1)
     nombre = sanitize_text(nombre, "El nombre del producto", max_len=150)
     categoria = sanitize_text(categoria, "La categoria", max_len=120)
     costo = parse_float(costo, "Precio de costo", min_value=0)
-    venta = parse_float(venta, "Precio de venta", min_value=0)
-    stock = parse_float(stock, "Stock", min_value=0)
-    stock_min = parse_float(stock_min, "Alerta de stock", min_value=0)
+    if venta is not None:
+        venta = parse_float(venta, "Precio de venta", min_value=0)
+    datos = _datos_venta(tipo, unidad, mayorista, empaque_nombre, empaque_cantidad, precio_empaque)
+    stock, stock_min = _stock(stock, stock_min, datos)
     codigo_barras = _codigo_barras(codigo_barras)
     if proveedor_id is not None:
         proveedor_id = parse_int(proveedor_id, "Proveedor", min_value=1)
@@ -405,12 +508,25 @@ def update_producto(
     try:
         cur = conn.cursor(dictionary=True)
         cur.execute(
-            "SELECT id_producto FROM productos "
+            "SELECT precio_venta, precio_mayorista, precio_empaque FROM productos "
             "WHERE id_producto = %s AND id_tienda = %s LIMIT 1",
             (id_producto, id_tienda),
         )
-        if not cur.fetchone():
+        actual = cur.fetchone()
+        if not actual:
             raise InventoryNotFoundError("Producto no encontrado.")
+        precio_actual = float(actual["precio_venta"] or 0)
+        if venta is None:
+            venta = precio_actual
+        if precio_bloqueado and any(
+            abs((nuevo or 0) - float(guardado or 0)) >= 0.005
+            for nuevo, guardado in (
+                (venta, precio_actual),
+                (datos["mayorista"], actual["precio_mayorista"]),
+                (datos["precio_empaque"], actual["precio_empaque"]),
+            )
+        ):
+            raise PermissionError("Solo un administrador puede cambiar el precio de venta.")
 
         if proveedor_id is not None:
             cur.execute(
@@ -425,9 +541,15 @@ def update_producto(
 
         cur.execute(
             "UPDATE productos "
-            "SET nombre=%s, id_categoria=%s, codigo_barras=%s, precio_costo=%s, precio_venta=%s, stock_actual=%s, stock_minimo_alerta=%s, id_proveedor=%s "
+            "SET nombre=%s, tipo=%s, unidad_medida=%s, id_categoria=%s, codigo_barras=%s, precio_costo=%s, "
+            "    precio_venta=%s, precio_mayorista=%s, empaque_nombre=%s, empaque_cantidad=%s, precio_empaque=%s, "
+            "    stock_actual=%s, stock_minimo_alerta=%s, id_proveedor=%s "
             "WHERE id_producto=%s AND id_tienda=%s",
-            (nombre, id_cat, codigo_barras, costo, venta, stock, stock_min, proveedor_id, id_producto, id_tienda),
+            (
+                nombre, datos["tipo"], datos["unidad"], id_cat, codigo_barras, costo,
+                venta, datos["mayorista"], datos["empaque_nombre"], datos["empaque_cantidad"], datos["precio_empaque"],
+                stock, stock_min, proveedor_id, id_producto, id_tienda,
+            ),
         )
 
         conn.commit()
@@ -467,32 +589,38 @@ def delete_producto(id_tienda: int, id_usuario: int, id_producto: int) -> None:
     _registrar_auditoria(id_tienda, id_usuario, "eliminar_producto", f"Producto desactivado id={id_producto}")
 
 
-def add_stock(id_tienda: int, id_usuario: int, id_producto: int, cantidad: int) -> int:
+def add_stock(id_tienda: int, id_usuario: int, id_producto: int, cantidad: float) -> float:
     id_producto = parse_int(id_producto, "Producto", min_value=1)
-    cantidad = parse_int(cantidad, "Cantidad", min_value=1, allow_zero=False)
+    cantidad = round(parse_float(cantidad, "Cantidad", min_value=0, allow_zero=False), 3)
     conn = get_db()
     try:
         cur = conn.cursor(dictionary=True)
         cur.execute(
-            "SELECT id_producto, stock_actual "
+            "SELECT id_producto, tipo, unidad_medida, stock_actual "
             "FROM productos "
-            "WHERE id_producto = %s AND id_tienda = %s AND estado_activo = 1 LIMIT 1",
+            "WHERE id_producto = %s AND id_tienda = %s AND estado_activo = 1 LIMIT 1 FOR UPDATE",
             (id_producto, id_tienda),
         )
         p = cur.fetchone()
         if not p:
             raise InventoryNotFoundError("Producto no encontrado.")
+        if p["tipo"] == "Servicio":
+            raise ValueError("Un servicio no lleva stock.")
+        if p["unidad_medida"] not in UNIDADES_FRACCIONABLES and cantidad != int(cantidad):
+            raise ValueError(f"La cantidad en {p['unidad_medida']} debe ser un numero entero.")
 
-        nuevo_stock = p["stock_actual"] + cantidad
+        anterior = float(p["stock_actual"] or 0)
+        nuevo_stock = round(anterior + cantidad, 3)
         cur.execute(
             "UPDATE productos SET stock_actual = %s WHERE id_producto = %s AND id_tienda = %s",
             (nuevo_stock, id_producto, id_tienda),
         )
+        # `motivo` es NOT NULL sin default: omitirlo solo pasaba con sql_mode no estricto.
         cur.execute(
             "INSERT INTO movimientos_inventario "
-            "(id_tienda, id_producto, id_usuario, tipo_movimiento, cantidad, stock_anterior, stock_posterior) "
-            "VALUES (%s, %s, %s, 'Entrada', %s, %s, %s)",
-            (id_tienda, id_producto, id_usuario, cantidad, p["stock_actual"], nuevo_stock),
+            "(id_tienda, id_producto, id_usuario, tipo_movimiento, motivo, cantidad, stock_anterior, stock_posterior) "
+            "VALUES (%s, %s, %s, 'Entrada', 'Entrada manual de stock', %s, %s, %s)",
+            (id_tienda, id_producto, id_usuario, cantidad, anterior, nuevo_stock),
         )
         conn.commit()
     except Exception:
@@ -541,7 +669,7 @@ def get_proveedor_productos(id_tienda: int, id_proveedor: int) -> dict:
                 "nombre": r["nombre"],
                 "categoria": r.get("categoria") or "Sin categoria",
                 "precio_venta": float(r.get("precio_venta") or 0),
-                "stock_actual": int(r.get("stock_actual") or 0),
+                "stock_actual": float(r.get("stock_actual") or 0),
             }
             for r in rows
         ],

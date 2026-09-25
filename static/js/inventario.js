@@ -18,6 +18,9 @@ document.addEventListener('DOMContentLoaded', () => {
   let searchQuery  = '';
   let sortCol      = null;
   let sortDir      = 'asc';
+  /* Pestana activa: 'Producto' o 'Servicio'. Filtra la lista y decide el
+     tipo de lo que se crea con el boton Anadir. */
+  let activeTipo   = 'Producto';
 
   /* ── Referencias DOM ─────────────────────────────────────── */
   const cardsList      = document.getElementById('cards-list');
@@ -57,9 +60,27 @@ document.addEventListener('DOMContentLoaded', () => {
   const fCategoryDropdown = document.getElementById('f-category-dropdown');
   const fCost     = document.getElementById('f-cost');
   const fSale     = document.getElementById('f-sale');
+  const fSaleLock = document.getElementById('f-sale-lock');
+  /* El Cajero puede editar un producto pero no su precio de venta. Es solo
+     la cara visible: el backend rechaza el cambio igual (403). */
+  const esCajero  = (document.getElementById('app-context')?.dataset.userRol || '').toLowerCase() === 'cajero';
   const fStock    = document.getElementById('f-stock');
   const fStockMin = document.getElementById('f-stock-min');
   const fProvider = document.getElementById('f-provider');
+  const fUnidad   = document.getElementById('f-unidad');
+  const fUnidadHelp = document.getElementById('f-unidad-help');
+  const fMayorista = document.getElementById('f-mayorista');
+  const fEmpaque  = document.getElementById('f-empaque');
+  const fEmpaqueCant = document.getElementById('f-empaque-cant');
+  const fEmpaquePrecio = document.getElementById('f-empaque-precio');
+  const stockRow  = document.getElementById('stock-row');
+  const empaqueField = document.getElementById('empaque-field');
+  const providerField = document.getElementById('provider-field');
+  const btnAddLabel = btnAdd.querySelector('.fab-label');
+  const stockUnitLabel = document.getElementById('s-unit-label');
+  let fraccionables = [];
+  try { fraccionables = JSON.parse(fUnidad.dataset.fraccionables || '[]'); } catch (_) { fraccionables = []; }
+  const esFraccionable = (unidad) => fraccionables.includes(unidad);
   const fProfit   = document.getElementById('f-profit');
   const modalErrorBox = document.getElementById('alerta-error-modal');
   const modalErrorText = document.getElementById('texto-alerta-modal');
@@ -114,6 +135,34 @@ document.addEventListener('DOMContentLoaded', () => {
     searchQuery = searchInput.value.trim().toLowerCase();
     renderAll();
   });
+
+  /* ── Pestanas Productos / Servicios ─────────────────────── */
+  document.querySelectorAll('.inv-tab').forEach((tab) => {
+    tab.addEventListener('click', () => {
+      activeTipo = tab.dataset.tab === 'servicios' ? 'Servicio' : 'Producto';
+      document.querySelectorAll('.inv-tab').forEach((t) => {
+        t.classList.toggle('is-active', t === tab);
+        t.setAttribute('aria-selected', String(t === tab));
+      });
+      if (btnAddLabel) btnAddLabel.textContent = activeTipo === 'Servicio' ? 'Anadir servicio' : 'Anadir producto';
+      renderAll();
+    });
+  });
+
+  /* Unidad: rotula precios/stock ("por Metro") y dice si admite fracciones */
+  function updateUnidadUI() {
+    const unidad = fUnidad.value || 'Unidad';
+    document.querySelectorAll('#modal [data-unidad-label]').forEach((el) => {
+      el.textContent = `(por ${unidad})`;
+    });
+    const fracc = esFraccionable(unidad);
+    fUnidadHelp.textContent = fracc
+      ? `Se puede vender por fracciones, ej. 0.5 ${unidad}.`
+      : `Se vende por ${unidad} completa.`;
+    fStock.step = fracc ? 'any' : '1';
+    if (fStockMin) fStockMin.step = fracc ? 'any' : '1';
+  }
+  fUnidad.addEventListener('change', updateUnidadUI);
 
   /* ── Escaner: buscar por codigo; si no existe, ofrecer crearlo ── */
   document.getElementById('inv-btn-scan').addEventListener('click', () => {
@@ -193,11 +242,18 @@ document.addEventListener('DOMContentLoaded', () => {
   btnModalSave.addEventListener('click', saveProduct);
 
   /* ── Modal anadir stock ───────────────────────────────── */
+  /* Cantidad escrita a mano: admite coma o punto decimal ("2,5" = 2.5). */
+  function parseCantidad(value) {
+    const n = parseFloat(String(value).trim().replace(',', '.'));
+    return Number.isFinite(n) ? Math.round(n * 1000) / 1000 : NaN;
+  }
+
   function openModalStock(id) {
     const p = products.find(x => x.id === id);
     stockTargetId = id;
     stockProductName.textContent  = p.name;
-    stockCurrentBadge.textContent = `${formatStock(p.stock)} unidades actuales`;
+    stockCurrentBadge.textContent = `${formatStock(p.stock)} ${p.unidad} actuales`;
+    if (stockUnitLabel) stockUnitLabel.textContent = `(${p.unidad})`;
     stockUnits.value   = '';
     stockPreview.textContent = '';
     modalStock.classList.add('open');
@@ -211,13 +267,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
   stockUnits.addEventListener('input', () => {
     const p = products.find(x => x.id === stockTargetId);
-    const qty = parseInt(String(stockUnits.value).replace(/\D/g, ''), 10);
+    const qty = parseCantidad(stockUnits.value);
     if (!p || isNaN(qty) || qty <= 0) { stockPreview.textContent = ''; return; }
-    stockPreview.textContent = `→ Nuevo stock: ${formatStock(p.stock + qty)} unidades`;
+    stockPreview.textContent = `→ Nuevo stock: ${formatStock(p.stock + qty)} ${p.unidad}`;
   });
 
   btnStockConfirm.addEventListener('click', async () => {
-    const qty = parseInt(String(stockUnits.value).replace(/\D/g, ''), 10);
+    const qty = parseCantidad(stockUnits.value);
     if (isNaN(qty) || qty <= 0) { shake(stockUnits); return; }
     btnStockConfirm.disabled = true;
     const res  = await fetch(`/inventario/api/productos/${stockTargetId}/stock`, {
@@ -232,7 +288,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const p = products.find(x => x.id === stockTargetId);
     closeModalStock();
     await loadProducts();
-    showToast(`+${qty} unidades anadidas a "${p ? p.name : ''}".`);
+    showToast(`+${formatStock(qty)} ${p ? p.unidad : ''} anadidas a "${p ? p.name : ''}".`);
   });
 
   [btnStockClose, btnStockCancel].forEach(b => b.addEventListener('click', closeModalStock));
@@ -287,11 +343,11 @@ document.addEventListener('DOMContentLoaded', () => {
      ══════════════════════════════════════════════════════════ */
 
   function renderAll() {
-    const filtered = products.filter(p =>
+    const filtered = products.filter(p => p.tipo === activeTipo && (
       p.name.toLowerCase().includes(searchQuery) ||
       p.category.toLowerCase().includes(searchQuery) ||
       (p.barcode || '').toLowerCase().includes(searchQuery)
-    );
+    ));
     const display = applySort(filtered);
     renderCards(display);
     renderTable(display);
@@ -328,7 +384,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (list.length === 0) {
       tableBody.innerHTML = `
         <tr class="no-results">
-          <td colspan="6">No se encontraron productos.</td>
+          <td colspan="7">No se encontraron ${activeTipo === 'Servicio' ? 'servicios' : 'productos'}.</td>
         </tr>`;
       return;
     }
@@ -345,12 +401,28 @@ document.addEventListener('DOMContentLoaded', () => {
 
   /* ── Constructores de HTML ──────────────────────────────── */
 
+  /* Badge de stock o, sin stock que contar, que clase de item es. */
+  function stockCell(p) {
+    if (p.tipo === 'Servicio') return '<span class="stock-badge ok"><span class="stock-dot"></span>Servicio</span>';
+    if (p.es_preparado) return '<span class="stock-badge ok"><span class="stock-dot"></span>Receta preparada</span>';
+    const { cls, label } = stockInfo(p.stock, p.unidad);
+    return stockBadge(p.stock, cls, label);
+  }
+
+  function precioMayorista(p) {
+    return p.mayorista ? `$${COP.format(p.mayorista)}` : '—';
+  }
+
+  /* "Rollo x100: $90.000" bajo el precio unitario, si se vende por empaque */
+  function empaqueTexto(p) {
+    return p.empaque_nombre
+      ? `${esc(p.empaque_nombre)} x${formatStock(p.empaque_cantidad)}: $${COP.format(p.precio_empaque)}`
+      : '';
+  }
+
   function buildCardHTML(p) {
-    const { cls, label } = stockInfo(p.stock);
-    const stockAction = p.es_preparado
-      ? '<span class="stock-badge ok"><span class="stock-dot"></span>Receta preparada</span>'
-      : stockBadge(p.stock, cls, label);
-    const addStockButton = p.es_preparado
+    const stockAction = stockCell(p);
+    const addStockButton = (p.es_preparado || p.tipo === 'Servicio')
       ? ''
       : `<button class="action-btn add" data-action="addstock" aria-label="Anadir stock">
             <img src="/static/img/mas.png" alt="" aria-hidden="true" width="18" height="18" decoding="async" />
@@ -373,8 +445,10 @@ document.addEventListener('DOMContentLoaded', () => {
       </div>
       <div class="card-bottom">
         <div class="card-prices">
-          <span class="card-price-label">Precio venta</span>
+          <span class="card-price-label">Venta / ${esc(p.unidad)}</span>
           <span class="card-price-value">$${COP.format(p.sale)}</span>
+          ${p.mayorista ? `<span class="td-unit card-price-mayor">Mayorista ${precioMayorista(p)}</span>` : ''}
+          ${p.empaque_nombre ? `<span class="td-unit">${empaqueTexto(p)}</span>` : ''}
         </div>
         <div class="card-prices card-prices-right">
           <span class="card-price-label">Costo</span>
@@ -385,11 +459,8 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function buildRowHTML(p) {
-    const { cls, label } = stockInfo(p.stock);
-    const stockAction = p.es_preparado
-      ? '<span class="stock-badge ok"><span class="stock-dot"></span>Receta preparada</span>'
-      : stockBadge(p.stock, cls, label);
-    const addStockButton = p.es_preparado
+    const stockAction = stockCell(p);
+    const addStockButton = (p.es_preparado || p.tipo === 'Servicio')
       ? ''
       : `<button class="action-btn add" data-action="addstock" aria-label="Anadir stock">
             <img src="/static/img/mas.png" alt="" aria-hidden="true" width="18" height="18" decoding="async" />
@@ -402,7 +473,8 @@ document.addEventListener('DOMContentLoaded', () => {
       </td>
       <td class="td-category">${esc(p.category)}</td>
       <td class="td-price">$${COP.format(p.cost)}</td>
-      <td class="td-price">$${COP.format(p.sale)}</td>
+      <td class="td-price">$${COP.format(p.sale)}<span class="td-unit">por ${esc(p.unidad)}${p.empaque_nombre ? ' · ' + empaqueTexto(p) : ''}</span></td>
+      <td class="td-price card-price-mayor">${precioMayorista(p)}</td>
       <td>${stockAction}</td>
       <td>
         <div class="td-actions">
@@ -429,10 +501,11 @@ document.addEventListener('DOMContentLoaded', () => {
     return parseFloat(num.toFixed(3)).toString();
   }
 
-  function stockInfo(qty) {
-    if (qty === 0)  return { cls: 'out', label: 'Agotado' };
-    if (qty <= 10)  return { cls: 'low', label: `${formatStock(qty)} unidades` };
-    return { cls: 'ok', label: `${formatStock(qty)} unidades` };
+  function stockInfo(qty, unidad = 'Unidad') {
+    const txt = `${formatStock(qty)} ${unidad === 'Unidad' ? 'unidades' : unidad}`;
+    if (qty <= 0)   return { cls: 'out', label: 'Agotado' };
+    if (qty <= 10)  return { cls: 'low', label: txt };
+    return { cls: 'ok', label: txt };
   }
 
   function stockBadge(qty, cls, label) {
@@ -468,37 +541,65 @@ document.addEventListener('DOMContentLoaded', () => {
      MODAL
      ══════════════════════════════════════════════════════════ */
 
+  /* Tipo del item abierto en el modal: el del producto al editar, el de la
+     pestana al crear. */
+  let modalTipo = 'Producto';
+
   function openModal(id) {
     editingId = id;
     hideModalError();
+    /* Precios del Cajero: se ven pero no se editan (el backend responde 403
+       si llegan distintos). Mayorista y empaque viajan tal cual se cargaron. */
+    const lockPrices = id !== null && esCajero;
 
     if (id !== null) {
       const p = products.find(x => x.id === id);
-      modalTitle.textContent  = 'Editar Producto';
+      modalTipo = p.tipo;
+      modalTitle.textContent  = p.tipo === 'Servicio' ? 'Editar Servicio' : 'Editar Producto';
       fName.value             = p.name;
       fBarcode.value          = p.barcode || '';
       fCategory.value         = p.category;
       fCost.value             = COP.format(p.cost);
       fSale.value             = COP.format(p.sale);
       fStock.value            = formatStock(p.stock);
-      if (fStockMin) fStockMin.value = (p.stock_min != null ? p.stock_min : '');
+      if (fStockMin) fStockMin.value = (p.stock_min != null ? formatStock(p.stock_min) : '');
       fProvider.value         = p.proveedor_id ? String(p.proveedor_id) : '';
+      fUnidad.value           = p.unidad || 'Unidad';
+      fMayorista.value        = p.mayorista ? COP.format(p.mayorista) : '';
+      fEmpaque.value          = p.empaque_nombre || '';
+      fEmpaqueCant.value      = p.empaque_cantidad ? formatStock(p.empaque_cantidad) : '';
+      fEmpaquePrecio.value    = p.precio_empaque ? COP.format(p.precio_empaque) : '';
       fCost.dataset.rawValue  = String(p.cost);
       fSale.dataset.rawValue  = String(p.sale);
       if (fPrepared) fPrepared.checked = Boolean(p.es_preparado);
       clearRecipeRows();
       updateProfit();
+      fSale.disabled = esCajero;
+      if (fSaleLock) fSaleLock.hidden = !esCajero;
     } else {
-      modalTitle.textContent = 'Anadir Producto';
-      [fName, fBarcode, fCategory, fCost, fSale, fStock].forEach(f => f.value = '');
+      modalTipo = activeTipo;
+      fSale.disabled = false;
+      if (fSaleLock) fSaleLock.hidden = true;
+      modalTitle.textContent = activeTipo === 'Servicio' ? 'Anadir Servicio' : 'Anadir Producto';
+      [fName, fBarcode, fCategory, fCost, fSale, fStock, fMayorista, fEmpaque, fEmpaqueCant, fEmpaquePrecio]
+        .forEach(f => f.value = '');
       if (fStockMin) fStockMin.value = '';
       if (fProvider) fProvider.value = '';
+      fUnidad.value = 'Unidad';
       if (fPrepared) fPrepared.checked = false;
       fCost.dataset.rawValue = '';
       fSale.dataset.rawValue = '';
       fProfit.textContent = '—';
       clearRecipeRows();
     }
+
+    fMayorista.disabled = lockPrices;
+    fEmpaquePrecio.disabled = lockPrices;
+    /* Un servicio no tiene stock, ni empaque, ni proveedor de mercancia. */
+    const esServicio = modalTipo === 'Servicio';
+    [stockRow, empaqueField, providerField].forEach((el) => el?.classList.toggle('hidden', esServicio));
+    fName.placeholder = esServicio ? 'Ej. Instalacion de cable' : 'Ej. Coca-Cola 350ml';
+    updateUnidadUI();
 
     toggleRecipeMode();
 
@@ -519,10 +620,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const cat   = fCategory.value.trim();
     let cost  = COP.parse(fCost.value);
     const sale  = COP.parse(fSale.value);
-    let stock = parseInt(String(fStock.value).replace(/\D/g, ''), 10);
-    const stockMinRaw = fStockMin ? String(fStockMin.value).replace(/\D/g, '') : '';
-    const stockMin = stockMinRaw === '' ? 0 : parseInt(stockMinRaw, 10);
-    const idProveedor = fProvider && fProvider.value ? parseInt(fProvider.value, 10) : null;
+    const esServicio = modalTipo === 'Servicio';
+    let stock = esServicio ? 0 : parseCantidad(fStock.value);
+    const stockMinRaw = fStockMin ? String(fStockMin.value).trim() : '';
+    const stockMin = esServicio || stockMinRaw === '' ? 0 : parseCantidad(stockMinRaw);
+    const idProveedor = !esServicio && fProvider && fProvider.value ? parseInt(fProvider.value, 10) : null;
+    const unidad = fUnidad.value || 'Unidad';
+    if (!esServicio && !esFraccionable(unidad) && stock !== Math.trunc(stock)) {
+      showModalError(`El stock en ${unidad} debe ser un numero entero.`);
+      return;
+    }
     const isPrepared = Boolean(fPrepared?.checked);
     const ingredientes = isPrepared ? collectRecipeRows() : [];
 
@@ -535,10 +642,20 @@ document.addEventListener('DOMContentLoaded', () => {
       stock = 0;
     }
 
-    if (!name || !cat || isNaN(cost) || isNaN(sale) || isNaN(stock)) {
+    if (!name || !cat || isNaN(cost) || isNaN(sale) || isNaN(stock) || isNaN(stockMin)) {
       showModalError('Completa todos los campos correctamente.');
       return;
     }
+    /* Empaque: los tres campos o ninguno (el servidor lo revalida). */
+    const empaque = esServicio ? '' : fEmpaque.value.trim();
+    const empaqueCant = esServicio ? NaN : parseCantidad(fEmpaqueCant.value);
+    const empaquePrecio = esServicio ? NaN : COP.parse(fEmpaquePrecio.value);
+    const conEmpaque = Boolean(empaque) || !isNaN(empaqueCant) || !isNaN(empaquePrecio);
+    if (conEmpaque && !(empaque && empaqueCant > 0 && empaquePrecio > 0)) {
+      showModalError('Para vender por empaque indica nombre, unidades y precio del empaque.');
+      return;
+    }
+    const mayorista = COP.parse(fMayorista.value);
     hideModalError();
 
     btnModalSave.disabled = true;
@@ -552,7 +669,13 @@ document.addEventListener('DOMContentLoaded', () => {
         codigo_barras: fBarcode.value.trim(),
         categoria: cat,
         costo: cost,
-        venta: sale,
+        venta: fSale.disabled ? undefined : sale,   /* bloqueado: el servidor conserva el actual */
+        tipo: modalTipo,
+        unidad,
+        mayorista: isNaN(mayorista) ? null : mayorista,
+        empaque_nombre: conEmpaque ? empaque : null,
+        empaque_cantidad: conEmpaque ? empaqueCant : null,
+        precio_empaque: conEmpaque ? empaquePrecio : null,
         stock,
         stock_min: stockMin,
         es_preparado: isPrepared,
@@ -715,7 +838,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   /* ── Formateo COP en inputs del modal ───────────────────── */
-  COP.bindInputs(fCost, fSale);
+  COP.bindInputs(fCost, fSale, fMayorista, fEmpaquePrecio);
 
   /* ── Toast ──────────────────────────────────────────────── */
   let toastTimer;

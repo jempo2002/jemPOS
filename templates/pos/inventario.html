@@ -49,17 +49,18 @@
         </button>
       </div>
 
-      <!-- Pestanas: Productos / Proveedores -->
+      <!-- Pestanas: Productos / Servicios. Filtran la misma lista por tipo;
+           Proveedores tiene su propia pantalla en el menu. -->
       <div class="inv-tabs" role="tablist" aria-label="Secciones de inventario">
-        <button type="button" class="inv-tab is-active" data-tab="productos" role="tab" aria-selected="true">
+        <button type="button" class="inv-tab is-active" data-tab="productos" role="tab" aria-selected="true" aria-controls="view-productos">
           <i class="fa-solid fa-boxes-stacked" aria-hidden="true"></i> Productos
         </button>
-        <button type="button" class="inv-tab" data-tab="proveedores" role="tab" aria-selected="false">
-          <i class="fa-solid fa-truck-field" aria-hidden="true"></i> Proveedores
+        <button type="button" class="inv-tab" data-tab="servicios" role="tab" aria-selected="false" aria-controls="view-productos">
+          <i class="fa-solid fa-screwdriver-wrench" aria-hidden="true"></i> Servicios
         </button>
       </div>
 
-      <!-- Buscador + escaner (id en la fila: proveedores.js la oculta completa) -->
+      <!-- Buscador + escaner -->
       <div class="inv-search-row" id="inv-search-wrap" role="search">
         <div class="inv-search-wrap">
           <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
@@ -79,8 +80,8 @@
 
     </header>
     <div class="inv-body" data-fab-scroll-container>
-      <!-- ===== Vista Productos ===== -->
-      <div id="view-productos">
+      <!-- ===== Productos o servicios (segun la pestana) ===== -->
+      <div id="view-productos" role="tabpanel">
         <div class="cards-list" id="cards-list" aria-label="Lista de productos">
           <!-- Generado por JS -->
         </div>
@@ -92,6 +93,7 @@
                 <th class="th-sortable" data-col="category">Categoria&nbsp;<span class="sort-icon-wrap"><i class="fa-solid fa-sort sort-icon"></i></span></th>
                 <th class="th-sortable" data-col="cost">Precio costo&nbsp;<span class="sort-icon-wrap"><i class="fa-solid fa-sort sort-icon"></i></span></th>
                 <th class="th-sortable" data-col="sale">Precio venta&nbsp;<span class="sort-icon-wrap"><i class="fa-solid fa-sort sort-icon"></i></span></th>
+                <th class="th-sortable" data-col="mayorista">Mayorista&nbsp;<span class="sort-icon-wrap"><i class="fa-solid fa-sort sort-icon"></i></span></th>
                 <th class="th-sortable" data-col="stock">Stock&nbsp;<span class="sort-icon-wrap"><i class="fa-solid fa-sort sort-icon"></i></span></th>
                 <th>Acciones</th>
               </tr>
@@ -100,20 +102,6 @@
               <!-- Generado por JS -->
             </tbody>
           </table>
-        </div>
-      </div>
-
-      <!-- ===== Vista Proveedores ===== -->
-      <div id="view-proveedores" hidden>
-        <div class="prov-head">
-          <h2 class="prov-head-title">Proveedores</h2>
-          <button class="btn-add" id="btn-add-prov" type="button">
-            <i class="fa-solid fa-plus"></i>
-            <span>Anadir proveedor</span>
-          </button>
-        </div>
-        <div class="prov-cards" id="prov-list" aria-label="Lista de proveedores">
-          <!-- Generado por JS -->
         </div>
       </div>
 
@@ -182,7 +170,7 @@
       </div>
     </div>
 
-    <div class="modal-field">
+    <div class="modal-field" id="provider-field">
       <label for="f-provider">Proveedor <span class="gast-optional">(opcional)</span></label>
       <select id="f-provider" class="gast-select">
         <option value="">Sin proveedor</option>
@@ -192,6 +180,17 @@
       </select>
     </div>
 
+    <!-- Unidad base: en ella van el stock y el precio de venta -->
+    <div class="modal-field">
+      <label for="f-unidad">Unidad de medida</label>
+      <select id="f-unidad" class="gast-select" aria-describedby="f-unidad-help" data-fraccionables='{{ unidades_fraccionables | tojson }}'>
+        {% for u in unidades %}
+        <option value="{{ u }}">{{ u }}</option>
+        {% endfor %}
+      </select>
+      <p class="field-help" id="f-unidad-help"></p>
+    </div>
+
     <!-- Precios -->
     <div class="modal-field-row">
       <div class="modal-field" id="cost-field">
@@ -199,8 +198,9 @@
         <input type="tel" id="f-cost" inputmode="numeric" pattern="[0-9]*" placeholder="Ej. 1.800" autocomplete="off" />
       </div>
       <div class="modal-field">
-        <label for="f-sale">Precio de venta</label>
-        <input type="tel" id="f-sale" inputmode="numeric" pattern="[0-9]*" placeholder="Ej. 2.500" autocomplete="off" />
+        <label for="f-sale">Precio de venta <span class="gast-optional" data-unidad-label></span></label>
+        <input type="tel" id="f-sale" inputmode="numeric" pattern="[0-9]*" placeholder="Ej. 2.500" autocomplete="off" aria-describedby="f-sale-lock" />
+        <p class="field-help" id="f-sale-lock" hidden><i class="fa-solid fa-lock"></i> Solo el administrador cambia el precio.</p>
       </div>
     </div>
 
@@ -211,15 +211,46 @@
       </p>
     </div>
 
-    <!-- Stock -->
-    <div class="modal-field-row">
+    <!-- Precio fijo de Venta Mayorista: sin el, el item no sale al por mayor -->
+    <div class="modal-field">
+      <label for="f-mayorista">Precio mayorista <span class="gast-optional" data-unidad-label></span> <span class="gast-optional">(opcional)</span></label>
+      <input type="tel" id="f-mayorista" inputmode="numeric" pattern="[0-9]*" placeholder="Ej. 2.100" autocomplete="off" aria-describedby="f-mayorista-help" />
+      <p class="field-help" id="f-mayorista-help">Se cobra solo en Venta Mayorista, a clientes mayoristas.</p>
+    </div>
+
+    <!-- Presentacion cerrada con su propio precio (rollo, paquete, caja) -->
+    <fieldset class="modal-fieldset" id="empaque-field">
+      <legend>Venta por empaque <span class="gast-optional">(opcional)</span></legend>
+      <div class="modal-field-row modal-field-row-3">
+        <div class="modal-field">
+          <label for="f-empaque">Empaque</label>
+          <input type="text" id="f-empaque" list="empaques-sugeridos" placeholder="Ej. Rollo" autocomplete="off" maxlength="30" />
+          <datalist id="empaques-sugeridos">
+            <option value="Paquete"></option><option value="Rollo"></option><option value="Caja"></option>
+            <option value="Bulto"></option><option value="Docena"></option><option value="Six-pack"></option>
+          </datalist>
+        </div>
+        <div class="modal-field">
+          <label for="f-empaque-cant">Trae <span class="gast-optional" data-unidad-label></span></label>
+          <input type="number" id="f-empaque-cant" inputmode="decimal" min="0" step="any" placeholder="Ej. 100" autocomplete="off" />
+        </div>
+        <div class="modal-field">
+          <label for="f-empaque-precio">Precio empaque</label>
+          <input type="tel" id="f-empaque-precio" inputmode="numeric" pattern="[0-9]*" placeholder="Ej. 90.000" autocomplete="off" />
+        </div>
+      </div>
+      <p class="field-help">Ej.: rollo de 100 metros a un precio y el metro suelto a otro. Vender un empaque descuenta su contenido del stock.</p>
+    </fieldset>
+
+    <!-- Stock (los servicios no llevan) -->
+    <div class="modal-field-row" id="stock-row">
       <div class="modal-field" id="stock-field">
-        <label for="f-stock">Stock inicial</label>
-        <input type="number" id="f-stock" inputmode="numeric" min="0" step="1" placeholder="Ej. 50" autocomplete="off" />
+        <label for="f-stock">Stock <span class="gast-optional" data-unidad-label></span></label>
+        <input type="number" id="f-stock" inputmode="decimal" min="0" step="any" placeholder="Ej. 50" autocomplete="off" />
       </div>
       <div class="modal-field">
         <label for="f-stock-min">Alerta de stock</label>
-        <input type="number" id="f-stock-min" inputmode="numeric" min="0" step="1" placeholder="Ej. 5" autocomplete="off" />
+        <input type="number" id="f-stock-min" inputmode="decimal" min="0" step="any" placeholder="Ej. 5" autocomplete="off" />
       </div>
     </div>
 
@@ -255,12 +286,11 @@
 
     <!-- Input de unidades -->
     <div class="modal-field">
-      <label for="s-units">Unidades a anadir</label>
+      <label for="s-units">Cantidad a anadir <span class="gast-optional" id="s-unit-label"></span></label>
       <input
-        type="tel"
+        type="text"
         id="s-units"
-        inputmode="numeric"
-        pattern="[0-9]*"
+        inputmode="decimal"
         placeholder="0"
         autocomplete="off"
         class="stock-big-input"
@@ -312,77 +342,6 @@
   </div>
 </div>
 
-<!-- MODAL - CREAR / EDITAR PROVEEDOR -->
-<div class="modal-backdrop" id="modal-proveedor" role="dialog" aria-modal="true" aria-labelledby="prov-modal-title">
-  <div class="modal-card">
-    <div class="modal-header">
-      <span class="modal-title" id="prov-modal-title">Anadir Proveedor</span>
-      <button class="modal-close" id="prov-modal-close" type="button" aria-label="Cerrar">
-        <img src="/static/img/equis.png" alt="" aria-hidden="true" width="20" height="20" decoding="async" />
-      </button>
-    </div>
-
-    <div id="prov-error" class="hidden modal-inline-error" role="alert">
-      <i class="fa-solid fa-circle-exclamation"></i><span id="prov-error-text"></span>
-    </div>
-
-    <div class="modal-field">
-      <label for="prov-nombre">Nombre del proveedor</label>
-      <input type="text" id="prov-nombre" placeholder="Ej. Distribuidora XYZ" autocomplete="off" maxlength="150" />
-    </div>
-
-    <div class="modal-field">
-      <label for="prov-tel1">Telefono 1</label>
-      <input type="tel" id="prov-tel1" inputmode="numeric" placeholder="Ej. 3001234567"
-             autocomplete="off" maxlength="20" oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,20)" />
-    </div>
-
-    <div class="modal-field">
-      <label for="prov-tel2">Telefono 2 <span class="gast-optional">(opcional)</span></label>
-      <input type="tel" id="prov-tel2" inputmode="numeric" placeholder="Ej. 6012345678"
-             autocomplete="off" maxlength="20" oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,20)" />
-    </div>
-
-    <div class="modal-footer">
-      <button class="btn-modal-cancel" id="prov-cancel" type="button">Cancelar</button>
-      <button class="btn-modal-save"   id="prov-save"   type="button">
-        <i class="fa-solid fa-floppy-disk"></i>&nbsp; Guardar
-      </button>
-    </div>
-  </div>
-</div>
-
-<!-- MODAL - VER PROVEEDOR (productos asociados) -->
-<div class="modal-backdrop" id="modal-prov-view" role="dialog" aria-modal="true" aria-labelledby="pv-title">
-  <div class="modal-card modal-card-lg">
-    <div class="modal-header">
-      <span class="modal-title" id="pv-title">Proveedor</span>
-      <button class="modal-close" id="pv-close" type="button" aria-label="Cerrar">
-        <img src="/static/img/equis.png" alt="" aria-hidden="true" width="20" height="20" decoding="async" />
-      </button>
-    </div>
-
-    <div class="pv-contact" id="pv-contact"></div>
-
-    <!-- Filtro por categoria -->
-    <div class="pv-filters" id="pv-filters" aria-label="Filtrar por categoria"></div>
-
-    <!-- Lista paginada de productos -->
-    <div class="pv-products" id="pv-products"></div>
-
-    <!-- Paginacion -->
-    <div class="pv-pager" id="pv-pager" hidden>
-      <button type="button" class="pv-pager-btn" id="pv-prev" aria-label="Pagina anterior">
-        <i class="fa-solid fa-chevron-left"></i>
-      </button>
-      <span class="pv-pager-info" id="pv-pageinfo">1 / 1</span>
-      <button type="button" class="pv-pager-btn" id="pv-next" aria-label="Pagina siguiente">
-        <i class="fa-solid fa-chevron-right"></i>
-      </button>
-    </div>
-  </div>
-</div>
-
 {% include "pos/_scanner_dialog.html" %}
 
 <!-- Scripts -->
@@ -391,7 +350,6 @@
 <script src="/static/js/fab-scroll.js" defer></script>
 <script src="/static/js/barcode-scanner.js" defer></script>
 <script src="/static/js/inventario.js" defer></script>
-<script src="/static/js/proveedores.js" defer></script>
 
   <!-- RBAC + Suscripcion -->
   <div id="app-context"
@@ -404,14 +362,3 @@
 
 </body>
 </html>
-
-
-
-
-
-
-
-
-
-
-

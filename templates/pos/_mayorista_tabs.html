@@ -1,0 +1,15 @@
+{# Pestanas del modulo Mayorista: Clientes mayoristas / Venta mayorista.
+   Son enlaces entre dos pantallas (la venta es la caja completa), con el
+   aspecto de las pestanas de Inventario. Clientes es de administracion: el
+   cajero solo tiene la venta, y sin alternativa no se pintan pestanas.
+   Uso: {% with tab_mayorista='clientes'|'venta' %}{% include %}{% endwith %} #}
+{% if (session.get('rol') or '') in ['Admin', 'Master'] %}
+<nav class="inv-tabs mayorista-tabs" aria-label="Secciones de mayorista">
+  <a href="{{ url_for('cartera_bp.clientes_proveer_page') }}" class="inv-tab{% if tab_mayorista == 'clientes' %} is-active{% endif %}"{% if tab_mayorista == 'clientes' %} aria-current="page"{% endif %}>
+    <i class="fa-solid fa-building" aria-hidden="true"></i> Clientes mayoristas
+  </a>
+  <a href="{{ url_for('sales_bp.venta_mayorista') }}" class="inv-tab{% if tab_mayorista == 'venta' %} is-active{% endif %}"{% if tab_mayorista == 'venta' %} aria-current="page"{% endif %}>
+    <i class="fa-solid fa-dolly" aria-hidden="true"></i> Venta mayorista
+  </a>
+</nav>
+{% endif %}

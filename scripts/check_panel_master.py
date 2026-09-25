@@ -15,16 +15,27 @@ Admin id=6 y un Cajero id=8).
   6) Eliminar libera correo, cc y NIT (prefijo deleted_<ts>_): se pueden
      reutilizar en el panel y en el registro publico, el id y el historial
      no cambian, y un correo activo sigue bloqueado.
+  7) Tienda al crear/editar: se guarda en Admin/Cajero, un Master nunca queda
+     atado a una tienda, tiendas eliminadas o inexistentes -> 400. La CC no
+     se puede cambiar por API; el correo si, sin duplicados.
+  8) Finanzas del SaaS: registrar/borrar ingresos y gastos, validaciones y
+     tarjetas del panel. Solo Master.
+  9) Paginacion del panel (tiendas, proximos a vencer, usuarios) con paginas
+     fuera de rango acotadas y enlaces que conservan la pagina de los otros.
 
     python scripts/check_panel_master.py
 """
 
 from __future__ import annotations
 
+import math
 import os
+import re
 import sys
+from datetime import date, timedelta
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+RAIZ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, RAIZ)
 
 import mysql.connector
 from dotenv import load_dotenv
@@ -84,11 +95,15 @@ def check(resp, status, texto=""):
     return body
 
 
-def crear(cc, correo, rol="Cajero"):
+def crear(cc, correo, rol="Cajero", **extra):
     return client.post("/api/crear_usuario", json={
         "nombre": "QA " + correo, "correo": correo, "cc": cc, "rol": rol,
-        "password": PWD, "confirm_password": PWD,
+        "password": PWD, "confirm_password": PWD, **extra,
     })
+
+
+def tienda_de(correo):
+    return q("SELECT id_tienda FROM usuarios WHERE correo=%s", (correo,))[0]["id_tienda"]
 
 
 try:
@@ -122,7 +137,7 @@ try:
     check(crear("9990003", "qa_cajero4@test.com"), 200)
     login(1, 1, "Master")
 
-    usuarios = {u["correo"]: u for u in client.get("/api/master/usuarios").get_json()["usuarios"]}
+    usuarios = {u["correo"]: u for u in client.get("/api/master/usuarios?limit=50").get_json()["usuarios"]}
     nuevo = usuarios["qa_uno@test.com"]
     otro_master = usuarios["qa_master@test.com"]
     assert nuevo["cc"] == "9990001" and usuarios["qa_cajero4@test.com"]["id_tienda"] == 4
@@ -131,11 +146,16 @@ try:
 
     # 4) Editar
     url = f"/api/master/usuarios/{nuevo['id_usuario']}"
-    check(client.put(url, json={"nombre": "Q", "cc": "9990002", "rol": "Cajero"}), 409, "cedula")
-    check(client.put(url, json={"nombre": "Nuevo Nombre", "cc": "9990011", "rol": "Admin", "password": PWD}), 200)
+    # La CC es inmutable: ni otra libre ni una ajena; la misma o ninguna, si.
+    check(client.put(url, json={"nombre": "Q", "cc": "9990011", "rol": "Cajero"}), 400, "no se puede modificar")
+    check(client.put(url, json={"nombre": "Q", "cc": "9990002", "rol": "Cajero"}), 400, "no se puede modificar")
+    check(client.put(url, json={"nombre": "Nuevo Nombre", "cc": "9990001", "rol": "Admin",
+                                "password": PWD, "confirm_password": PWD}), 200)
+    check(client.put(url, json={"nombre": "Nuevo Nombre", "rol": "Admin"}), 200)
     fila = q("SELECT nombre_completo, cc, rol FROM usuarios WHERE id_usuario=%s", (nuevo["id_usuario"],))[0]
-    assert fila == {"nombre_completo": "Nuevo Nombre", "cc": "9990011", "rol": "Admin"}, fila
-    check(client.put(url, json={"nombre": "X", "cc": "9990011", "rol": "Admin", "password": "123"}), 400)
+    assert fila == {"nombre_completo": "Nuevo Nombre", "cc": "9990001", "rol": "Admin"}, fila
+    check(client.put(url, json={"nombre": "X", "rol": "Admin", "password": "123", "confirm_password": "123"}), 400)
+    check(client.put(url, json={"nombre": "X", "rol": "Admin", "password": PWD, "confirm_password": "otra"}), 400, "no coinciden")
     check(client.put("/api/master/usuarios/1", json={"nombre": "Yo", "cc": "9990099", "rol": "Admin"}), 400, "propio rol")
     check(client.put("/api/master/usuarios/6", json={"nombre": "A", "cc": "9990098", "rol": "Cajero"}), 400, "unico Admin")
 
@@ -191,6 +211,116 @@ try:
     r = registro(brayan, "900123998")  # ahora esta activo: bloquea
     assert r.status_code == 302 and r.location.endswith("/registro"), r.location
     check(crear("9990066", brayan), 409, "correo")
+
+    # 7) Tienda al crear y editar
+    check(crear("9990101", "qa_t1@test.com", id_tienda=4), 200)
+    assert tienda_de("qa_t1@test.com") == 4
+    check(crear("9990102", "qa_t2@test.com", "Master", id_tienda=4), 200)
+    assert tienda_de("qa_t2@test.com") is None, "un Master no se ata a una tienda"
+    check(crear("9990103", "qa_t3@test.com", "Admin", id_tienda=""), 200)
+    assert tienda_de("qa_t3@test.com") is None
+    check(crear("9990104", "qa_t4@test.com", "Admin", id_tienda=2), 400, "tienda")      # eliminada en 2)
+    check(crear("9990105", "qa_t5@test.com", "Admin", id_tienda=999999), 400, "tienda")
+    check(crear("9990106", "qa_t6@test.com", "Admin", id_tienda="abc"), 400, "Tienda")
+    assert not q("SELECT 1 FROM usuarios WHERE correo IN ('qa_t4@test.com','qa_t5@test.com','qa_t6@test.com')")
+
+    q("INSERT INTO tiendas (nombre_negocio) VALUES ('QA Destino')")
+    destino = q("SELECT LAST_INSERT_ID() AS id")[0]["id"]
+    t1 = q("SELECT id_usuario FROM usuarios WHERE correo='qa_t1@test.com'")[0]["id_usuario"]
+    url1 = f"/api/master/usuarios/{t1}"
+    check(client.put(url1, json={"nombre": "QA", "rol": "Cajero", "id_tienda": destino}), 200)
+    assert tienda_de("qa_t1@test.com") == destino
+    check(client.put(url1, json={"nombre": "QA", "rol": "Cajero"}), 200)                # sin la clave: no cambia
+    assert tienda_de("qa_t1@test.com") == destino
+    check(client.put(url1, json={"nombre": "QA", "rol": "Cajero", "id_tienda": ""}), 200)
+    assert tienda_de("qa_t1@test.com") is None
+    check(client.put(url1, json={"nombre": "QA", "rol": "Cajero", "id_tienda": 2}), 400, "tienda")
+    # Correo editable, validado y sin duplicados
+    check(client.put(url1, json={"nombre": "QA", "rol": "Cajero", "correo": "QA_T1_Nuevo@Test.com"}), 200)
+    assert q("SELECT correo FROM usuarios WHERE id_usuario=%s", (t1,))[0]["correo"] == "qa_t1_nuevo@test.com"
+    check(client.put(url1, json={"nombre": "QA", "rol": "Cajero", "correo": "qa_uno@test.com"}), 409, "correo")
+    check(client.put(url1, json={"nombre": "QA", "rol": "Cajero", "correo": "no-es-correo"}), 400, "correo")
+    # El unico Admin no se va de su tienda; el Master conserva la suya (y su sesion)
+    check(client.put("/api/master/usuarios/6", json={"nombre": "A", "cc": "9990098", "rol": "Admin", "id_tienda": destino}), 400, "unico Admin")
+    assert tienda_de(q("SELECT correo FROM usuarios WHERE id_usuario=6")[0]["correo"]) == 4
+    check(client.put("/api/master/usuarios/1", json={"nombre": "Juanes", "cc": "9990097", "rol": "Master", "id_tienda": destino}), 200)
+    assert q("SELECT id_tienda FROM usuarios WHERE id_usuario=1")[0]["id_tienda"] == 1
+    assert client.get("/api/master/usuarios").status_code == 200, "la sesion del Master sigue viva"
+    # Una vez registrada, la CC de una cuenta antigua tambien queda bloqueada
+    check(client.put("/api/master/usuarios/1", json={"nombre": "Juanes", "cc": "9990096", "rol": "Master"}), 400, "no se puede modificar")
+
+    # 8) Finanzas del SaaS
+    def mov(**d):
+        return client.post("/api/master/movimientos", json=d)
+
+    hoy = date.today()
+    antes = core._get_master_resumen()
+    check(mov(tipo="Ingreso", concepto="Mensualidad QA", monto=65000), 200, "Ingreso")
+    check(mov(tipo="Gasto", concepto="Hosting QA", monto=100000, fecha=hoy.isoformat()), 200)
+    check(mov(tipo="Otro", concepto="x", monto=1), 400, "Tipo")
+    check(mov(tipo="Gasto", concepto="", monto=5), 400, "concepto")
+    check(mov(tipo="Gasto", concepto="x", monto=0), 400, "monto")
+    check(mov(tipo="Gasto", concepto="x", monto="NaN"), 400, "monto")
+    check(mov(tipo="Gasto", concepto="x", monto=5, fecha=(hoy + timedelta(days=1)).isoformat()), 400, "futura")
+    check(mov(tipo="Gasto", concepto="x", monto=5, fecha="2026-13-01"), 400, "Fecha")
+    despues = core._get_master_resumen()
+
+    def pesos(texto):
+        return int(texto.replace("$", "").replace(".", ""))
+
+    assert pesos(despues["ingresos_mes"]) - pesos(antes["ingresos_mes"]) == 65000, despues
+    assert pesos(despues["gastos_mes"]) - pesos(antes["gastos_mes"]) == 100000, despues
+    panel = client.get("/panel-master").get_data(as_text=True)
+    assert "Mensualidad QA" in panel and "+$65.000" in panel and "−$100.000" in panel
+    id_mov = q("SELECT id_movimiento FROM master_movimientos WHERE concepto='Hosting QA'")[0]["id_movimiento"]
+    login(6, 4, "Admin")
+    check(mov(tipo="Ingreso", concepto="x", monto=1), 403)
+    check(client.delete(f"/api/master/movimientos/{id_mov}"), 403)
+    login(1, 1, "Master")
+    check(client.delete(f"/api/master/movimientos/{id_mov}"), 200)
+    check(client.delete(f"/api/master/movimientos/{id_mov}"), 404)
+
+    # 9) Paginacion
+    for i in range(12):
+        q("INSERT INTO tiendas (nombre_negocio, estado_suscripcion, fecha_fin_suscripcion) "
+          "VALUES (%s, 'activa', CURDATE() + INTERVAL 2 DAY)", (f"ZZ QA Pag {i:02d}",))
+    total_t = q("SELECT COUNT(*) n FROM tiendas WHERE estado <> 'Eliminado'")[0]["n"]
+    total_v = q("SELECT COUNT(*) n FROM tiendas WHERE estado <> 'Eliminado' AND fecha_fin_suscripcion IS NOT NULL "
+                "AND fecha_fin_suscripcion <= CURDATE() + INTERVAL 5 DAY")[0]["n"]
+    pags_t, pags_v = math.ceil(total_t / 10), math.ceil(total_v / 5)
+
+    def seccion(html, ancla):
+        return re.search(rf'<section id="{ancla}".*?</section>', html, re.S).group(0)
+
+    def filas(html, ancla):  # cada tienda sale dos veces: tarjeta movil + fila de tabla
+        return seccion(html, ancla).count("data-tienda-row=") // 2
+
+    html = client.get("/panel-master").get_data(as_text=True)
+    assert filas(html, "tiendas") == 10 and filas(html, "vencer") == 5
+    assert f"1 / {pags_t}" in seccion(html, "tiendas") and f"1 / {pags_v}" in seccion(html, "vencer")
+    enlace = re.search(r'href="([^"]*pt=2[^"]*)"', seccion(html, "tiendas")).group(1)
+    assert "pv=1" in enlace and "pm=1" in enlace and enlace.endswith("#tiendas"), enlace
+    html = client.get("/panel-master?pt=2&pv=2").get_data(as_text=True)
+    assert filas(html, "tiendas") == min(10, total_t - 10) and filas(html, "vencer") == min(5, total_v - 5)
+    enlace = re.search(r'href="([^"]*pv=1[^"]*)"', seccion(html, "vencer")).group(1)
+    assert "pt=2" in enlace, "moverse en un listado conserva la pagina del otro"
+    html = client.get("/panel-master?pt=999&pv=-4&pm=xyz").get_data(as_text=True)
+    assert f"{pags_t} / {pags_t}" in seccion(html, "tiendas"), "pagina fuera de rango -> la ultima"
+    assert filas(html, "vencer") == 5
+    # Usuarios: paginado y buscable en el servidor
+    r = client.get("/api/master/usuarios?limit=2&page=2").get_json()
+    assert r["meta"]["page"] == 2 and len(r["usuarios"]) == 2 and r["meta"]["has_prev"], r["meta"]
+    r = client.get("/api/master/usuarios?limit=2&page=999").get_json()
+    assert r["meta"]["page"] == r["meta"]["pages"], r["meta"]
+    r = client.get("/api/master/usuarios?q=qa_t1_nuevo").get_json()
+    assert [u["correo"] for u in r["usuarios"]] == ["qa_t1_nuevo@test.com"], r
+    r = client.get("/api/master/usuarios?q=9990101").get_json()          # la CC no se ve, pero se busca
+    assert r["meta"]["total"] == 1, r
+    # Sin columna CC en la tabla del modal
+    modal = re.search(r'id="modal-gestion-usuarios".*?</table>', html, re.S).group(0)
+    assert ">CC<" not in modal and "Cedula" not in modal
+    js = open(os.path.join(RAIZ, "static", "js", "panel_master.js"), encoding="utf-8").read()
+    assert "Sin CC" not in js and "$('usr-cc').disabled = ccBloqueada;" in js
 
     print("OK check_panel_master: todos los casos pasan.")
 finally:

@@ -1,7 +1,9 @@
 /* ============================================================
    Ruta: static/js/clientes-proveer.js
-   Pantalla: Clientes a Proveer (B2B) — dashboard comercial y
-             listas de precios mayoristas.
+   Pantalla: Mayorista — clientes mayoristas (B2B) y su dashboard
+             comercial. Las compras que alimentan los indicadores se
+             registran en Venta Mayorista (/pos/venta-mayorista), con el
+             precio mayorista fijo de cada producto.
    Depende de: cop-format.js y toast.js (cargados antes en el HTML)
 
    La pantalla completa es Admin/Master: el backend revalida el rol
@@ -16,21 +18,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
   /* ── Estado ──────────────────────────────────────────────── */
   let clientes = [];
-  let listas   = [];
-  let detalle  = null;   /* cliente abierto en el modal de dashboard */
-  let editandoLista = null;
   let editandoCliente = null;
-  let pendingConfirm = null;
   let searchQuery = '';
-  let activeTab = 'clientes';
   let sortCol = null;
   let sortDir = 'asc';
 
   /* ── DOM ─────────────────────────────────────────────────── */
   const searchInput = document.getElementById('b2b-search');
-  const tabButtons  = Array.from(document.querySelectorAll('.fiad-tab'));
-  const panelClientes = document.getElementById('panel-clientes');
-  const panelListas   = document.getElementById('panel-listas');
 
   const statComprado = document.getElementById('stat-comprado');
   const statTicket   = document.getElementById('stat-ticket');
@@ -40,41 +34,20 @@ document.addEventListener('DOMContentLoaded', () => {
   const b2bBody  = document.getElementById('b2b-table-body');
   const b2bEmpty = document.getElementById('b2b-empty');
 
-  const listasCards = document.getElementById('listas-cards');
-  const listasBody  = document.getElementById('listas-table-body');
-  const listasEmpty = document.getElementById('listas-empty');
-
   const modalDetalle = document.getElementById('modal-b2b-detalle');
   const modalB2b     = document.getElementById('modal-b2b');
-  const modalLista   = document.getElementById('modal-lista');
-  const modalConfirm = document.getElementById('modal-confirm');
-  const modales = [modalDetalle, modalB2b, modalLista, modalConfirm];
+  const modales = [modalDetalle, modalB2b];
 
   const detalleNombre = document.getElementById('b2b-detalle-nombre');
   const detalleKpis   = document.getElementById('b2b-detalle-kpis');
   const detalleTop    = document.getElementById('b2b-detalle-top');
-  const detalleLista  = document.getElementById('b2b-detalle-lista');
-  const detalleHint   = document.getElementById('b2b-detalle-lista-hint');
-  const btnListaSave  = document.getElementById('btn-b2b-lista-save');
 
   const b2bNombre = document.getElementById('b2b-nombre');
   const b2bTelefono = document.getElementById('b2b-telefono');
   const b2bNit = document.getElementById('b2b-nit');
-  const b2bListaSel = document.getElementById('b2b-lista');
   const b2bError = document.getElementById('b2b-error');
   const b2bErrorText = document.getElementById('b2b-error-text');
   const btnB2bConfirm = document.getElementById('btn-b2b-confirm');
-
-  const listaNombre = document.getElementById('lista-nombre');
-  const listaPct = document.getElementById('lista-pct');
-  const listaMin = document.getElementById('lista-min');
-  const listaError = document.getElementById('lista-error');
-  const listaErrorText = document.getElementById('lista-error-text');
-  const btnListaConfirm = document.getElementById('btn-lista-confirm');
-
-  const confirmTarget = document.getElementById('confirm-target');
-  const confirmText = document.getElementById('confirm-text');
-  const btnConfirmYes = document.getElementById('btn-confirm-yes');
 
   /* ══════════════════════════════════════════════════════════
      UTILIDADES
@@ -104,12 +77,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if (dias == null) return 'Sin historial';
     if (dias === 0) return 'Mismo dia';
     return `Cada ${dias} d`;
-  }
-
-  function listaTexto(lista) {
-    if (!lista || !lista.id) return 'Sin lista';
-    const desde = lista.min_pedidos > 0 ? ` desde pedido ${Number(lista.min_pedidos)}` : '';
-    return `${lista.nombre} -${Number(lista.descuento_pct)}%${desde}`;
   }
 
   function notify(msg, type) {
@@ -163,48 +130,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const getJson  = (url) => sendJson('GET', url);
   const postJson = (url, payload) => sendJson('POST', url, payload);
-  const putJson  = (url, payload) => sendJson('PUT', url, payload);
 
   async function loadClientes() {
     const data = await getJson('/pos/api/b2b/clientes');
     if (!data) return;
-    if (!data.ok) { notify('Error al cargar clientes B2B.', 'error'); return; }
+    if (!data.ok) { notify('Error al cargar clientes mayoristas.', 'error'); return; }
     clientes = data.clientes || [];
-    listas = data.listas || [];
-    renderSelectListas();
     renderClientes();
-    renderListas();
   }
-
-  /* ══════════════════════════════════════════════════════════
-     PESTANAS
-     ══════════════════════════════════════════════════════════ */
-  function setTab(tab) {
-    activeTab = tab;
-    tabButtons.forEach(btn => {
-      const on = btn.dataset.tab === tab;
-      btn.classList.toggle('active', on);
-      btn.setAttribute('aria-selected', on ? 'true' : 'false');
-    });
-    panelClientes.classList.toggle('hidden', tab !== 'clientes');
-    panelListas.classList.toggle('hidden', tab !== 'listas');
-    searchInput.value = '';
-    searchQuery = '';
-    searchInput.placeholder = tab === 'clientes'
-      ? 'Buscar empresa, NIT o telefono...'
-      : 'Buscar lista...';
-    if (tab === 'clientes') renderClientes(); else renderListas();
-  }
-
-  tabButtons.forEach(btn => btn.addEventListener('click', () => setTab(btn.dataset.tab)));
 
   searchInput.addEventListener('input', () => {
     searchQuery = searchInput.value.trim().toLowerCase();
-    if (activeTab === 'clientes') renderClientes(); else renderListas();
+    renderClientes();
   });
 
   /* ══════════════════════════════════════════════════════════
-     CLIENTES B2B
+     CLIENTES MAYORISTAS
      ══════════════════════════════════════════════════════════ */
   function renderStats(lista) {
     const comprado = lista.reduce((s, c) => s + Number(c.comprado || 0), 0);
@@ -232,7 +173,6 @@ document.addEventListener('DOMContentLoaded', () => {
         <div class="fiad-card-info">
           <div class="fiad-card-name">${esc(c.name)} <span class="fiad-badge fiad-badge-b2b">B2B</span></div>
           <div class="fiad-card-phone">${esc(c.phone)}${c.nit ? ' · NIT ' + esc(c.nit) : ''}</div>
-          <span class="fiad-mora ${c.lista.id ? 'ok' : 'warn'}">${esc(listaTexto(c.lista))}</span>
         </div>
         <div class="fiad-card-debt">
           <div class="fiad-debt-tag">${money(c.ticket_promedio)}</div>
@@ -258,7 +198,6 @@ document.addEventListener('DOMContentLoaded', () => {
       <td>${Number(c.pedidos || 0)}</td>
       <td><span class="fiad-td-debt">${money(c.ticket_promedio)}</span></td>
       <td>${esc(frecuenciaTexto(c.frecuencia_dias))}</td>
-      <td><span class="fiad-mora ${c.lista.id ? 'ok' : 'warn'}">${esc(listaTexto(c.lista))}</span></td>
       <td><div class="fiad-table-actions">${accionesClienteHTML()}</div></td>
     </tr>`;
   }
@@ -334,7 +273,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!data) return;
     if (!data.ok) { notify(data.msg || 'No se pudo cargar el cliente.', 'error'); return; }
 
-    detalle = data.cliente;
+    const detalle = data.cliente;
     detalleNombre.textContent = detalle.name;
 
     const kpis = [
@@ -362,60 +301,19 @@ document.addEventListener('DOMContentLoaded', () => {
         </li>`).join('')
       : '<li class="fiad-toplist-empty">Todavia no hay compras registradas</li>';
 
-    detalleLista.value = detalle.lista.id ? String(detalle.lista.id) : '';
-    actualizarHintLista();
     openModal(modalDetalle);
   }
 
-  function actualizarHintLista() {
-    const id = detalleLista.value;
-    const lista = listas.find(l => String(l.id) === id);
-    if (!lista) {
-      detalleHint.textContent = 'Sin descuento automatico: se cobra el precio normal.';
-      return;
-    }
-    detalleHint.textContent = lista.min_pedidos > 0
-      ? `-${Number(lista.descuento_pct)}% automatico desde el pedido ${Number(lista.min_pedidos)}.`
-      : `-${Number(lista.descuento_pct)}% automatico en todos los pedidos.`;
-  }
-
-  detalleLista.addEventListener('change', actualizarHintLista);
-
-  btnListaSave.addEventListener('click', async () => {
-    if (!detalle) return;
-    btnListaSave.disabled = true;
-    const data = await putJson(`/pos/api/b2b/clientes/${detalle.id}/lista`, {
-      id_lista: detalleLista.value || null,
-    });
-    btnListaSave.disabled = false;
-    if (!data) return;
-    if (!data.ok) { notify(data.msg || 'No se pudo asignar la lista.', 'error'); return; }
-    await loadClientes();
-    closeModal(modalDetalle);
-    notify('Lista mayorista actualizada', 'success');
-  });
-
   /* ══════════════════════════════════════════════════════════
-     MODAL — CLIENTE B2B
+     MODAL — CLIENTE MAYORISTA
      ══════════════════════════════════════════════════════════ */
-  function renderSelectListas() {
-    const opciones = '<option value="">Sin lista (precio normal)</option>'
-      + listas.map(l => `<option value="${Number(l.id)}">${esc(l.nombre)} (-${Number(l.descuento_pct)}%)</option>`).join('');
-    [b2bListaSel, detalleLista].forEach(sel => {
-      const previo = sel.value;
-      sel.innerHTML = opciones;
-      sel.value = previo;
-    });
-  }
-
   function abrirModalCliente(cliente) {
     editandoCliente = cliente || null;
     document.getElementById('modal-b2b-title').textContent =
-      cliente ? 'Editar Cliente B2B' : 'Nuevo Cliente B2B';
+      cliente ? 'Editar cliente mayorista' : 'Nuevo cliente mayorista';
     b2bNombre.value = cliente ? cliente.name : '';
     b2bTelefono.value = cliente ? String(cliente.phone || '').replace(/\D/g, '') : '';
     b2bNit.value = cliente ? (cliente.nit || '') : '';
-    b2bListaSel.value = cliente && cliente.lista.id ? String(cliente.lista.id) : '';
     hideBox(b2bError, b2bErrorText);
     openModal(modalB2b);
     b2bNombre.focus();
@@ -445,7 +343,6 @@ document.addEventListener('DOMContentLoaded', () => {
       nombre,
       telefono,
       nit: b2bNit.value.trim(),
-      id_lista: b2bListaSel.value || null,
     });
     btnB2bConfirm.disabled = false;
     if (!data) return;
@@ -453,153 +350,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     await loadClientes();
     closeModal(modalB2b);
-    notify(editandoCliente ? 'Cliente actualizado' : 'Cliente B2B creado', 'success');
-  });
-
-  /* ══════════════════════════════════════════════════════════
-     LISTAS MAYORISTAS
-     ══════════════════════════════════════════════════════════ */
-  function accionesListaHTML() {
-    return `
-      <button class="fiad-action-btn btn-abonar" data-lista="editar" aria-label="Editar lista">
-        <i class="fa-solid fa-pen"></i> Editar
-      </button>
-      <button class="fiad-action-btn btn-borrar" data-lista="eliminar" aria-label="Eliminar lista">
-        <i class="fa-solid fa-trash-can"></i> Eliminar
-      </button>`;
-  }
-
-  function desdeTexto(l) {
-    return l.min_pedidos > 0 ? `Pedido ${Number(l.min_pedidos)}` : 'Primer pedido';
-  }
-
-  function buildListaCard(l) {
-    return `
-    <div class="fiad-card" data-lista-id="${Number(l.id)}">
-      <div class="fiad-card-top">
-        <div class="fiad-avatar fiad-avatar-cxp"><i class="fa-solid fa-tags"></i></div>
-        <div class="fiad-card-info">
-          <div class="fiad-card-name">${esc(l.nombre)}</div>
-          <div class="fiad-card-phone">${esc(desdeTexto(l))} · ${Number(l.clientes || 0)} cliente(s)</div>
-        </div>
-        <div class="fiad-card-debt">
-          <div class="fiad-debt-tag at-zero">-${Number(l.descuento_pct)}%</div>
-        </div>
-      </div>
-      <div class="fiad-card-actions">${accionesListaHTML()}</div>
-    </div>`;
-  }
-
-  function buildListaRow(l) {
-    return `
-    <tr data-lista-id="${Number(l.id)}">
-      <td><div class="fiad-td-name">${esc(l.nombre)}</div></td>
-      <td><span class="fiad-td-debt at-zero">-${Number(l.descuento_pct)}%</span></td>
-      <td>${esc(desdeTexto(l))}</td>
-      <td>${Number(l.clientes || 0)}</td>
-      <td><div class="fiad-table-actions">${accionesListaHTML()}</div></td>
-    </tr>`;
-  }
-
-  function renderListas() {
-    const q = searchQuery;
-    const filtradas = q
-      ? listas.filter(l => String(l.nombre || '').toLowerCase().includes(q))
-      : listas;
-
-    listasCards.innerHTML = filtradas.map(buildListaCard).join('');
-    listasBody.innerHTML = filtradas.map(buildListaRow).join('');
-
-    const vacio = filtradas.length === 0;
-    listasEmpty.classList.toggle('hidden', !vacio);
-    listasCards.classList.toggle('hidden', vacio);
-  }
-
-  [listasCards, listasBody].forEach(host => {
-    host.addEventListener('click', e => {
-      const btn = e.target.closest('[data-lista]');
-      if (!btn) return;
-      const row = btn.closest('[data-lista-id]');
-      if (!row) return;
-      const lista = listas.find(l => l.id === parseInt(row.dataset.listaId, 10));
-      if (!lista) return;
-      if (btn.dataset.lista === 'editar') abrirModalLista(lista);
-      if (btn.dataset.lista === 'eliminar') confirmarEliminarLista(lista);
-    });
-  });
-
-  function abrirModalLista(lista) {
-    editandoLista = lista || null;
-    document.getElementById('modal-lista-title').textContent =
-      lista ? 'Editar Lista Mayorista' : 'Nueva Lista Mayorista';
-    listaNombre.value = lista ? lista.nombre : '';
-    listaPct.value = lista ? lista.descuento_pct : '';
-    listaMin.value = lista ? lista.min_pedidos : 0;
-    hideBox(listaError, listaErrorText);
-    openModal(modalLista);
-    listaNombre.focus();
-  }
-
-  document.getElementById('btn-new-lista').addEventListener('click', () => abrirModalLista(null));
-
-  btnListaConfirm.addEventListener('click', async () => {
-    const nombre = listaNombre.value.trim();
-    const pct = Number(listaPct.value);
-    const min = listaMin.value === '' ? 0 : Number(listaMin.value);
-
-    if (!nombre) { showBox(listaError, listaErrorText, 'El nombre es requerido.'); shake(listaNombre); return; }
-    if (!Number.isFinite(pct) || pct < 0 || pct > 100) {
-      showBox(listaError, listaErrorText, 'El descuento debe ser un numero entre 0 y 100.');
-      shake(listaPct);
-      return;
-    }
-    if (!Number.isInteger(min) || min < 0 || min > 999) {
-      showBox(listaError, listaErrorText, 'Los pedidos minimos deben ser un entero entre 0 y 999.');
-      shake(listaMin);
-      return;
-    }
-    hideBox(listaError, listaErrorText);
-
-    const payload = { nombre, descuento_pct: pct, min_pedidos: min };
-    btnListaConfirm.disabled = true;
-    const data = editandoLista
-      ? await putJson(`/pos/api/b2b/listas/${editandoLista.id}`, payload)
-      : await postJson('/pos/api/b2b/listas', payload);
-    btnListaConfirm.disabled = false;
-    if (!data) return;
-    if (!data.ok) { showBox(listaError, listaErrorText, data.msg || 'No se pudo guardar.'); return; }
-
-    await loadClientes();
-    closeModal(modalLista);
-    notify(editandoLista ? 'Lista actualizada' : 'Lista creada', 'success');
-  });
-
-  function confirmarEliminarLista(lista) {
-    confirmTarget.textContent = lista.nombre;
-    confirmText.textContent = lista.clientes > 0
-      ? `${Number(lista.clientes)} cliente(s) quedaran sin descuento mayorista. Las ventas ya cobradas no cambian.`
-      : 'La lista deja de estar disponible. Las ventas ya cobradas no cambian.';
-    document.getElementById('modal-confirm-title').textContent = 'Eliminar lista';
-    pendingConfirm = async () => {
-      const data = await sendJson('DELETE', `/pos/api/b2b/listas/${lista.id}`);
-      if (!data) return;
-      if (!data.ok) { notify(data.msg || 'No se pudo eliminar.', 'error'); return; }
-      await loadClientes();
-      notify('Lista eliminada', 'success');
-    };
-    openModal(modalConfirm);
-  }
-
-  btnConfirmYes.addEventListener('click', async () => {
-    const accion = pendingConfirm;
-    if (!accion) return;
-    btnConfirmYes.disabled = true;
-    try {
-      await accion();
-    } finally {
-      btnConfirmYes.disabled = false;
-      closeModal(modalConfirm);
-    }
+    notify(editandoCliente ? 'Cliente actualizado' : 'Cliente mayorista creado', 'success');
   });
 
   /* ══════════════════════════════════════════════════════════
@@ -613,10 +364,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function closeModal(m) {
     m.classList.add('hidden');
     document.body.style.overflow = '';
-    if (m === modalDetalle) detalle = null;
-    if (m === modalLista) editandoLista = null;
     if (m === modalB2b) editandoCliente = null;
-    if (m === modalConfirm) pendingConfirm = null;
   }
 
   document.querySelectorAll('[data-close]').forEach(btn => {

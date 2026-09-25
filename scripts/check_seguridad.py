@@ -11,6 +11,8 @@ Cajero id=8) y necesita una tienda con turno abierto y un producto activo.
   4) Fuerza bruta: limite por IP y por cuenta; login sin enumeracion.
   5) Token de reset inservible tras cambiar la contrasena.
   6) Error 500 sin traza; correo con HTML rechazado; cookie Secure/HttpOnly.
+  7) El Cajero edita productos pero no su precio de venta (403 aunque lo
+     mande por consola); el Admin si. NaN no pasa como precio.
 
     python scripts/check_seguridad.py
 """
@@ -140,7 +142,7 @@ try:
     # ── 3) Sesion, rol y suscripcion desde la base ──────────
     with app.test_client() as c:
         sesion(c, 8, 4, "Admin")  # 8 es Cajero: la sesion miente sobre el rol
-        assert c.get("/pos/api/b2b/listas", headers=XHR).status_code == 403
+        assert c.get("/pos/api/b2b/clientes", headers=XHR).status_code == 403
         sesion(c, 8, 1, "Cajero")  # tienda falsa
         assert c.get("/pos/api/turno/estado", headers=XHR).status_code == 401
         sesion(c, 8, 4, "Cajero")
@@ -203,6 +205,33 @@ try:
     )
     assert prod.stdout.split() == ["True", "True", "False"], (prod.stdout, prod.stderr[-500:])
     print("OK 6: 500 generico, correo con HTML rechazado, cookie Secure+HttpOnly en produccion")
+
+    # ── 7) Precio de venta bloqueado para el Cajero ─────────
+    q("UPDATE tiendas SET fecha_fin_suscripcion = NULL WHERE id_tienda = 4")  # la vencio el paso 3
+    pid = inventory_service.create_producto(4, 6, "QA Precio", "QA", 1000, 2500, 5, None)
+
+    def precio_de(id_prod):
+        return float(q("SELECT precio_venta FROM productos WHERE id_producto=%s", (id_prod,))[0]["precio_venta"])
+
+    base_put = {"nombre": "QA Precio", "categoria": "QA", "costo": 1000, "stock": 7, "stock_min": 1}
+    with app.test_client() as c:
+        sesion(c, 8, 4, "Cajero")
+        for url in (f"/api/inventario/{pid}", f"/inventario/api/productos/{pid}"):
+            r = c.put(url, json={**base_put, "venta": 1})
+            assert r.status_code == 403 and "administrador" in r.get_json()["msg"], (r.status_code, r.get_json())
+        assert c.put(f"/api/inventario/{pid}", json={**base_put, "venta": "NaN"}).status_code == 400
+        assert precio_de(pid) == 2500
+        # Sin precio (lo que manda su formulario) o con el mismo: edita el resto.
+        assert c.put(f"/api/inventario/{pid}", json=base_put).status_code == 200
+        assert c.put(f"/api/inventario/{pid}", json={**base_put, "venta": 2500}).status_code == 200
+        fila = q("SELECT precio_venta, stock_actual FROM productos WHERE id_producto=%s", (pid,))[0]
+        assert float(fila["precio_venta"]) == 2500 and float(fila["stock_actual"]) == 7, fila
+        sesion(c, 6, 4, "Admin")
+        assert c.put(f"/api/inventario/{pid}", json={**base_put, "venta": 3000}).status_code == 200
+        assert precio_de(pid) == 3000
+    js = open(os.path.join(RAIZ, "static", "js", "inventario.js"), encoding="utf-8").read()
+    assert "fSale.disabled = esCajero;" in js and "venta: fSale.disabled ? undefined : sale" in js
+    print("OK 7: Cajero sin cambio de precio (403 por API), Admin si, NaN rechazado")
 finally:
     conn.rollback()
     conn.close()

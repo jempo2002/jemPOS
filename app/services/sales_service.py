@@ -4,6 +4,7 @@ from datetime import date, datetime, timedelta
 
 from mysql.connector import IntegrityError
 
+from app.services.inventory_service import UNIDADES_FRACCIONABLES
 from app.utils.helpers import normalize_payment_method, only_digits
 from app.utils.validation import parse_float, parse_int, sanitize_optional_text, sanitize_text
 from database import get_db
@@ -126,60 +127,6 @@ def get_money_flow_summary(id_tienda: int, since: datetime, until: datetime) -> 
     return {
         "entradas": entradas,
         "salidas": salidas,
-    }
-
-
-def get_dashboard_financial_summary(id_tienda: int, since: datetime, until: datetime) -> dict:
-    flow = get_money_flow_summary(id_tienda, since, until)
-    ventas = float(flow["entradas"])
-    gastos = float(flow["salidas"])
-
-    conn = get_db()
-    try:
-        cur = conn.cursor(dictionary=True)
-
-        cur.execute(
-            "SELECT DATE(v.fecha_creacion) AS d, COALESCE(SUM(v.total_final),0) AS total "
-            "FROM ventas v "
-            "WHERE v.id_tienda=%s AND v.estado_venta='Pagada' "
-            "AND v.fecha_creacion >= %s AND v.fecha_creacion < %s "
-            "GROUP BY DATE(v.fecha_creacion) "
-            "ORDER BY DATE(v.fecha_creacion)",
-            (id_tienda, since, until),
-        )
-        ingresos_por_dia = {r["d"]: float(r["total"] or 0) for r in cur.fetchall()}
-
-        cur.execute(
-            "SELECT DATE(g.fecha_creacion) AS d, COALESCE(SUM(g.monto),0) AS total "
-            "FROM gastos_caja g "
-            "WHERE g.id_tienda=%s AND g.fecha_creacion >= %s AND g.fecha_creacion < %s "
-            "GROUP BY DATE(g.fecha_creacion) "
-            "ORDER BY DATE(g.fecha_creacion)",
-            (id_tienda, since, until),
-        )
-        gastos_por_dia = {r["d"]: float(r["total"] or 0) for r in cur.fetchall()}
-    finally:
-        conn.close()
-
-    chart_labels: list[str] = []
-    chart_ingresos: list[float] = []
-    chart_gastos: list[float] = []
-    d = since.date()
-    end_day = until.date()
-    while d <= end_day:
-        chart_labels.append(d.strftime("%d/%m"))
-        chart_ingresos.append(ingresos_por_dia.get(d, 0.0))
-        chart_gastos.append(gastos_por_dia.get(d, 0.0))
-        d += timedelta(days=1)
-
-    return {
-        "ventas": ventas,
-        "gastos": gastos,
-        "chart": {
-            "labels": chart_labels,
-            "ingresos": chart_ingresos,
-            "gastos": chart_gastos,
-        },
     }
 
 
@@ -411,7 +358,7 @@ def _resolver_cliente_fiado(cur, id_tienda: int, cliente) -> int:
 # FILTROS TEMPORALES Y PAGINACION (Ventas y Gastos)
 # ══════════════════════════════════════════════════════════════
 
-PERIODOS = ("hoy", "ayer", "semana", "mes", "todas")
+PERIODOS = ("hoy", "ayer", "semana", "mes", "anio", "todas")
 
 
 def periodo_bounds(filtro: str | None, fecha: str | None = None) -> tuple[str, datetime | None, datetime | None]:
@@ -454,6 +401,8 @@ def periodo_bounds(filtro: str | None, fecha: str | None = None) -> tuple[str, d
     if filtro == "semana":
         # Semana corrida desde el lunes, igual que el filtro del dashboard.
         return "semana", hoy - timedelta(days=hoy.weekday()), manana
+    if filtro == "anio":
+        return "anio", hoy.replace(month=1, day=1), manana
     return "mes", hoy.replace(day=1), manana
 
 
@@ -493,11 +442,13 @@ def get_ventas(
     fecha: str | None = None,
     page=1,
     limit=20,
+    id_cajero: int | None = None,
 ) -> tuple[list[dict], str, dict]:
     """Pagina del historial de ventas + filtro aplicado + metadatos del paginador.
 
     El Cajero sigue viendo solo sus propias ventas de las ultimas 24 horas: las
-    capsulas y el buscador de fecha se ignoran para ese rol.
+    capsulas y el buscador de fecha se ignoran para ese rol. Admin/Master
+    pueden acotar a un trabajador con `id_cajero` (modal del Panel de Control).
     """
     page, limit = paginacion(page, limit)
 
@@ -515,6 +466,9 @@ def get_ventas(
         if desde is not None:
             condiciones.append("v.fecha_creacion >= %s AND v.fecha_creacion < %s")
             parametros.extend([desde, hasta])
+        if id_cajero is not None:
+            condiciones.append("v.id_cajero = %s")
+            parametros.append(id_cajero)
     else:
         return [], "mes", _meta_paginacion(0, 1, limit)
 
@@ -528,7 +482,7 @@ def get_ventas(
 
         meta = _meta_paginacion(total, page, limit)
         cur.execute(
-            "SELECT v.id_venta, v.total_final, v.estado_venta, v.fecha_creacion, "
+            "SELECT v.id_venta, v.numero_venta, v.metodo_pago, v.total_final, v.estado_venta, v.fecha_creacion, "
             "COALESCE(c.nombre, 'Mostrador') AS nombre_cliente, "
             "u.nombre_completo AS nombre_cajero "
             "FROM ventas v "
@@ -550,10 +504,96 @@ def get_ventas(
             "fecha_creacion": fila.get("fecha_creacion"),
             "nombre_cliente": fila.get("nombre_cliente") or "Mostrador",
             "nombre_cajero": fila.get("nombre_cajero") or "Sin cajero",
+            "metodo_pago": _metodo_visible(fila.get("numero_venta"), fila.get("metodo_pago")),
         }
         for fila in filas
     ]
     return lista, filtro_final, meta
+
+
+def get_totales_ventas(id_tienda: int, rol: str, id_usuario: int | None) -> dict:
+    """Tarjetas "Ventas de hoy" y "Ventas del mes" del historial.
+
+    Como en Gastos, se suman en SQL sobre todas las ventas y no sobre la pagina
+    ni la capsula: filtrar por Ayer no deja "hoy" en 0. Anuladas no cuentan;
+    los fiados si, son ventas hechas. El Cajero ve solo las suyas.
+    """
+    ahora = datetime.now()
+    inicio_dia = ahora.replace(hour=0, minute=0, second=0, microsecond=0)
+    inicio_mes = inicio_dia.replace(day=1)
+    fin_dia = inicio_dia + timedelta(days=1)
+
+    where = "v.id_tienda = %s AND v.estado_venta <> 'Anulada' AND v.fecha_creacion >= %s AND v.fecha_creacion < %s"
+    params: tuple = (id_tienda, inicio_mes, fin_dia)
+    if rol == "Cajero":
+        where += " AND v.id_cajero = %s"
+        params += (id_usuario,)
+    elif rol not in {"Admin", "Master"}:
+        return {"hoy": 0.0, "mes": 0.0}
+
+    conn = get_db()
+    try:
+        cur = conn.cursor(dictionary=True)
+        cur.execute(
+            "SELECT COALESCE(SUM(CASE WHEN v.fecha_creacion >= %s THEN v.total_final ELSE 0 END), 0) AS hoy, "
+            "       COALESCE(SUM(v.total_final), 0) AS mes "
+            f"FROM ventas v WHERE {where}",
+            (inicio_dia,) + params,
+        )
+        fila = cur.fetchone() or {}
+    finally:
+        conn.close()
+    return {"hoy": float(fila.get("hoy") or 0), "mes": float(fila.get("mes") or 0)}
+
+
+def get_resumen_ventas_cajero(id_tienda: int, id_cajero: int, filtro: str | None, fecha: str | None = None) -> dict:
+    """Cifras de un trabajador en el periodo del modal del Panel de Control.
+
+    Mismo reparto que get_rendimiento_personal: anuladas aparte; el fiado se
+    reconoce por el prefijo F del consecutivo (ver _metodo_visible) y lo que
+    no es fiado ni efectivo va a "otros" (Nequi, tarjeta, transferencia...).
+    """
+    _filtro, desde, hasta = periodo_bounds(filtro, fecha)
+    where = "v.id_tienda = %s AND v.id_cajero = %s"
+    params: tuple = (id_tienda, id_cajero)
+    if desde is not None:
+        where += " AND v.fecha_creacion >= %s AND v.fecha_creacion < %s"
+        params += (desde, hasta)
+
+    conn = get_db()
+    try:
+        cur = conn.cursor(dictionary=True)
+        cur.execute(
+            "SELECT COUNT(CASE WHEN v.estado_venta <> 'Anulada' THEN 1 END) AS cantidad, "
+            "       COUNT(CASE WHEN v.estado_venta = 'Anulada' THEN 1 END) AS anuladas, "
+            "       COALESCE(SUM(CASE WHEN v.estado_venta <> 'Anulada' THEN v.total_final END), 0) AS total, "
+            "       COALESCE(SUM(CASE WHEN v.estado_venta <> 'Anulada' "
+            "                          AND COALESCE(v.numero_venta, '') LIKE 'F%%' "
+            "                         THEN v.total_final END), 0) AS fiado, "
+            "       COALESCE(SUM(CASE WHEN v.estado_venta <> 'Anulada' "
+            "                          AND COALESCE(v.numero_venta, '') NOT LIKE 'F%%' "
+            "                          AND v.metodo_pago = 'Efectivo' "
+            "                         THEN v.total_final END), 0) AS efectivo "
+            f"FROM ventas v WHERE {where}",
+            params,
+        )
+        fila = cur.fetchone() or {}
+    finally:
+        conn.close()
+
+    cantidad = int(fila.get("cantidad") or 0)
+    total = float(fila.get("total") or 0)
+    fiado = float(fila.get("fiado") or 0)
+    efectivo = float(fila.get("efectivo") or 0)
+    return {
+        "cantidad": cantidad,
+        "anuladas": int(fila.get("anuladas") or 0),
+        "total": round(total, 2),
+        "efectivo": round(efectivo, 2),
+        "fiado": round(fiado, 2),
+        "otros": round(total - efectivo - fiado, 2),
+        "ticket_promedio": round(total / cantidad, 2) if cantidad else 0.0,
+    }
 
 
 def _resumen_turno(cur, id_tienda: int, turno: dict) -> dict:
@@ -666,6 +706,152 @@ def get_turno_estado(id_tienda: int) -> dict | None:
     }
 
 
+def _hora(valor) -> str | None:
+    return valor.strftime("%I:%M %p") if valor else None
+
+
+def get_rendimiento_personal(id_tienda: int, max_ventas: int = 30) -> list[dict]:
+    """Tarjetas del personal en el Panel de Control: lo de hoy, en vivo.
+
+    Por trabajador activo: el turno que abrio (el abierto, o si no el ultimo
+    de hoy), su hora y su base, el cuadre, y sus ventas de hoy con lo que
+    llevo cada una.
+
+    El turno es de la tienda (uno abierto a la vez) y lo firma quien lo abre,
+    asi que el cuadre va en la tarjeta de quien lo abrio y cuenta todo el
+    cajon. Sale de _resumen_turno, el mismo calculo del cierre: base + ventas
+    en efectivo + abonos en efectivo - gastos pagados con la base o la caja
+    menor. Abierto aun no hay conteo: "En curso" con lo esperado a esta hora.
+    Cerrado: contado - esperado; cuadrada solo si la diferencia es 0.
+    """
+    hoy = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+    conn = get_db()
+    try:
+        cur = conn.cursor(dictionary=True)
+        cur.execute(
+            "SELECT id_usuario, nombre_completo, rol FROM usuarios "
+            "WHERE id_tienda = %s AND estado_activo = 1 AND rol IN ('Admin', 'Cajero') "
+            "ORDER BY rol = 'Cajero' DESC, nombre_completo",
+            (id_tienda,),
+        )
+        usuarios = cur.fetchall() or []
+        if not usuarios:
+            return []
+
+        # Abiertos al final: el ultimo que se asigna por usuario es su turno
+        # abierto si lo tiene, y si no el mas reciente de hoy.
+        cur.execute(
+            "SELECT id_turno, id_usuario_apertura, fecha_apertura, fecha_cierre, monto_inicial, "
+            "       monto_final_esperado, monto_final_real, estado_turno "
+            "FROM turnos_caja "
+            "WHERE id_tienda = %s AND (estado_turno = 'Abierto' OR fecha_apertura >= %s) "
+            "ORDER BY estado_turno = 'Abierto', fecha_apertura",
+            (id_tienda, hoy),
+        )
+        turno_de = {t["id_usuario_apertura"]: t for t in cur.fetchall() or []}
+        cuadres = {uid: _resumen_turno(cur, id_tienda, t) for uid, t in turno_de.items()}
+
+        cur.execute(
+            "SELECT v.id_venta, v.id_cajero, v.numero_venta, v.metodo_pago, v.estado_venta, "
+            "       v.total_final, v.fecha_creacion, COALESCE(c.nombre, 'Mostrador') AS cliente "
+            "FROM ventas v "
+            "LEFT JOIN clientes c ON c.id_cliente = v.id_cliente AND c.id_tienda = v.id_tienda "
+            "WHERE v.id_tienda = %s AND v.fecha_creacion >= %s "
+            "ORDER BY v.id_venta DESC",
+            (id_tienda, hoy),
+        )
+        ventas = cur.fetchall() or []
+
+        cur.execute(
+            "SELECT dv.id_venta, dv.cantidad, dv.unidad_venta, p.nombre "
+            "FROM detalle_ventas dv "
+            "INNER JOIN ventas v ON v.id_venta = dv.id_venta "
+            "INNER JOIN productos p ON p.id_producto = dv.id_producto AND p.id_tienda = v.id_tienda "
+            "WHERE v.id_tienda = %s AND v.fecha_creacion >= %s "
+            "ORDER BY dv.id_detalle_venta",
+            (id_tienda, hoy),
+        )
+        items_de: dict[int, list[str]] = {}
+        for d in cur.fetchall() or []:
+            unidad = d.get("unidad_venta")
+            sufijo = f" {unidad}" if unidad and unidad != "Unidad" else ""
+            items_de.setdefault(d["id_venta"], []).append(
+                f"{float(d['cantidad']):g}{sufijo} x {d['nombre']}"
+            )
+
+        cur.execute(
+            "SELECT id_usuario, COALESCE(SUM(monto), 0) AS total FROM gastos_caja "
+            "WHERE id_tienda = %s AND fecha_creacion >= %s GROUP BY id_usuario",
+            (id_tienda, hoy),
+        )
+        gastos_de = {g["id_usuario"]: float(g["total"] or 0) for g in cur.fetchall() or []}
+    finally:
+        conn.close()
+
+    personal = []
+    for u in usuarios:
+        uid = u["id_usuario"]
+        suyas = [v for v in ventas if v["id_cajero"] == uid]
+        validas = [v for v in suyas if v["estado_venta"] != "Anulada"]
+        resumen = {"cantidad": len(validas), "total": 0.0, "efectivo": 0.0, "otros": 0.0,
+                   "fiado": 0.0, "anuladas": len(suyas) - len(validas)}
+        detalle = []
+        for v in suyas:
+            metodo = _metodo_visible(v["numero_venta"], v["metodo_pago"])
+            total = float(v["total_final"] or 0)
+            if v["estado_venta"] != "Anulada":
+                resumen["total"] += total
+                clave = "fiado" if metodo == "Fiado" else "efectivo" if metodo == "Efectivo" else "otros"
+                resumen[clave] += total
+            if len(detalle) < max_ventas:
+                detalle.append({
+                    "hora": _hora(v["fecha_creacion"]),
+                    "numero": v["numero_venta"] or f"#{v['id_venta']}",
+                    "cliente": v["cliente"],
+                    "metodo": metodo,
+                    "estado": v["estado_venta"],
+                    "total": total,
+                    "items": ", ".join(items_de.get(v["id_venta"], [])),
+                })
+
+        turno = None
+        t = turno_de.get(uid)
+        if t:
+            cuadre = cuadres[uid]
+            abierto = t["estado_turno"] == "Abierto"
+            contado = None if abierto or t["monto_final_real"] is None else float(t["monto_final_real"])
+            diferencia = None if contado is None else round(contado - cuadre["total_esperado"], 2)
+            turno = {
+                "abierto": abierto,
+                "apertura": _hora(t["fecha_apertura"]),
+                "cierre": _hora(t["fecha_cierre"]),
+                "base": cuadre["base"],
+                "ventas_efectivo": cuadre["ventas_efectivo"],
+                "abonos_efectivo": cuadre["abonos_efectivo"],
+                "gastos_de_caja": cuadre["gastos_de_caja"],
+                "gastos_de_base": cuadre["gastos_de_base"],
+                "esperado": cuadre["total_esperado"],
+                "contado": contado,
+                "diferencia": diferencia,
+                "estado": "En curso" if diferencia is None else "Cuadrada" if diferencia == 0 else "Descuadrada",
+            }
+
+        personal.append({
+            "id": uid,
+            "nombre": u["nombre_completo"],
+            "rol": u["rol"],
+            "en_turno": bool(turno and turno["abierto"]),
+            "turno": turno,
+            "ventas": {k: round(val, 2) if isinstance(val, float) else val for k, val in resumen.items()},
+            "ultima_venta": _hora(suyas[0]["fecha_creacion"]) if suyas else None,
+            "gastos_hoy": gastos_de.get(uid, 0.0),
+            "detalle": detalle,
+        })
+    # En turno primero, luego quien mas ha vendido hoy.
+    personal.sort(key=lambda p: (not p["en_turno"], -p["ventas"]["total"]))
+    return personal
+
+
 def abrir_turno(id_tienda: int, id_usuario: int, monto_inicial: float) -> int:
     try:
         id_tienda = parse_int(id_tienda, "Tienda", min_value=1)
@@ -758,41 +944,67 @@ def cerrar_turno(id_tienda: int, id_usuario: int, monto_final: float) -> dict:
     }
 
 
-def get_caja_productos(id_tienda: int, q: str) -> list[dict]:
+_COLUMNAS_CAJA = (
+    "SELECT id_producto, nombre, tipo, unidad_medida, codigo_barras, precio_venta, precio_mayorista, "
+    "empaque_nombre, empaque_cantidad, precio_empaque, stock_actual FROM productos "
+)
+
+
+def get_caja_productos(id_tienda: int, q: str, mayorista: bool = False) -> list[dict]:
+    """Resultados del buscador de Caja o de Venta Mayorista.
+
+    En mayorista solo salen los productos con precio mayorista fijo y ese es el
+    precio que viaja; sin empaque: al por mayor se vende por unidad de medida.
+    """
+    # Constante, no dato del usuario: el f-string no abre inyeccion.
+    solo_mayorista = "AND precio_mayorista > 0 " if mayorista else ""
     conn = get_db()
     try:
         cur = conn.cursor(dictionary=True)
         if q:
             cur.execute(
-                "SELECT id_producto, nombre, codigo_barras, precio_venta, stock_actual "
-                "FROM productos "
-                "WHERE id_tienda = %s AND estado_activo = 1 "
-                "AND (nombre LIKE %s OR codigo_barras = %s) "
+                _COLUMNAS_CAJA
+                + "WHERE id_tienda = %s AND estado_activo = 1 "
+                + solo_mayorista
+                + "AND (nombre LIKE %s OR codigo_barras = %s) "
                 "ORDER BY codigo_barras = %s DESC, nombre LIMIT 20",
                 (id_tienda, f"%{q}%", q, q),
             )
         else:
             cur.execute(
-                "SELECT id_producto, nombre, codigo_barras, precio_venta, stock_actual "
-                "FROM productos "
-                "WHERE id_tienda = %s AND estado_activo = 1 "
-                "ORDER BY nombre LIMIT 50",
+                _COLUMNAS_CAJA
+                + "WHERE id_tienda = %s AND estado_activo = 1 "
+                + solo_mayorista
+                + "ORDER BY nombre LIMIT 50",
                 (id_tienda,),
             )
         rows = cur.fetchall() or []
     finally:
         conn.close()
 
-    return [
-        {
-            "id": r["id_producto"],
-            "name": r["nombre"],
-            "barcode": r.get("codigo_barras") or "",
-            "price": float(r["precio_venta"]),
-            "stock": r["stock_actual"],
-        }
-        for r in rows
-    ]
+    productos = []
+    for r in rows:
+        empaque = None
+        if not mayorista and r["empaque_nombre"] and r["empaque_cantidad"] and r["precio_empaque"]:
+            empaque = {
+                "nombre": r["empaque_nombre"],
+                "cantidad": float(r["empaque_cantidad"]),
+                "price": float(r["precio_empaque"]),
+            }
+        productos.append(
+            {
+                "id": r["id_producto"],
+                "name": r["nombre"],
+                "barcode": r.get("codigo_barras") or "",
+                "price": float(r["precio_mayorista"] if mayorista else r["precio_venta"]),
+                "stock": float(r["stock_actual"]) if r["stock_actual"] is not None else None,
+                "servicio": r["tipo"] == "Servicio",
+                "unidad": r["unidad_medida"],
+                "fraccionable": r["unidad_medida"] in UNIDADES_FRACCIONABLES,
+                "empaque": empaque,
+            }
+        )
+    return productos
 
 
 def registrar_venta(
@@ -805,7 +1017,18 @@ def registrar_venta(
     monto_total: float,
     descuento: float,
     cliente: dict | None = None,
+    mayorista: bool = False,
 ) -> dict:
+    """Registra una venta de Caja o de Venta Mayorista.
+
+    Cada item es {id, qty, pres}: `pres` es 'unidad' (unidad base, admite
+    fraccion si la unidad lo permite) o 'empaque' (la presentacion cerrada,
+    que descuenta empaque_cantidad del stock por cada una).
+
+    Con `mayorista` el precio es el precio_mayorista fijo del producto y la
+    venta exige un cliente B2B activo, que es lo que alimenta el dashboard
+    del modulo Mayorista.
+    """
     try:
         id_tienda = parse_int(id_tienda, "Tienda", min_value=1)
         id_usuario = parse_int(id_usuario, "Usuario", min_value=1)
@@ -840,7 +1063,19 @@ def registrar_venta(
         id_turno = _obtener_turno_abierto(id_tienda, cur)
         if not id_turno:
             raise SalesConflictError("Abre un turno antes de registrar ventas.")
-        if es_fiado:
+        if mayorista:
+            # El cliente mayorista ya existe: tambien un fiado va a su nombre,
+            # sin pasar por el alta de clientes del modal "Fiar".
+            if id_cliente is None:
+                raise SalesValidationError("Selecciona el cliente mayorista.")
+            cur.execute(
+                "SELECT 1 FROM clientes WHERE id_cliente = %s AND id_tienda = %s "
+                "AND estado_activo = 1 AND tipo = 'B2B' LIMIT 1",
+                (id_cliente, id_tienda),
+            )
+            if not cur.fetchone():
+                raise SalesNotFoundError("Cliente mayorista no encontrado.")
+        elif es_fiado:
             id_cliente = _resolver_cliente_fiado(cur, id_tienda, cliente)
         elif id_cliente is not None:
             # Sin esto se podia colgar la venta de un cliente de otra tienda y
@@ -853,29 +1088,61 @@ def registrar_venta(
                 raise SalesNotFoundError("Cliente no encontrado.")
 
         lineas_validas = []
+        # Stock pedido por producto sumando lineas: el mismo producto puede
+        # venir suelto y en empaque, y cada linea por separado cabria.
+        consumo_por_producto: dict[int, float] = {}
         for item in items:
             try:
                 id_producto = int(item["id"])
-                cantidad = float(item["qty"])
+                cantidad = round(parse_float(item["qty"], "Cantidad"), 3)
             except (KeyError, TypeError, ValueError) as exc:
                 raise SalesValidationError("Detalle de item invalido.") from exc
+            presentacion = str(item.get("pres") or "unidad")
 
             if cantidad <= 0:
                 raise SalesValidationError("La cantidad debe ser mayor a cero.")
             if id_producto <= 0:
                 raise SalesValidationError("Producto invalido.")
+            if presentacion not in ("unidad", "empaque"):
+                raise SalesValidationError("Presentacion invalida.")
 
             cur.execute(
-                "SELECT id_producto, nombre, precio_venta, stock_actual, stock_minimo_alerta, COALESCE(es_preparado, 0) AS es_preparado "
+                "SELECT id_producto, nombre, tipo, unidad_medida, precio_venta, precio_mayorista, "
+                "empaque_nombre, empaque_cantidad, precio_empaque, "
+                "stock_actual, stock_minimo_alerta, COALESCE(es_preparado, 0) AS es_preparado "
                 "FROM productos WHERE id_producto = %s AND id_tienda = %s AND estado_activo = 1 LIMIT 1 FOR UPDATE",
                 (id_producto, id_tienda),
             )
             producto = cur.fetchone()
             if not producto:
                 raise SalesNotFoundError("Producto no encontrado.")
+            nombre_producto = producto.get("nombre") or "producto"
+
             # El precio lo pone la base, nunca el navegador: con item["price"]
             # un cajero podia cobrar $1 por cualquier producto.
-            precio = float(producto["precio_venta"] or 0)
+            factor_stock = 1.0
+            unidad_venta = producto["unidad_medida"]
+            if mayorista:
+                if presentacion == "empaque":
+                    raise SalesValidationError("En venta mayorista se vende por unidad de medida.")
+                precio = float(producto["precio_mayorista"] or 0)
+                if precio <= 0:
+                    raise SalesValidationError(f"{nombre_producto} no tiene precio mayorista.")
+            elif presentacion == "empaque":
+                if not (producto["empaque_nombre"] and producto["empaque_cantidad"] and producto["precio_empaque"]):
+                    raise SalesValidationError(f"{nombre_producto} no se vende por empaque.")
+                precio = float(producto["precio_empaque"])
+                factor_stock = float(producto["empaque_cantidad"])
+                unidad_venta = producto["empaque_nombre"]
+            else:
+                precio = float(producto["precio_venta"] or 0)
+
+            fraccionable = presentacion == "unidad" and producto["unidad_medida"] in UNIDADES_FRACCIONABLES
+            if not fraccionable and cantidad != int(cantidad):
+                raise SalesValidationError(f"{nombre_producto} se vende por {unidad_venta} entero.")
+
+            es_servicio = producto["tipo"] == "Servicio"
+            consumo_stock = round(cantidad * factor_stock, 3)
 
             recetas = []
             if bool(producto.get("es_preparado") or 0):
@@ -903,7 +1170,7 @@ def registrar_venta(
                     if not id_insumo or cantidad_necesaria <= 0:
                         continue
 
-                    consumo_total = cantidad * cantidad_necesaria
+                    consumo_total = consumo_stock * cantidad_necesaria
                     cur.execute(
                         "SELECT nombre, stock_actual FROM insumos "
                         "WHERE id_insumo = %s AND id_tienda = %s LIMIT 1 FOR UPDATE",
@@ -916,18 +1183,23 @@ def registrar_venta(
                         raise SalesConflictError(
                             f"Stock insuficiente de insumo: {insumo.get('nombre') or 'Insumo'}"
                         )
-            else:
+            elif not es_servicio:
+                consumo_por_producto[id_producto] = round(
+                    consumo_por_producto.get(id_producto, 0.0) + consumo_stock, 3
+                )
                 stock_actual = float(producto.get("stock_actual") or 0)
-                if stock_actual < cantidad:
-                    raise SalesConflictError(
-                        f"Stock insuficiente para {producto.get('nombre') or 'producto'}"
-                    )
+                if stock_actual < consumo_por_producto[id_producto]:
+                    raise SalesConflictError(f"Stock insuficiente para {nombre_producto}")
 
             lineas_validas.append(
                 {
                     "id_producto": id_producto,
                     "cantidad": cantidad,
                     "precio": precio,
+                    "subtotal": round(precio * cantidad, 2),
+                    "unidad_venta": unidad_venta,
+                    "consumo_stock": consumo_stock,
+                    "es_servicio": es_servicio,
                     "producto": producto,
                     "recetas": recetas,
                 }
@@ -936,26 +1208,16 @@ def registrar_venta(
         # Totales recalculados en el servidor; los del navegador se ignoran.
         # `descuento` no se resta: la caja no tiene descuento manual y restarlo
         # dejaria cobrar $0 con discount=subtotal. Solo alimenta la auditoria.
-        subtotal = round(sum(l["precio"] * l["cantidad"] for l in lineas_validas), 2)
+        # Tampoco hay descuento porcentual mayorista: el precio mayorista es un
+        # valor fijo por producto, ya aplicado linea a linea.
+        subtotal = round(sum(l["subtotal"] for l in lineas_validas), 2)
         monto_total = subtotal
 
-        # Descuento mayorista B2B: se resuelve en el servidor a partir de la
-        # lista asignada al cliente. El navegador nunca decide el porcentaje.
-        # Import local: cartera_service importa de este modulo.
-        from app.services.cartera_service import descuento_b2b_para_venta
-
-        descuento_b2b = descuento_b2b_para_venta(cur, id_tienda, id_cliente)
-        if descuento_b2b:
-            monto_b2b = round(monto_total * descuento_b2b["pct"] / 100, 2)
-            monto_total = max(0.0, round(monto_total - monto_b2b, 2))
-        else:
-            monto_b2b = 0.0
-
         notas = []
+        if mayorista:
+            notas.append("Venta mayorista")
         if es_fiado:
             notas.append("Fiado desde caja")
-        if descuento_b2b:
-            notas.append(f"Mayorista {descuento_b2b['nombre']} -{descuento_b2b['pct']:g}%")
         observaciones = " | ".join(notas)[:255] or None
 
         cur.execute(
@@ -978,9 +1240,9 @@ def registrar_venta(
                 id_cliente,
                 numero_venta,
                 subtotal,
-                "PORCENTAJE" if descuento_b2b else "NINGUNO",
-                descuento_b2b["pct"] if descuento_b2b else 0,
-                monto_b2b,
+                "NINGUNO",
+                0,
+                0,
                 monto_total,
                 metodo_pago_db,
                 "Fiada/Pendiente" if es_fiado else "Pagada",
@@ -991,23 +1253,24 @@ def registrar_venta(
 
         for linea in lineas_validas:
             id_producto = linea["id_producto"]
-            cantidad = linea["cantidad"]
-            precio = linea["precio"]
+            consumo_stock = linea["consumo_stock"]
 
             cur.execute(
                 "INSERT INTO detalle_ventas "
-                "(id_venta, id_producto, cantidad, precio_unitario_historico, subtotal_linea) "
-                "VALUES (%s,%s,%s,%s,%s)",
-                (id_venta, id_producto, cantidad, precio, precio * cantidad),
+                "(id_venta, id_producto, cantidad, unidad_venta, precio_unitario_historico, subtotal_linea) "
+                "VALUES (%s,%s,%s,%s,%s,%s)",
+                (id_venta, id_producto, linea["cantidad"], linea["unidad_venta"], linea["precio"], linea["subtotal"]),
             )
 
+            if linea["es_servicio"]:
+                continue
             if bool(linea["producto"].get("es_preparado") or 0):
                 for receta in linea["recetas"]:
                     id_insumo = receta.get("id_insumo")
                     cantidad_necesaria = float(receta.get("cantidad_necesaria") or 0)
                     if not id_insumo or cantidad_necesaria <= 0:
                         continue
-                    consumo_total = cantidad * cantidad_necesaria
+                    consumo_total = consumo_stock * cantidad_necesaria
                     cur.execute(
                         "UPDATE insumos SET stock_actual = stock_actual - %s "
                         "WHERE id_insumo = %s AND id_tienda = %s",
@@ -1017,23 +1280,24 @@ def registrar_venta(
                 cur.execute(
                     "UPDATE productos SET stock_actual = stock_actual - %s "
                     "WHERE id_producto = %s AND id_tienda = %s",
-                    (cantidad, id_producto, id_tienda),
+                    (consumo_stock, id_producto, id_tienda),
                 )
 
                 cur.execute(
-                    "SELECT nombre, stock_actual, stock_minimo_alerta "
+                    "SELECT nombre, unidad_medida, stock_actual, stock_minimo_alerta "
                     "FROM productos WHERE id_producto = %s AND id_tienda = %s LIMIT 1",
                     (id_producto, id_tienda),
                 )
                 producto_actualizado = cur.fetchone()
                 if producto_actualizado:
-                    stock_actual = int(producto_actualizado.get("stock_actual") or 0)
-                    stock_minimo = int(producto_actualizado.get("stock_minimo_alerta") or 0)
+                    stock_actual = float(producto_actualizado.get("stock_actual") or 0)
+                    stock_minimo = float(producto_actualizado.get("stock_minimo_alerta") or 0)
                     if stock_minimo > 0 and stock_actual <= stock_minimo:
                         if id_producto not in claves_alerta:
                             claves_alerta.add(id_producto)
                             alertas_stock.append(
-                                f"Stock bajo: {producto_actualizado.get('nombre') or 'Producto'} ({stock_actual} und)."
+                                f"Stock bajo: {producto_actualizado.get('nombre') or 'Producto'} "
+                                f"({stock_actual:g} {producto_actualizado.get('unidad_medida') or 'und'})."
                             )
 
         if metodo_pago_db == "Efectivo" and not es_fiado:
@@ -1065,9 +1329,19 @@ def registrar_venta(
         "id_cliente": id_cliente,
         "stock_alerts": alertas_stock,
         "total_final": monto_total,
-        "descuento_b2b": monto_b2b,
-        "lista_b2b": descuento_b2b["nombre"] if descuento_b2b else "",
     }
+
+
+def _metodo_visible(numero_venta: str | None, metodo_pago: str | None) -> str:
+    """Metodo de pago tal como lo entiende quien lee la factura.
+
+    Un fiado se guarda con metodo_pago 'Efectivo' (la columna es NOT NULL) pero
+    no entro dinero al cobrarlo: se reconoce por el prefijo F del consecutivo,
+    que ponen todos los caminos que crean deuda.
+    """
+    if str(numero_venta or "").startswith("F"):
+        return "Fiado"
+    return metodo_pago or "Efectivo"
 
 
 def get_detalle_venta(id_tienda: int, id_venta: int) -> dict:
@@ -1075,9 +1349,14 @@ def get_detalle_venta(id_tienda: int, id_venta: int) -> dict:
     try:
         cur = conn.cursor(dictionary=True)
         cur.execute(
-            "SELECT id_venta, numero_venta, total_final "
-            "FROM ventas "
-            "WHERE id_venta = %s AND id_tienda = %s "
+            "SELECT v.id_venta, v.numero_venta, v.subtotal, v.total_final, v.metodo_pago, "
+            "       v.estado_venta, v.fecha_creacion, v.observaciones, "
+            "       COALESCE(c.nombre, 'Mostrador') AS cliente, c.nit, "
+            "       u.nombre_completo AS cajero "
+            "FROM ventas v "
+            "LEFT JOIN clientes c ON c.id_cliente = v.id_cliente AND c.id_tienda = v.id_tienda "
+            "LEFT JOIN usuarios u ON u.id_usuario = v.id_cajero "
+            "WHERE v.id_venta = %s AND v.id_tienda = %s "
             "LIMIT 1",
             (id_venta, id_tienda),
         )
@@ -1086,7 +1365,8 @@ def get_detalle_venta(id_tienda: int, id_venta: int) -> dict:
             raise SalesNotFoundError("Venta no encontrada.")
 
         cur.execute(
-            "SELECT p.nombre AS producto, dv.cantidad, dv.subtotal_linea "
+            "SELECT p.nombre AS producto, dv.cantidad, dv.unidad_venta, "
+            "       dv.precio_unitario_historico, dv.subtotal_linea "
             "FROM detalle_ventas dv "
             "INNER JOIN ventas v ON v.id_venta = dv.id_venta "
             "INNER JOIN productos p ON p.id_producto = dv.id_producto AND p.id_tienda = v.id_tienda "
@@ -1095,6 +1375,18 @@ def get_detalle_venta(id_tienda: int, id_venta: int) -> dict:
             (id_venta, id_tienda),
         )
         filas = cur.fetchall() or []
+
+        metodo = _metodo_visible(venta["numero_venta"], venta["metodo_pago"])
+        if metodo == "Fiado":
+            # Si ya se abono, la factura dice con que se fue pagando la deuda.
+            cur.execute(
+                "SELECT DISTINCT metodo_pago FROM abonos_fiados "
+                "WHERE id_venta = %s AND id_tienda = %s ORDER BY metodo_pago",
+                (id_venta, id_tienda),
+            )
+            abonos = [r["metodo_pago"] for r in (cur.fetchall() or []) if r["metodo_pago"]]
+            if abonos:
+                metodo += f" (abonos: {', '.join(abonos)})"
     finally:
         conn.close()
 
@@ -1102,14 +1394,25 @@ def get_detalle_venta(id_tienda: int, id_venta: int) -> dict:
         {
             "producto": f.get("producto") or "Producto",
             "cantidad": float(f.get("cantidad") or 0),
+            "unidad": f.get("unidad_venta") or "",
+            "precio_unitario": float(f.get("precio_unitario_historico") or 0),
             "subtotal": float(f.get("subtotal_linea") or 0),
         }
         for f in filas
     ]
+    fecha = venta.get("fecha_creacion")
     return {
         "id_venta": venta["id_venta"],
         "numero_venta": venta.get("numero_venta") or f"V-{venta['id_venta']}",
+        "fecha": fecha.strftime("%Y-%m-%d %H:%M") if fecha else "",
+        "cliente": venta.get("cliente") or "Mostrador",
+        "nit": venta.get("nit") or "",
+        "cajero": venta.get("cajero") or "",
+        "metodo_pago": metodo,
+        "estado": venta.get("estado_venta") or "Pagada",
+        "mayorista": "Venta mayorista" in (venta.get("observaciones") or ""),
         "items": detalles,
+        "subtotal": float(venta.get("subtotal") or 0),
         "total": float(venta.get("total_final") or 0),
     }
 

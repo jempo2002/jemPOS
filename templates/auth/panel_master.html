@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="UTF-8">
@@ -25,475 +25,548 @@
   <meta name="csrf-token" content="{{ csrf_token() }}" />
 </head>
 
-<body class="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 font-sans">
-  <header class="bg-white/90 backdrop-blur border-b border-slate-200 sticky top-0 z-40 shadow-sm">
-    <div class="max-w-6xl mx-auto px-4 sm:px-6 h-20 flex items-center justify-between">
-      <h1 class="text-3xl sm:text-4xl font-extrabold tracking-tight drop-shadow-sm leading-none">
-        <span class="text-ink">jem</span><span class="text-blue-500">POS</span>
-        <span class="ml-2 text-xs font-semibold text-brand-500 bg-brand-50 border border-brand-100 px-2 py-0.5 rounded-full align-middle">
-          Panel Master
-        </span>
-      </h1>
+{#- Clases compartidas: los mismos tokens del POS (global.css / dashboard.css) -#}
+{% set c_card = "bg-white border border-slate-200 rounded-2xl shadow-pos" %}
+{% set c_label = "text-[0.78rem] font-bold uppercase tracking-[0.05em] text-muted" %}
+{% set c_valor = "mt-2 text-[1.55rem] font-extrabold leading-tight tracking-[-0.03em] text-slate-900" %}
+{% set c_input = "w-full rounded-xl border-[1.5px] border-slate-200 bg-slate-50 px-3.5 py-2.5 text-base text-slate-800 placeholder:text-muted outline-none transition focus:border-blue-500 focus:bg-white focus:ring-[3px] focus:ring-blue-200 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500" %}
+{% set c_campo = "mb-1.5 block text-sm font-semibold text-slate-800" %}
+{% set c_ayuda = "mt-1 text-xs text-muted" %}
+{% set c_error = "hidden rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700" %}
+{% set c_btn = "inline-flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-3 font-semibold text-white shadow-pos-btn transition hover:bg-blue-700 active:scale-[0.98] disabled:cursor-wait disabled:opacity-60" %}
+{% set c_btn_suave = "rounded-xl bg-slate-100 px-4 py-3 font-semibold text-slate-700 transition hover:bg-slate-200" %}
+{% set c_editar = "rounded-lg bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-700 transition hover:bg-blue-100" %}
+{% set c_eliminar = "rounded-lg bg-red-50 px-3 py-2 text-xs font-semibold text-red-700 transition hover:bg-red-100" %}
+{% set c_th = "px-4 lg:px-6 py-3 text-left text-[0.72rem] font-bold uppercase tracking-[0.05em] text-muted" %}
+{% set c_td = "px-4 lg:px-6 py-3" %}
+{% set obligatorio = '<span class="text-red-600" aria-hidden="true">*</span>' | safe %}
 
-      <div class="flex items-center gap-3">
-        <span class="hidden sm:block text-sm font-medium text-slate-600">{{ nombre_completo }}</span>
-        <a href="{{ url_for('auth.logout') }}" id="btn-logout" class="flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-red-600 transition-colors no-underline">
-          <i class="fa-solid fa-right-from-bracket"></i>
-          Salir
+{% macro modal(id, titulo, subtitulo='', ancho='max-w-md', capa='z-50') %}
+<div id="{{ id }}" data-modal class="fixed inset-0 {{ capa }} hidden items-center justify-center bg-slate-900/45 p-3 sm:p-4 flex"
+     role="dialog" aria-modal="true" aria-labelledby="{{ id }}-titulo">
+  <div class="relative w-full {{ ancho }} max-h-[92vh] overflow-y-auto rounded-[1.25rem] bg-white p-4 min-[380px]:p-5 sm:p-6 shadow-modal">
+    <div class="mb-5 flex items-start justify-between gap-3">
+      <div class="min-w-0">
+        <h3 id="{{ id }}-titulo" class="text-lg font-extrabold text-ink">{{ titulo }}</h3>
+        <p id="{{ id }}-sub" class="mt-0.5 text-sm text-muted">{{ subtitulo }}</p>
+      </div>
+      <button type="button" aria-label="Cerrar" data-close-modal="{{ id }}"
+              class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-100 transition hover:bg-slate-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500">
+        <img src="{{ url_for('static', filename='img/equis.png') }}" alt="" aria-hidden="true"
+             width="20" height="20" decoding="async" class="pointer-events-none h-5 w-5 opacity-70" />
+      </button>
+    </div>
+    {{ caller() }}
+  </div>
+</div>
+{% endmacro %}
+
+{#- Paginador por enlaces: cada listado usa su propio parametro y conserva el
+    de los demas (paginas = {pt, pv, pm}). Estilos .jem-pager de global.css. -#}
+{% macro paginador(meta, param, ancla) %}
+{% if meta.pages > 1 %}
+<nav class="jem-pager mx-4 mb-4 lg:mx-6" aria-label="Paginación">
+  <span class="jem-pager-info">Mostrando {{ meta.offset + 1 }}-{{ [meta.offset + meta.limit, meta.total] | min }} de {{ meta.total }}</span>
+  <div class="jem-pager-controls">
+    {% if meta.has_prev %}
+    <a class="jem-pager-btn" rel="prev" href="{{ url_for('core_bp.panel_master_page', _anchor=ancla, **dict(paginas, **{param: meta.page - 1})) }}"><i class="fa-solid fa-chevron-left"></i> Anterior</a>
+    {% else %}
+    <span class="jem-pager-btn" aria-disabled="true"><i class="fa-solid fa-chevron-left"></i> Anterior</span>
+    {% endif %}
+    <span class="jem-pager-page">{{ meta.page }} / {{ meta.pages }}</span>
+    {% if meta.has_next %}
+    <a class="jem-pager-btn" rel="next" href="{{ url_for('core_bp.panel_master_page', _anchor=ancla, **dict(paginas, **{param: meta.page + 1})) }}">Siguiente <i class="fa-solid fa-chevron-right"></i></a>
+    {% else %}
+    <span class="jem-pager-btn" aria-disabled="true">Siguiente <i class="fa-solid fa-chevron-right"></i></span>
+    {% endif %}
+  </div>
+</nav>
+{% endif %}
+{% endmacro %}
+
+{% macro estado_tienda(t) %}
+{% set vencida = t.fecha_fin_suscripcion and t.fecha_fin_suscripcion < hoy %}
+{% if not vencida and t.estado_suscripcion == 'activa' %}
+<span class="inline-block whitespace-nowrap rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-700">Activa</span>
+{% else %}
+<span class="inline-block whitespace-nowrap rounded-full bg-red-100 px-2.5 py-1 text-xs font-semibold text-red-700">Vencida</span>
+{% endif %}
+{% endmacro %}
+
+{% macro dias_vencer(p) %}
+{% if p.dias_restantes >= 0 %}
+<span class="inline-block whitespace-nowrap rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800">{{ p.dias_restantes }} {{ 'día' if p.dias_restantes == 1 else 'días' }}</span>
+{% else %}
+<span class="inline-block whitespace-nowrap rounded-full bg-red-100 px-2.5 py-1 text-xs font-semibold text-red-700">Vencida hace {{ p.dias_restantes | abs }} d</span>
+{% endif %}
+{% endmacro %}
+
+{% macro boton_tienda(t, clase_extra='') %}
+<button type="button" class="btn-editar-tienda {{ c_editar }} {{ clase_extra }}"
+        data-id="{{ t.id_tienda }}"
+        data-nombre="{{ t.nombre_negocio }}"
+        data-nit="{{ t.nit or '' }}"
+        data-telefono="{{ t.telefono or '' }}"
+        data-owner-id="{{ t.owner_id or '' }}"
+        data-owner-name="{{ t.owner_name or '' }}">Editar</button>
+<button type="button" class="btn-eliminar-tienda {{ c_eliminar }} {{ clase_extra }}"
+        data-id="{{ t.id_tienda }}" data-nombre="{{ t.nombre_negocio }}">Eliminar</button>
+{% endmacro %}
+
+<body class="min-h-screen bg-[#F8FAFC] font-sans text-slate-900 antialiased">
+  <header class="sticky top-0 z-40 border-b border-slate-200 bg-white/90 backdrop-blur">
+    <div class="mx-auto flex h-16 max-w-6xl items-center justify-between gap-3 px-4 sm:px-6">
+      <p class="flex min-w-0 items-center gap-2 text-2xl font-extrabold leading-none tracking-tight sm:text-3xl">
+        <span><span class="text-ink">jem</span><span class="text-blue-500">POS</span></span>
+        <span class="truncate rounded-full border border-blue-100 bg-blue-50 px-2.5 py-1 text-[0.7rem] font-bold uppercase tracking-[0.05em] text-blue-700">Master</span>
+      </p>
+      <div class="flex shrink-0 items-center gap-3">
+        <span class="hidden text-sm font-medium text-slate-600 sm:block">{{ nombre_completo }}</span>
+        <a href="{{ url_for('auth.logout') }}" id="btn-logout"
+           class="flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-sm font-semibold text-slate-600 no-underline transition hover:bg-red-50 hover:text-red-700">
+          <i class="fa-solid fa-right-from-bracket" aria-hidden="true"></i> Salir
         </a>
       </div>
     </div>
   </header>
 
-  <main class="max-w-6xl mx-auto px-4 sm:px-6 py-8">
-    <div class="mb-7">
-      <h2 class="text-3xl font-extrabold text-slate-900">Bienvenido, {{ nombre_completo.split(' ')[0] }}.</h2>
-      <p class="text-sm text-slate-500 mt-1">Gestiona usuarios, tiendas y suscripciones desde un solo lugar.</p>
+  <main class="mx-auto max-w-6xl space-y-7 px-4 py-6 sm:px-6 sm:py-8">
+    <div>
+      <h1 class="text-2xl font-extrabold tracking-tight text-slate-900 sm:text-3xl">Hola, {{ nombre_completo.split(' ')[0] }}.</h1>
+      <p class="mt-1 text-sm text-muted">Tiendas, usuarios, suscripciones y las cuentas de jemPOS en un solo lugar.</p>
     </div>
 
-    <section class="mb-8">
-      <h3 class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Acciones rapidas</h3>
-      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-        <button type="button" id="btn-abrir-crear-usuario" class="bg-white rounded-2xl p-4 text-left shadow-lg border-none transition-all hover:-translate-y-1 hover:shadow-xl group">
-          <div class="w-9 h-9 rounded-lg bg-blue-50 flex items-center justify-center mb-2.5 group-hover:bg-brand-500 transition-colors">
-            <i class="fa-solid fa-user-plus text-brand-500 text-sm group-hover:text-white transition-colors"></i>
+    <!-- Resumen del sistema -->
+    <section aria-labelledby="titulo-resumen">
+      <h2 id="titulo-resumen" class="{{ c_label }} mb-3">Resumen del sistema</h2>
+      <div class="grid grid-cols-1 gap-3 min-[480px]:grid-cols-2 lg:grid-cols-4">
+        <article class="{{ c_card }} p-4">
+          <div class="flex items-center justify-between gap-2">
+            <h3 class="{{ c_label }}">Tiendas</h3>
+            <span class="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 text-blue-600"><i class="fa-solid fa-shop text-sm" aria-hidden="true"></i></span>
           </div>
-          <p class="text-sm font-semibold text-slate-800">Crear Usuario</p>
-          <p class="text-xs text-slate-500 mt-0.5">Nuevo admin o cajero</p>
-        </button>
-
-        <button type="button" id="btn-abrir-gestion-usuarios" class="bg-white rounded-2xl p-4 text-left shadow-lg border-none transition-all hover:-translate-y-1 hover:shadow-xl group">
-          <div class="w-9 h-9 rounded-lg bg-violet-50 flex items-center justify-center mb-2.5 group-hover:bg-violet-500 transition-colors">
-            <i class="fa-solid fa-users-gear text-violet-600 text-sm group-hover:text-white transition-colors"></i>
+          <p class="{{ c_valor }}">{{ resumen.tiendas }}</p>
+          <p class="{{ c_ayuda }}">{{ resumen.tiendas_al_dia }} con suscripción al día</p>
+        </article>
+        <article class="{{ c_card }} p-4">
+          <div class="flex items-center justify-between gap-2">
+            <h3 class="{{ c_label }}">Usuarios activos</h3>
+            <span class="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-50 text-violet-600"><i class="fa-solid fa-users text-sm" aria-hidden="true"></i></span>
           </div>
-          <p class="text-sm font-semibold text-slate-800">Gestion de Usuarios</p>
-          <p class="text-xs text-slate-500 mt-0.5">Editar y eliminar</p>
-        </button>
-
-        <button type="button" id="btn-abrir-crear-tienda" class="bg-white rounded-2xl p-4 text-left shadow-lg border-none transition-all hover:-translate-y-1 hover:shadow-xl group">
-          <div class="w-9 h-9 rounded-lg bg-emerald-50 flex items-center justify-center mb-2.5 group-hover:bg-emerald-500 transition-colors">
-            <i class="fa-solid fa-shop text-emerald-600 text-sm group-hover:text-white transition-colors"></i>
+          <p class="{{ c_valor }}">{{ resumen.usuarios }}</p>
+          <p class="{{ c_ayuda }}">Master, administradores y cajeros</p>
+        </article>
+        <article class="{{ c_card }} p-4">
+          <div class="flex items-center justify-between gap-2">
+            <h3 class="{{ c_label }}">Ingresos estimados</h3>
+            <span class="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600"><i class="fa-solid fa-arrow-trend-up text-sm" aria-hidden="true"></i></span>
           </div>
-          <p class="text-sm font-semibold text-slate-800">Tiendas</p>
-          <p class="text-xs text-slate-500 mt-0.5">Crear y asignar dueno</p>
-        </button>
-
-        <button type="button" id="btn-abrir-suscripciones" class="bg-white rounded-2xl p-4 text-left shadow-lg border-none transition-all hover:-translate-y-1 hover:shadow-xl group">
-          <div class="w-9 h-9 rounded-lg bg-amber-50 flex items-center justify-center mb-2.5 group-hover:bg-amber-500 transition-colors">
-            <i class="fa-solid fa-calendar-check text-amber-600 text-sm group-hover:text-white transition-colors"></i>
+          <p class="{{ c_valor }}">{{ resumen.ingresos_estimados }}<span class="text-sm font-semibold tracking-normal text-muted"> /mes</span></p>
+          <p class="{{ c_ayuda }}">{{ resumen.tiendas_al_dia }} × {{ resumen.mensualidad }} de mensualidad</p>
+        </article>
+        <article class="{{ c_card }} p-4">
+          <div class="flex items-center justify-between gap-2">
+            <h3 class="{{ c_label }}">Balance del mes</h3>
+            <span class="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-50 text-amber-600"><i class="fa-solid fa-scale-balanced text-sm" aria-hidden="true"></i></span>
           </div>
-          <p class="text-sm font-semibold text-slate-800">Suscripciones</p>
-          <p class="text-xs text-slate-500 mt-0.5">Renovar planes</p>
-        </button>
+          <p class="{{ c_valor }} {{ 'text-red-600' if resumen.balance_negativo else '' }}">{{ '−' if resumen.balance_negativo else '' }}{{ resumen.balance_mes }}</p>
+          <p class="{{ c_ayuda }}">Ingresos {{ resumen.ingresos_mes }} · Gastos {{ resumen.gastos_mes }}</p>
+        </article>
       </div>
     </section>
 
-    <section class="mb-8 bg-white rounded-2xl shadow-lg border-none overflow-hidden">
-      <div class="px-4 sm:px-6 py-4 border-b border-slate-100 flex items-center justify-between">
-        <h3 class="text-sm font-semibold text-slate-800">Proximos a Vencer</h3>
-        <span class="text-xs text-slate-500">0 a 5 dias o vencidas</span>
-      </div>
-
-      <div class="block md:hidden p-4 space-y-3">
-        {% for p in proximos_vencer %}
-        <div data-tienda-row="{{ p.id_tienda }}" class="rounded-xl border border-slate-200 p-4 bg-slate-50">
-          <div class="flex items-start justify-between gap-2">
-            <div>
-              <p class="text-sm font-bold text-slate-900">{{ p.nombre_negocio }}</p>
-              <p class="text-xs text-slate-500 mt-0.5">{{ p.telefono }}</p>
-            </div>
-            {% if p.dias_restantes >= 0 %}
-            <span class="text-[11px] px-2 py-1 rounded-full font-semibold bg-amber-100 text-amber-700">{{ p.dias_restantes }} dias</span>
-            {% else %}
-            <span class="text-[11px] px-2 py-1 rounded-full font-semibold bg-red-100 text-red-700">Vencida {{ p.dias_restantes|abs }} dias</span>
-            {% endif %}
-          </div>
-          <div class="mt-3">
-            {% if p.wa_url %}
-            <a href="{{ p.wa_url }}" target="_blank" rel="noopener"
-               class="inline-flex items-center gap-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 text-xs font-semibold">
-              <i class="fa-brands fa-whatsapp"></i>
-              WhatsApp
-            </a>
-            {% else %}
-            <span class="text-xs text-slate-500">Sin telefono para WhatsApp</span>
-            {% endif %}
-          </div>
-        </div>
-        {% else %}
-        <div class="text-sm text-slate-500">Sin tiendas proximas a vencer.</div>
+    <!-- Acciones rapidas -->
+    <section aria-labelledby="titulo-acciones">
+      <h2 id="titulo-acciones" class="{{ c_label }} mb-3">Acciones rápidas</h2>
+      <div class="grid grid-cols-1 gap-3 min-[480px]:grid-cols-2 lg:grid-cols-4">
+        {% for boton, icono, color, titulo, texto in [
+          ('btn-abrir-crear-usuario', 'fa-user-plus', 'blue', 'Crear usuario', 'Admin, cajero o Master'),
+          ('btn-abrir-gestion-usuarios', 'fa-users-gear', 'violet', 'Gestión de usuarios', 'Editar y eliminar'),
+          ('btn-abrir-crear-tienda', 'fa-shop', 'emerald', 'Crear tienda', 'Registrar y asignar dueño'),
+          ('btn-abrir-suscripciones', 'fa-calendar-check', 'amber', 'Suscripciones', 'Renovar planes'),
+        ] %}
+        <button type="button" id="{{ boton }}"
+                class="group {{ c_card }} flex items-center gap-3 p-4 text-left transition hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-pos-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500">
+          <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-{{ color }}-50 text-{{ color }}-600 transition group-hover:bg-{{ color }}-500 group-hover:text-white">
+            <i class="fa-solid {{ icono }}" aria-hidden="true"></i>
+          </span>
+          <span class="min-w-0">
+            <span class="block text-sm font-bold text-slate-800">{{ titulo }}</span>
+            <span class="block text-xs text-muted">{{ texto }}</span>
+          </span>
+        </button>
         {% endfor %}
       </div>
+    </section>
 
-      <div class="hidden md:block overflow-x-auto">
+    <!-- Proximos a vencer -->
+    <section id="vencer" class="{{ c_card }} scroll-mt-20 overflow-hidden" aria-labelledby="titulo-vencer">
+      <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-4 py-4 lg:px-6">
+        <h2 id="titulo-vencer" class="text-base font-bold text-slate-800">Próximos a vencer</h2>
+        <span class="text-xs text-muted">Vencen en 5 días o menos, o ya vencieron</span>
+      </div>
+
+      <ul class="space-y-3 p-4 md:hidden">
+        {% for p in proximos_vencer %}
+        <li data-tienda-row="{{ p.id_tienda }}" class="rounded-xl border border-slate-200 bg-slate-50 p-4">
+          <div class="flex items-start justify-between gap-2">
+            <div class="min-w-0">
+              <p class="break-words text-sm font-bold text-slate-900">{{ p.nombre_negocio }}</p>
+              <p class="mt-0.5 text-xs text-muted">Vence {{ p.fecha_fin_suscripcion }} · {{ p.telefono }}</p>
+            </div>
+            {{ dias_vencer(p) }}
+          </div>
+          {% if p.wa_url %}
+          <a href="{{ p.wa_url }}" target="_blank" rel="noopener"
+             class="mt-3 inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white no-underline hover:bg-emerald-700">
+            <i class="fa-brands fa-whatsapp" aria-hidden="true"></i> WhatsApp
+          </a>
+          {% endif %}
+        </li>
+        {% else %}
+        <li class="py-4 text-center text-sm text-muted">Sin tiendas próximas a vencer.</li>
+        {% endfor %}
+      </ul>
+
+      <div class="hidden overflow-x-auto md:block">
         <table class="w-full text-sm">
-          <thead class="bg-slate-50 text-slate-600">
+          <thead class="bg-slate-50">
             <tr>
-              <th class="text-left px-6 py-3 font-semibold">Tienda</th>
-              <th class="text-left px-6 py-3 font-semibold">Telefono</th>
-              <th class="text-left px-6 py-3 font-semibold">Vence</th>
-              <th class="text-left px-6 py-3 font-semibold">Dias</th>
-              <th class="text-left px-6 py-3 font-semibold">WhatsApp</th>
+              <th class="{{ c_th }}">Tienda</th>
+              <th class="{{ c_th }}">Teléfono</th>
+              <th class="{{ c_th }}">Vence</th>
+              <th class="{{ c_th }}">Días</th>
+              <th class="{{ c_th }}">Contacto</th>
             </tr>
           </thead>
           <tbody>
             {% for p in proximos_vencer %}
-            <tr data-tienda-row="{{ p.id_tienda }}" class="border-t border-slate-100">
-              <td class="px-6 py-3 font-semibold text-slate-800">{{ p.nombre_negocio }}</td>
-              <td class="px-6 py-3 text-slate-600">{{ p.telefono }}</td>
-              <td class="px-6 py-3 text-slate-600">{{ p.fecha_fin_suscripcion }}</td>
-              <td class="px-6 py-3">
-                {% if p.dias_restantes >= 0 %}
-                <span class="text-xs px-2 py-1 rounded-full font-semibold bg-amber-100 text-amber-700">{{ p.dias_restantes }} dias</span>
-                {% else %}
-                <span class="text-xs px-2 py-1 rounded-full font-semibold bg-red-100 text-red-700">Vencida {{ p.dias_restantes|abs }} dias</span>
-                {% endif %}
-              </td>
-              <td class="px-6 py-3">
+            <tr data-tienda-row="{{ p.id_tienda }}" class="border-t border-slate-100 hover:bg-slate-50/60">
+              <td class="{{ c_td }} font-semibold text-slate-800">{{ p.nombre_negocio }}</td>
+              <td class="{{ c_td }} text-slate-600">{{ p.telefono }}</td>
+              <td class="{{ c_td }} text-slate-600">{{ p.fecha_fin_suscripcion }}</td>
+              <td class="{{ c_td }}">{{ dias_vencer(p) }}</td>
+              <td class="{{ c_td }}">
                 {% if p.wa_url %}
                 <a href="{{ p.wa_url }}" target="_blank" rel="noopener"
-                   class="inline-flex items-center gap-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 text-xs font-semibold">
-                  <i class="fa-brands fa-whatsapp"></i>
-                  WhatsApp
+                   class="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white no-underline hover:bg-emerald-700">
+                  <i class="fa-brands fa-whatsapp" aria-hidden="true"></i> WhatsApp
                 </a>
                 {% else %}
-                <span class="text-xs text-slate-500">No disponible</span>
+                <span class="text-xs text-muted">Sin teléfono</span>
                 {% endif %}
               </td>
             </tr>
             {% else %}
-            <tr><td colspan="5" class="px-6 py-8 text-center text-slate-500">Sin tiendas proximas a vencer.</td></tr>
+            <tr><td colspan="5" class="px-6 py-8 text-center text-muted">Sin tiendas próximas a vencer.</td></tr>
             {% endfor %}
           </tbody>
         </table>
       </div>
+      {{ paginador(meta_proximos, 'pv', 'vencer') }}
     </section>
 
-    <section class="bg-white rounded-2xl shadow-lg border-none overflow-hidden">
-      <div class="px-4 sm:px-6 py-4 border-b border-slate-100">
-        <h3 class="text-sm font-semibold text-slate-800">Tiendas registradas</h3>
+    <!-- Tiendas registradas -->
+    <section id="tiendas" class="{{ c_card }} scroll-mt-20 overflow-hidden" aria-labelledby="titulo-tiendas">
+      <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-4 py-4 lg:px-6">
+        <h2 id="titulo-tiendas" class="text-base font-bold text-slate-800">Tiendas registradas</h2>
+        <span class="text-xs text-muted">{{ meta_tiendas.total }} en total</span>
       </div>
 
-      <div class="block md:hidden p-4 space-y-3">
+      <ul class="space-y-3 p-4 md:hidden">
         {% for t in tiendas %}
-        {% set vencida = (t.fecha_fin_suscripcion and t.fecha_fin_suscripcion < hoy) %}
-        <div data-tienda-row="{{ t.id_tienda }}" class="rounded-xl border border-slate-200 p-4 bg-slate-50">
+        <li data-tienda-row="{{ t.id_tienda }}" class="rounded-xl border border-slate-200 bg-slate-50 p-4">
           <div class="flex items-start justify-between gap-2">
-            <div>
-              <p class="text-sm font-bold text-slate-900">{{ t.nombre_negocio }}</p>
-              <p class="text-xs text-slate-500 mt-0.5">Dueno: {{ t.owner_name }}</p>
+            <div class="min-w-0">
+              <p class="break-words text-sm font-bold text-slate-900">{{ t.nombre_negocio }}</p>
+              <p class="mt-0.5 break-words text-xs text-muted">Dueño: {{ t.owner_name or 'Sin dueño' }}</p>
             </div>
-            <span class="text-[11px] px-2 py-1 rounded-full font-semibold {% if not vencida and t.estado_suscripcion == 'activa' %}bg-emerald-100 text-emerald-700{% else %}bg-red-100 text-red-700{% endif %}">
-              {% if not vencida and t.estado_suscripcion == 'activa' %}Activa{% else %}Vencida{% endif %}
-            </span>
+            {{ estado_tienda(t) }}
           </div>
-
-          <div class="mt-3 grid grid-cols-2 gap-2 text-xs text-slate-600">
-            <p><span class="font-semibold">Tel:</span> {{ t.telefono }}</p>
-            <p><span class="font-semibold">NIT:</span> {{ t.nit }}</p>
-            <p class="col-span-2"><span class="font-semibold">Vence:</span> {{ t.fecha_fin_suscripcion or 'Sin definir' }}</p>
-          </div>
-
-          <div class="mt-3 flex gap-2">
-            <button type="button" class="btn-editar-tienda flex-1 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 px-3 py-2 text-xs font-semibold"
-                    data-id="{{ t.id_tienda }}"
-                    data-nombre="{{ t.nombre_negocio }}"
-                    data-nit="{{ '' if t.nit in ['—', 'a€”'] else t.nit }}"
-                    data-telefono="{{ '' if t.telefono in ['—', 'a€”'] else t.telefono }}"
-                    data-owner-id="{{ t.owner_id or '' }}"
-                    data-owner-name="{{ t.owner_name if t.owner_name != 'Sin dueno' else '' }}">
-              Editar
-            </button>
-            <button type="button" class="btn-eliminar-tienda flex-1 rounded-lg bg-red-50 text-red-700 hover:bg-red-100 px-3 py-2 text-xs font-semibold"
-                    data-id="{{ t.id_tienda }}" data-nombre="{{ t.nombre_negocio }}">
-              Eliminar
-            </button>
-          </div>
-        </div>
+          <dl class="mt-3 grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-slate-600">
+            <div class="min-w-0"><dt class="inline font-semibold">Tel:</dt> <dd class="inline break-all">{{ t.telefono or '-' }}</dd></div>
+            <div class="min-w-0"><dt class="inline font-semibold">NIT:</dt> <dd class="inline break-all">{{ t.nit or '-' }}</dd></div>
+            <div class="col-span-2"><dt class="inline font-semibold">Vence:</dt> <dd class="inline">{{ t.fecha_fin_suscripcion or 'Sin definir' }}</dd></div>
+          </dl>
+          <div class="mt-3 flex gap-2">{{ boton_tienda(t, 'flex-1') }}</div>
+        </li>
         {% else %}
-        <div class="text-sm text-slate-500">No hay tiendas registradas.</div>
+        <li class="py-4 text-center text-sm text-muted">No hay tiendas registradas.</li>
         {% endfor %}
-      </div>
+      </ul>
 
-      <div class="hidden md:block overflow-x-auto">
+      <div class="hidden overflow-x-auto md:block">
         <table class="w-full text-sm">
-          <thead class="bg-slate-50 text-slate-600">
+          <thead class="bg-slate-50">
             <tr>
-              <th class="text-left px-6 py-3 font-semibold">Tienda</th>
-              <th class="text-left px-6 py-3 font-semibold">Dueno</th>
-              <th class="text-left px-6 py-3 font-semibold">Telefono</th>
-              <th class="text-left px-6 py-3 font-semibold">Vencimiento</th>
-              <th class="text-left px-6 py-3 font-semibold">Estado</th>
-              <th class="text-left px-6 py-3 font-semibold">Acciones</th>
+              <th class="{{ c_th }}">Tienda</th>
+              <th class="{{ c_th }}">Dueño</th>
+              <th class="{{ c_th }}">Teléfono</th>
+              <th class="{{ c_th }}">Vencimiento</th>
+              <th class="{{ c_th }}">Estado</th>
+              <th class="{{ c_th }}"><span class="sr-only">Acciones</span></th>
             </tr>
           </thead>
           <tbody>
             {% for t in tiendas %}
-            {% set vencida = (t.fecha_fin_suscripcion and t.fecha_fin_suscripcion < hoy) %}
-            <tr data-tienda-row="{{ t.id_tienda }}" class="border-t border-slate-100">
-              <td class="px-6 py-3 font-semibold text-slate-800">{{ t.nombre_negocio }}</td>
-              <td class="px-6 py-3 text-slate-600">{{ t.owner_name }}</td>
-              <td class="px-6 py-3 text-slate-600">{{ t.telefono }}</td>
-              <td class="px-6 py-3 text-slate-600">{{ t.fecha_fin_suscripcion or 'Sin definir' }}</td>
-              <td class="px-6 py-3">
-                <span class="text-xs px-2 py-1 rounded-full font-semibold {% if not vencida and t.estado_suscripcion == 'activa' %}bg-emerald-100 text-emerald-700{% else %}bg-red-100 text-red-700{% endif %}">
-                  {% if not vencida and t.estado_suscripcion == 'activa' %}Activa{% else %}Vencida{% endif %}
-                </span>
-              </td>
-              <td class="px-6 py-3">
-                <div class="flex items-center gap-2">
-                  <button type="button" class="btn-editar-tienda rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 px-3 py-1.5 text-xs font-semibold"
-                          data-id="{{ t.id_tienda }}"
-                          data-nombre="{{ t.nombre_negocio }}"
-                          data-nit="{{ '' if t.nit in ['—', 'a€”'] else t.nit }}"
-                          data-telefono="{{ '' if t.telefono in ['—', 'a€”'] else t.telefono }}"
-                          data-owner-id="{{ t.owner_id or '' }}"
-                          data-owner-name="{{ t.owner_name if t.owner_name != 'Sin dueno' else '' }}">
-                    Editar
-                  </button>
-                  <button type="button" class="btn-eliminar-tienda rounded-lg bg-red-50 text-red-700 hover:bg-red-100 px-3 py-1.5 text-xs font-semibold"
-                          data-id="{{ t.id_tienda }}" data-nombre="{{ t.nombre_negocio }}">
-                    Eliminar
-                  </button>
-                </div>
-              </td>
+            <tr data-tienda-row="{{ t.id_tienda }}" class="border-t border-slate-100 hover:bg-slate-50/60">
+              <td class="{{ c_td }} font-semibold text-slate-800">{{ t.nombre_negocio }}</td>
+              <td class="{{ c_td }} text-slate-600">{{ t.owner_name or 'Sin dueño' }}</td>
+              <td class="{{ c_td }} text-slate-600">{{ t.telefono or '-' }}</td>
+              <td class="{{ c_td }} text-slate-600">{{ t.fecha_fin_suscripcion or 'Sin definir' }}</td>
+              <td class="{{ c_td }}">{{ estado_tienda(t) }}</td>
+              <td class="{{ c_td }}"><div class="flex justify-end gap-2">{{ boton_tienda(t) }}</div></td>
             </tr>
             {% else %}
-            <tr><td colspan="6" class="px-6 py-8 text-center text-slate-500">No hay tiendas registradas.</td></tr>
+            <tr><td colspan="6" class="px-6 py-8 text-center text-muted">No hay tiendas registradas.</td></tr>
             {% endfor %}
           </tbody>
         </table>
       </div>
+      {{ paginador(meta_tiendas, 'pt', 'tiendas') }}
+    </section>
+
+    <!-- Finanzas del proyecto -->
+    <section id="finanzas" class="{{ c_card }} scroll-mt-20 overflow-hidden" aria-labelledby="titulo-finanzas">
+      <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-4 py-4 lg:px-6">
+        <div>
+          <h2 id="titulo-finanzas" class="text-base font-bold text-slate-800">Finanzas de jemPOS</h2>
+          <p class="text-xs text-muted">Mensualidades cobradas y gastos operativos del software</p>
+        </div>
+        <button type="button" id="btn-abrir-movimiento"
+                class="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-pos-btn transition hover:bg-blue-700 active:scale-[0.98]">
+          <i class="fa-solid fa-plus" aria-hidden="true"></i> Registrar movimiento
+        </button>
+      </div>
+
+      <ul class="divide-y divide-slate-100">
+        {% for m in movimientos %}
+        {% set ingreso = m.tipo == 'Ingreso' %}
+        <li class="flex items-center gap-3 px-4 py-3 lg:px-6">
+          <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl {{ 'bg-emerald-50 text-emerald-600' if ingreso else 'bg-red-50 text-red-600' }}">
+            <i class="fa-solid {{ 'fa-arrow-down' if ingreso else 'fa-arrow-up' }} text-sm" aria-hidden="true"></i>
+          </span>
+          {#- En movil el monto baja bajo el concepto; desde 480px va a la derecha -#}
+          <div class="min-w-0 flex-1 min-[480px]:flex min-[480px]:items-center min-[480px]:gap-3">
+            <div class="min-w-0 flex-1">
+              <p class="break-words text-sm font-semibold text-slate-800">{{ m.concepto }}</p>
+              <p class="text-xs text-muted">{{ m.tipo }} · {{ m.fecha }}</p>
+            </div>
+            <p class="mt-0.5 shrink-0 text-sm font-extrabold tracking-[-0.02em] min-[480px]:mt-0 {{ 'text-emerald-700' if ingreso else 'text-red-700' }}">{{ '+' if ingreso else '−' }}{{ m.monto_fmt }}</p>
+          </div>
+          <button type="button" class="btn-eliminar-movimiento flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-slate-500 transition hover:bg-red-50 hover:text-red-700"
+                  data-id="{{ m.id_movimiento }}" data-concepto="{{ m.concepto }}" aria-label="Eliminar movimiento {{ m.concepto }}">
+            <i class="fa-solid fa-trash-can text-sm" aria-hidden="true"></i>
+          </button>
+        </li>
+        {% else %}
+        <li class="px-4 py-8 text-center text-sm text-muted lg:px-6">Aún no hay movimientos. Registra la primera mensualidad cobrada o un gasto del proyecto.</li>
+        {% endfor %}
+      </ul>
+      {{ paginador(meta_movimientos, 'pm', 'finanzas') }}
     </section>
   </main>
 
-  <!-- Modal Crear Usuario -->
-  <div id="modal-crear-usuario" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center hidden">
-    <div class="bg-white w-full max-w-md mx-4 rounded-2xl relative max-h-[90vh] overflow-y-auto">
-      <button type="button" aria-label="Cerrar"
-              data-close-modal="modal-crear-usuario"
-              class="absolute top-4 right-4 w-11 h-11 -mt-2.5 -mr-2.5 flex items-center justify-center bg-transparent border-none rounded-full cursor-pointer hover:bg-slate-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 transition-colors">
-        <img src="{{ url_for('static', filename='img/equis.png') }}" alt="" aria-hidden="true"
-             width="24" height="24" decoding="async" class="w-6 h-6 pointer-events-none" />
-      </button>
-      <div class="p-5 border-b border-slate-100">
-        <h3 class="text-lg font-bold text-slate-900">Crear Usuario</h3>
-        <p class="text-sm text-slate-500 mt-1">Completa los datos del nuevo integrante.</p>
-      </div>
-      <form id="form-crear-usuario" class="p-5 space-y-3" novalidate>
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
-        <input id="cu-nombre" type="text" placeholder="Nombre completo" class="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3" />
-        <input id="cu-cc" type="text" inputmode="numeric" maxlength="15" required oninput="this.value=this.value.replace(/[^0-9]/g,'')" placeholder="Cedula (CC)" class="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3" />
-        <input id="cu-correo" type="email" placeholder="correo@ejemplo.com" class="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3" />
-        <select id="cu-rol" class="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-          <option value="Cajero">Cajero</option>
-          <option value="Admin">Administrador</option>
-          <option value="Master">Master</option>
-        </select>
-        <input id="cu-password" type="password" placeholder="Contrasena" class="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3" />
-        <input id="cu-confirm" type="password" placeholder="Confirmar contrasena" class="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3" />
-        <p id="cu-error" class="hidden rounded-xl px-4 py-3 text-sm bg-red-50 text-red-700 border border-red-200"></p>
-        <button type="submit" class="w-full rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 transition-colors">Crear Usuario</button>
-      </form>
+  <!-- ═════════════════════════ MODALES ═════════════════════════ -->
+
+  {% call modal('modal-crear-tienda', 'Crear tienda', 'Registra el negocio y selecciona su dueño.') %}
+  <form id="form-crear-tienda" class="space-y-4" novalidate>
+    <div>
+      <label for="ct-nombre" class="{{ c_campo }}">Nombre del negocio {{ obligatorio }}</label>
+      <input id="ct-nombre" type="text" maxlength="150" class="{{ c_input }}" />
     </div>
-  </div>
-
-  <!-- Modal Crear Tienda -->
-  <div id="modal-crear-tienda" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center hidden">
-    <div class="bg-white w-full max-w-md mx-4 rounded-2xl relative max-h-[90vh] overflow-y-auto">
-      <button type="button" aria-label="Cerrar"
-              data-close-modal="modal-crear-tienda"
-              class="absolute top-4 right-4 w-11 h-11 -mt-2.5 -mr-2.5 flex items-center justify-center bg-transparent border-none rounded-full cursor-pointer hover:bg-slate-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 transition-colors">
-        <img src="{{ url_for('static', filename='img/equis.png') }}" alt="" aria-hidden="true"
-             width="24" height="24" decoding="async" class="w-6 h-6 pointer-events-none" />
-      </button>
-      <div class="p-5 border-b border-slate-100">
-        <h3 class="text-lg font-bold text-slate-900">Crear Tienda</h3>
-        <p class="text-sm text-slate-500 mt-1">Registra el negocio y selecciona su dueño.</p>
-      </div>
-      <form id="form-crear-tienda" class="p-5 space-y-3" novalidate>
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
-        <input id="ct-nombre" type="text" placeholder="Nombre del negocio" class="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3" />
-        <input id="ct-nit" type="text" placeholder="NIT (opcional)" class="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3" />
-        <input id="ct-telefono" type="text" inputmode="numeric" maxlength="10" pattern="[0-9]{0,10}" oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,10)" placeholder="Telefono" class="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3" />
-
-        <div class="relative">
-          <input id="ct-owner-search" type="text" placeholder="Buscar Admin dueno..." class="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3" autocomplete="off" />
-          <input type="hidden" id="ct-owner-id" />
-          <div id="ct-owner-dropdown" class="absolute z-50 w-full bg-white shadow-lg rounded-xl mt-1 border border-slate-200 hidden max-h-48 overflow-y-auto"></div>
-        </div>
-
-        <p id="ct-error" class="hidden rounded-xl px-4 py-3 text-sm bg-red-50 text-red-700 border border-red-200"></p>
-        <button type="submit" class="w-full rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 transition-colors">Guardar Tienda</button>
-      </form>
+    <div>
+      <label for="ct-nit" class="{{ c_campo }}">NIT <span class="font-normal text-muted">(opcional)</span></label>
+      <input id="ct-nit" type="text" maxlength="30" class="{{ c_input }}" />
     </div>
-  </div>
-
-  <!-- Modal Editar Tienda -->
-  <div id="modal-editar-tienda" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center hidden">
-    <div class="bg-white w-full max-w-md mx-4 rounded-2xl relative max-h-[90vh] overflow-y-auto">
-      <button type="button" aria-label="Cerrar"
-              data-close-modal="modal-editar-tienda"
-              class="absolute top-4 right-4 w-11 h-11 -mt-2.5 -mr-2.5 flex items-center justify-center bg-transparent border-none rounded-full cursor-pointer hover:bg-slate-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 transition-colors">
-        <img src="{{ url_for('static', filename='img/equis.png') }}" alt="" aria-hidden="true"
-             width="24" height="24" decoding="async" class="w-6 h-6 pointer-events-none" />
-      </button>
-      <div class="p-5 border-b border-slate-100">
-        <h3 class="text-lg font-bold text-slate-900">Editar Tienda</h3>
-        <p class="text-sm text-slate-500 mt-1">Actualiza la informacion y dueno.</p>
-      </div>
-      <form id="form-editar-tienda" class="p-5 space-y-3" novalidate>
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
-        <input type="hidden" id="et-id" />
-        <input id="et-nombre" type="text" placeholder="Nombre del negocio" class="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3" />
-        <input id="et-nit" type="text" placeholder="NIT" class="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3" />
-        <input id="et-telefono" type="text" inputmode="numeric" maxlength="10" pattern="[0-9]{0,10}" oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,10)" placeholder="Telefono" class="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3" />
-
-        <div class="relative">
-          <input id="et-owner-search" type="text" placeholder="Buscar Admin dueno..." class="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3" autocomplete="off" />
-          <input type="hidden" id="et-owner-id" />
-          <div id="et-owner-dropdown" class="absolute z-50 w-full bg-white shadow-lg rounded-xl mt-1 border border-slate-200 hidden max-h-48 overflow-y-auto"></div>
-        </div>
-
-        <p id="et-error" class="hidden rounded-xl px-4 py-3 text-sm bg-red-50 text-red-700 border border-red-200"></p>
-        <button type="submit" class="w-full rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 transition-colors">Guardar Cambios</button>
-      </form>
+    <div>
+      <label for="ct-telefono" class="{{ c_campo }}">Teléfono</label>
+      <input id="ct-telefono" type="text" inputmode="numeric" maxlength="10" data-solo-digitos="10" class="{{ c_input }}" />
     </div>
-  </div>
-
-  <!-- Modal Suscripciones -->
-  <div id="modal-suscripciones" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center hidden">
-    <div class="bg-white w-full max-w-md mx-4 rounded-2xl relative max-h-[90vh] overflow-y-auto">
-      <button type="button" aria-label="Cerrar"
-              data-close-modal="modal-suscripciones"
-              class="absolute top-4 right-4 w-11 h-11 -mt-2.5 -mr-2.5 flex items-center justify-center bg-transparent border-none rounded-full cursor-pointer hover:bg-slate-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 transition-colors">
-        <img src="{{ url_for('static', filename='img/equis.png') }}" alt="" aria-hidden="true"
-             width="24" height="24" decoding="async" class="w-6 h-6 pointer-events-none" />
-      </button>
-      <div class="p-5 border-b border-slate-100">
-        <h3 class="text-lg font-bold text-slate-900">Renovar Suscripcion</h3>
-        <p class="text-sm text-slate-500 mt-1">Selecciona tienda y periodo.</p>
-      </div>
-      <form id="form-suscripciones" class="p-5 space-y-4" novalidate>
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
-        <div class="relative">
-          <input id="sus-tienda-search" type="text" placeholder="Buscar tienda..." class="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3" autocomplete="off" />
-          <input type="hidden" id="sus-id-tienda" />
-          <div id="sus-tienda-dropdown" class="absolute z-50 w-full bg-white shadow-lg rounded-xl mt-1 border border-slate-200 hidden max-h-48 overflow-y-auto"></div>
-        </div>
-
-        <div>
-          <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Tiempo rápido</p>
-          <div class="flex gap-2">
-            <button type="button" class="sus-pill px-3 py-2 rounded-full border border-slate-200 text-sm font-semibold text-slate-600 hover:bg-slate-50" data-months="1">+1 Mes</button>
-            <button type="button" class="sus-pill px-3 py-2 rounded-full border border-slate-200 text-sm font-semibold text-slate-600 hover:bg-slate-50" data-months="3">+3 Meses</button>
-            <button type="button" class="sus-pill px-3 py-2 rounded-full border border-slate-200 text-sm font-semibold text-slate-600 hover:bg-slate-50" data-months="6">+6 Meses</button>
-          </div>
-          <input type="hidden" id="sus-meses" />
-        </div>
-
-        <div>
-          <label for="sus-fecha-manual" class="block text-sm font-semibold text-slate-700 mb-1.5">Fecha manual</label>
-          <input id="sus-fecha-manual" type="date" class="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3" />
-        </div>
-
-        <p id="sus-error" class="hidden rounded-xl px-4 py-3 text-sm bg-red-50 text-red-700 border border-red-200"></p>
-        <button type="submit" class="w-full rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 transition-colors">Actualizar Suscripcion</button>
-      </form>
+    <div class="relative">
+      <label for="ct-owner-search" class="{{ c_campo }}">Admin dueño {{ obligatorio }}</label>
+      <input id="ct-owner-search" type="text" placeholder="Buscar por nombre o correo" class="{{ c_input }}" autocomplete="off" />
+      <input type="hidden" id="ct-owner-id" />
+      <div id="ct-owner-dropdown" class="absolute z-10 mt-1 hidden max-h-48 w-full overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-pos-hover"></div>
     </div>
-  </div>
+    <p id="ct-error" class="{{ c_error }}" role="alert"></p>
+    <button type="submit" class="{{ c_btn }}">Guardar tienda</button>
+  </form>
+  {% endcall %}
 
-  <!-- Modal Gestion de Usuarios -->
-  <div id="modal-gestion-usuarios" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center hidden">
-    <div class="bg-white w-full max-w-4xl mx-4 rounded-2xl relative max-h-[90vh] overflow-y-auto">
-      <button type="button" aria-label="Cerrar"
-              data-close-modal="modal-gestion-usuarios"
-              class="absolute top-4 right-4 w-11 h-11 -mt-2.5 -mr-2.5 flex items-center justify-center bg-transparent border-none rounded-full cursor-pointer hover:bg-slate-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 transition-colors">
-        <img src="{{ url_for('static', filename='img/equis.png') }}" alt="" aria-hidden="true"
-             width="24" height="24" decoding="async" class="w-6 h-6 pointer-events-none" />
-      </button>
-      <div class="p-5 border-b border-slate-100">
-        <h3 class="text-lg font-bold text-slate-900">Gestion de Usuarios</h3>
-        <p class="text-sm text-slate-500 mt-1">Usuarios activos de todas las tiendas.</p>
+  {% call modal('modal-editar-tienda', 'Editar tienda', 'Actualiza la información y el dueño.') %}
+  <form id="form-editar-tienda" class="space-y-4" novalidate>
+    <input type="hidden" id="et-id" />
+    <div>
+      <label for="et-nombre" class="{{ c_campo }}">Nombre del negocio {{ obligatorio }}</label>
+      <input id="et-nombre" type="text" maxlength="150" class="{{ c_input }}" />
+    </div>
+    <div>
+      <label for="et-nit" class="{{ c_campo }}">NIT</label>
+      <input id="et-nit" type="text" maxlength="30" class="{{ c_input }}" />
+    </div>
+    <div>
+      <label for="et-telefono" class="{{ c_campo }}">Teléfono</label>
+      <input id="et-telefono" type="text" inputmode="numeric" maxlength="10" data-solo-digitos="10" class="{{ c_input }}" />
+    </div>
+    <div class="relative">
+      <label for="et-owner-search" class="{{ c_campo }}">Admin dueño</label>
+      <input id="et-owner-search" type="text" placeholder="Buscar por nombre o correo" class="{{ c_input }}" autocomplete="off" />
+      <input type="hidden" id="et-owner-id" />
+      <div id="et-owner-dropdown" class="absolute z-10 mt-1 hidden max-h-48 w-full overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-pos-hover"></div>
+    </div>
+    <p id="et-error" class="{{ c_error }}" role="alert"></p>
+    <button type="submit" class="{{ c_btn }}">Guardar cambios</button>
+  </form>
+  {% endcall %}
+
+  {% call modal('modal-suscripciones', 'Renovar suscripción', 'Selecciona la tienda y el periodo.') %}
+  <form id="form-suscripciones" class="space-y-4" novalidate>
+    <div class="relative">
+      <label for="sus-tienda-search" class="{{ c_campo }}">Tienda {{ obligatorio }}</label>
+      <input id="sus-tienda-search" type="text" placeholder="Buscar tienda" class="{{ c_input }}" autocomplete="off" />
+      <input type="hidden" id="sus-id-tienda" />
+      <div id="sus-tienda-dropdown" class="absolute z-10 mt-1 hidden max-h-48 w-full overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-pos-hover"></div>
+    </div>
+    <div>
+      <p class="{{ c_campo }}">Tiempo rápido</p>
+      <div class="flex flex-wrap gap-2">
+        <button type="button" class="sus-pill rounded-full border border-slate-200 px-3.5 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-50" data-months="1">+1 mes</button>
+        <button type="button" class="sus-pill rounded-full border border-slate-200 px-3.5 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-50" data-months="3">+3 meses</button>
+        <button type="button" class="sus-pill rounded-full border border-slate-200 px-3.5 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-50" data-months="6">+6 meses</button>
       </div>
+      <input type="hidden" id="sus-meses" />
+    </div>
+    <div>
+      <label for="sus-fecha-manual" class="{{ c_campo }}">O una fecha exacta</label>
+      <input id="sus-fecha-manual" type="date" class="{{ c_input }}" />
+    </div>
+    <p id="sus-error" class="{{ c_error }}" role="alert"></p>
+    <button type="submit" class="{{ c_btn }}">Actualizar suscripción</button>
+  </form>
+  {% endcall %}
 
-      <form id="form-editar-usuario" class="hidden m-5 p-4 rounded-xl border border-blue-200 bg-blue-50/50 grid grid-cols-1 sm:grid-cols-2 gap-3" novalidate>
-        <input type="hidden" id="eu-id" />
-        <p class="sm:col-span-2 text-sm font-semibold text-slate-800">Editar usuario <span id="eu-correo" class="font-normal text-slate-500"></span></p>
-        <label class="text-xs font-semibold text-slate-600">Nombre completo
-          <input id="eu-nombre" type="text" maxlength="150" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-normal" />
+  {% call modal('modal-gestion-usuarios', 'Gestión de usuarios', 'Usuarios activos de todas las tiendas.', 'max-w-4xl') %}
+  <label for="gu-buscar" class="sr-only">Buscar usuarios</label>
+  <input id="gu-buscar" type="search" placeholder="Nombre, correo, cédula o tienda" class="{{ c_input }}" autocomplete="off" />
+  <div class="mt-4 overflow-x-auto rounded-xl border border-slate-200">
+    <table class="w-full text-sm">
+      <thead class="bg-slate-50">
+        <tr>
+          <th class="{{ c_th }}">Usuario</th>
+          <th class="{{ c_th }}">Rol</th>
+          <th class="{{ c_th }} hidden sm:table-cell">Tienda</th>
+          <th class="{{ c_th }} hidden sm:table-cell"><span class="sr-only">Acciones</span></th>
+        </tr>
+      </thead>
+      <tbody id="gu-tbody">
+        <tr><td colspan="4" class="px-4 py-8 text-center text-muted">Cargando...</td></tr>
+      </tbody>
+    </table>
+  </div>
+  {% set filtros_id = 'usuarios' %}
+  {% include "pos/_paginador.html" %}
+  {% endcall %}
+
+  {#- Crear y editar usuario comparten modal. Va despues de Gestion (y en una
+      capa mas alta) porque Editar se abre encima de ese listado. -#}
+  {% call modal('modal-usuario', 'Crear usuario', 'Completa los datos del nuevo integrante.', 'max-w-md', 'z-[60]') %}
+  <form id="form-usuario" class="space-y-4" novalidate>
+    <p class="text-xs text-muted">{{ obligatorio }} Campo obligatorio</p>
+    <div>
+      <label for="usr-nombre" class="{{ c_campo }}">Nombre completo {{ obligatorio }}</label>
+      <input id="usr-nombre" type="text" maxlength="150" autocomplete="off" class="{{ c_input }}" />
+    </div>
+    <div>
+      <label for="usr-cc" class="{{ c_campo }}">Cédula (CC) {{ obligatorio }}</label>
+      <input id="usr-cc" type="text" inputmode="numeric" maxlength="15" data-solo-digitos="15" autocomplete="off" class="{{ c_input }}" aria-describedby="usr-cc-ayuda" />
+      <p id="usr-cc-ayuda" class="{{ c_ayuda }} hidden"><i class="fa-solid fa-lock" aria-hidden="true"></i> La cédula no se puede modificar.</p>
+    </div>
+    <div>
+      <label for="usr-correo" class="{{ c_campo }}">Correo {{ obligatorio }}</label>
+      <input id="usr-correo" type="email" maxlength="150" placeholder="correo@ejemplo.com" autocomplete="off" class="{{ c_input }}" />
+    </div>
+    <div>
+      <label for="usr-rol" class="{{ c_campo }}">Rol {{ obligatorio }}</label>
+      <select id="usr-rol" class="{{ c_input }}">
+        <option value="Cajero">Cajero</option>
+        <option value="Admin">Administrador</option>
+        <option value="Master">Master</option>
+      </select>
+    </div>
+    <div id="usr-tienda-wrap" class="relative">
+      <label for="usr-tienda-search" class="{{ c_campo }}">Tienda <span class="font-normal text-muted">(opcional)</span></label>
+      <input id="usr-tienda-search" type="text" placeholder="Buscar tienda o dejar vacío" class="{{ c_input }}" autocomplete="off" aria-describedby="usr-tienda-ayuda" />
+      <input type="hidden" id="usr-tienda-id" />
+      <div id="usr-tienda-dropdown" class="absolute z-10 mt-1 hidden max-h-48 w-full overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-pos-hover"></div>
+      <p id="usr-tienda-ayuda" class="{{ c_ayuda }}">Sin tienda, el usuario queda libre para asignarlo después.</p>
+    </div>
+    <div>
+      <label for="usr-password" class="{{ c_campo }}"><span id="usr-pass-label">Contraseña</span> <span id="usr-pass-req">{{ obligatorio }}</span></label>
+      <input id="usr-password" type="password" autocomplete="new-password" class="{{ c_input }}" />
+    </div>
+    <div>
+      <label for="usr-confirm" class="{{ c_campo }}">Confirmar contraseña</label>
+      <input id="usr-confirm" type="password" autocomplete="new-password" class="{{ c_input }}" />
+    </div>
+    <p id="usr-error" class="{{ c_error }}" role="alert"></p>
+    <div class="flex gap-2 pt-1">
+      <button type="button" class="{{ c_btn_suave }} flex-1" data-close-modal="modal-usuario">Cancelar</button>
+      <button type="submit" id="usr-submit" class="{{ c_btn }} flex-1">Crear usuario</button>
+    </div>
+  </form>
+  {% endcall %}
+
+  {% call modal('modal-movimiento', 'Registrar movimiento', 'Un ingreso del proyecto (mensualidad, implementación) o un gasto operativo.') %}
+  <form id="form-movimiento" class="space-y-4" novalidate>
+    <fieldset>
+      <legend class="{{ c_campo }}">Tipo {{ obligatorio }}</legend>
+      <div class="flex gap-2">
+        <label class="flex-1 cursor-pointer">
+          <input type="radio" name="mov-tipo" value="Ingreso" class="peer sr-only" checked />
+          <span class="block rounded-xl border-[1.5px] border-slate-200 bg-slate-50 px-3 py-2.5 text-center text-sm font-semibold text-slate-600 transition peer-checked:border-emerald-500 peer-checked:bg-emerald-50 peer-checked:text-emerald-700 peer-focus-visible:ring-[3px] peer-focus-visible:ring-blue-200">
+            <i class="fa-solid fa-arrow-down" aria-hidden="true"></i> Ingreso
+          </span>
         </label>
-        <label class="text-xs font-semibold text-slate-600">Cedula (CC)
-          <input id="eu-cc" type="text" inputmode="numeric" maxlength="15" oninput="this.value=this.value.replace(/[^0-9]/g,'')" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-normal" />
+        <label class="flex-1 cursor-pointer">
+          <input type="radio" name="mov-tipo" value="Gasto" class="peer sr-only" />
+          <span class="block rounded-xl border-[1.5px] border-slate-200 bg-slate-50 px-3 py-2.5 text-center text-sm font-semibold text-slate-600 transition peer-checked:border-red-500 peer-checked:bg-red-50 peer-checked:text-red-700 peer-focus-visible:ring-[3px] peer-focus-visible:ring-blue-200">
+            <i class="fa-solid fa-arrow-up" aria-hidden="true"></i> Gasto
+          </span>
         </label>
-        <label class="text-xs font-semibold text-slate-600">Rol
-          <select id="eu-rol" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-normal">
-            <option value="Cajero">Cajero</option>
-            <option value="Admin">Administrador</option>
-            <option value="Master">Master</option>
-          </select>
-        </label>
-        <label class="text-xs font-semibold text-slate-600">Nueva contrasena (opcional)
-          <input id="eu-password" type="password" autocomplete="new-password" placeholder="Dejar vacio para no cambiar" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-normal" />
-        </label>
-        <p id="eu-error" class="hidden sm:col-span-2 rounded-xl px-4 py-3 text-sm bg-red-50 text-red-700 border border-red-200"></p>
-        <div class="sm:col-span-2 flex gap-2 justify-end">
-          <button type="button" id="eu-cancelar" class="rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold px-4 py-2.5 text-sm">Cancelar</button>
-          <button type="submit" class="rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold px-4 py-2.5 text-sm">Guardar cambios</button>
-        </div>
-      </form>
-
-      <div class="px-5 pt-4">
-        <input id="gu-buscar" type="search" placeholder="Buscar por nombre, cedula, correo o tienda..." class="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm" />
       </div>
-      <div class="p-5 overflow-x-auto">
-        <table class="w-full text-sm">
-          <thead class="bg-slate-50 text-slate-600">
-            <tr>
-              <th class="text-left px-4 py-3 font-semibold">Nombre</th>
-              <th class="text-left px-4 py-3 font-semibold">Rol</th>
-              <th class="text-left px-4 py-3 font-semibold">CC</th>
-              <th class="text-left px-4 py-3 font-semibold hidden sm:table-cell">Tienda</th>
-              <th class="text-left px-4 py-3 font-semibold">Acciones</th>
-            </tr>
-          </thead>
-          <tbody id="gu-tbody">
-            <tr><td colspan="5" class="px-4 py-8 text-center text-slate-500">Cargando...</td></tr>
-          </tbody>
-        </table>
+    </fieldset>
+    <div>
+      <label for="mov-concepto" class="{{ c_campo }}">Concepto {{ obligatorio }}</label>
+      <input id="mov-concepto" type="text" maxlength="150" placeholder="Ej. Mensualidad Tienda La 14, hosting del servidor" class="{{ c_input }}" />
+    </div>
+    <div class="grid grid-cols-1 gap-4 min-[400px]:grid-cols-2">
+      <div>
+        <label for="mov-monto" class="{{ c_campo }}">Monto (COP) {{ obligatorio }}</label>
+        <input id="mov-monto" type="text" inputmode="numeric" placeholder="65.000" autocomplete="off" class="{{ c_input }}" />
+      </div>
+      <div>
+        <label for="mov-fecha" class="{{ c_campo }}">Fecha {{ obligatorio }}</label>
+        <input id="mov-fecha" type="date" max="{{ hoy.isoformat() }}" data-hoy="{{ hoy.isoformat() }}" class="{{ c_input }}" />
       </div>
     </div>
-  </div>
+    <p id="mov-error" class="{{ c_error }}" role="alert"></p>
+    <button type="submit" class="{{ c_btn }}">Registrar</button>
+  </form>
+  {% endcall %}
 
-  <!-- Modal Eliminar Tienda -->
-  <div id="modal-eliminar-tienda" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center hidden">
-    <div class="bg-white w-full max-w-md mx-4 rounded-2xl relative max-h-[90vh] overflow-y-auto border border-red-200">
-      <button type="button" aria-label="Cerrar"
-              data-close-modal="modal-eliminar-tienda"
-              class="absolute top-4 right-4 w-11 h-11 -mt-2.5 -mr-2.5 flex items-center justify-center bg-transparent border-none rounded-full cursor-pointer hover:bg-slate-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 transition-colors">
-        <img src="{{ url_for('static', filename='img/equis.png') }}" alt="" aria-hidden="true"
-             width="24" height="24" decoding="async" class="w-6 h-6 pointer-events-none" />
-      </button>
-      <div class="p-5 border-b border-red-100 bg-red-50">
-        <h3 class="text-lg font-bold text-red-700">Eliminar Tienda</h3>
-        <p class="text-sm text-red-600 mt-1">Esta accion no se puede deshacer.</p>
-      </div>
-      <div class="p-5">
-        <p class="text-sm text-slate-700">Se eliminara la tienda <strong id="del-tienda-nombre"></strong> y su informacion relacionada.</p>
-        <input type="hidden" id="del-tienda-id" />
-        <div class="mt-4 flex gap-2">
-          <button type="button" class="flex-1 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-3" data-close-modal="modal-eliminar-tienda">Cancelar</button>
-          <button type="button" id="btn-confirmar-eliminar" class="flex-1 rounded-xl bg-red-600 hover:bg-red-700 text-white font-semibold py-3">Eliminar</button>
-        </div>
-      </div>
-    </div>
+  {% call modal('modal-eliminar-tienda', 'Eliminar tienda', 'Esta acción no se puede deshacer.') %}
+  <p class="text-sm text-slate-700">Se eliminará la tienda <strong id="del-tienda-nombre"></strong> y sus usuarios perderán el acceso. El historial contable se conserva.</p>
+  <input type="hidden" id="del-tienda-id" />
+  <div class="mt-5 flex gap-2">
+    <button type="button" class="{{ c_btn_suave }} flex-1" data-close-modal="modal-eliminar-tienda">Cancelar</button>
+    <button type="button" id="btn-confirmar-eliminar" class="flex-1 rounded-xl bg-red-600 px-4 py-3 font-semibold text-white transition hover:bg-red-700 disabled:opacity-60">Eliminar</button>
   </div>
+  {% endcall %}
 
   <script src="/static/js/toast.js" defer></script>
+  <script src="/static/js/cop-format.js" defer></script>
+  <script src="/static/js/filtros-paginacion.js" defer></script>
   <script src="/static/js/panel_master.js" defer></script>
 </body>
 </html>
-
-
-
-

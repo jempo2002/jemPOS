@@ -1,0 +1,30 @@
+<!-- Ruta: templates/pos/_ticket_modal.html
+     Detalle de un ticket de venta. Lo usan Ventas y el modal de trabajador del
+     Panel de Control; lo maneja static/js/ventas-comun.js y lo pinta ventas.css
+     (sin Tailwind: el Panel de Control no lo carga). -->
+<div id="modal-detalle" class="ticket-modal hidden" role="dialog" aria-modal="true" aria-labelledby="ticket-titulo">
+  <div class="ticket-card">
+    <button type="button" id="btn-cerrar-modal" class="ticket-close" aria-label="Cerrar detalle">
+      <img src="/static/img/equis.png" alt="" aria-hidden="true" width="24" height="24" decoding="async" />
+    </button>
+
+    {# Todo lo que va al PDF vive dentro de #ticket-content: html2pdf
+       captura este nodo tal cual se ve. #}
+    <div id="ticket-content" class="ticket-content">
+      <h2 id="ticket-titulo" class="ticket-title">Detalle del Ticket <span id="ticket-numero">-</span></h2>
+      <p id="ticket-loading" class="ticket-msg">Cargando...</p>
+      <dl id="ticket-meta" class="ticket-meta"></dl>
+      <div id="ticket-detalle" class="ticket-detalle"></div>
+      <div class="ticket-line ticket-line-sep">
+        <span>Metodo de pago</span>
+        <strong id="ticket-metodo" class="ticket-metodo">-</strong>
+      </div>
+      <div class="ticket-line">
+        <span>Total</span>
+        <strong id="ticket-total" class="ticket-total">$0</strong>
+      </div>
+    </div>
+
+    <button id="btn-pdf" type="button" class="ticket-pdf">Descargar PDF</button>
+  </div>
+</div>

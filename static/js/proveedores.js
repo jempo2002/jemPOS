@@ -1,6 +1,7 @@
 // Ruta: static/js/proveedores.js
-// Seccion Proveedores del inventario: CRUD + modal de visualizacion
-// (productos asociados con filtro por categoria y paginacion client-side).
+// Pantalla Proveedores (templates/pos/proveedores.html): CRUD + modal de
+// visualizacion (productos asociados con filtro por categoria y paginacion
+// client-side).
 
 (function () {
   'use strict';
@@ -28,26 +29,6 @@
   function closeModal(id) { var m = $(id); if (m) m.classList.remove('open'); }
 
   var proveedores = [];
-
-  /* ================= Pestanas ================= */
-  function setTab(tab) {
-    var isProv = tab === 'proveedores';
-    document.querySelectorAll('.inv-tab').forEach(function (b) {
-      var active = b.getAttribute('data-tab') === tab;
-      b.classList.toggle('is-active', active);
-      b.setAttribute('aria-selected', active ? 'true' : 'false');
-    });
-    var vp = $('view-productos');
-    var vv = $('view-proveedores');
-    if (vp) vp.hidden = isProv;
-    if (vv) vv.hidden = !isProv;
-    // Controles solo-productos
-    var btnAdd = $('btn-add');
-    var search = $('inv-search-wrap');
-    if (btnAdd) btnAdd.style.display = isProv ? 'none' : '';
-    if (search) search.style.display = isProv ? 'none' : '';
-    if (isProv && !proveedores.length) loadProveedores();
-  }
 
   /* ================= Listado ================= */
   async function loadProveedores() {
@@ -320,9 +301,7 @@
 
   /* ================= Init ================= */
   document.addEventListener('DOMContentLoaded', function () {
-    document.querySelectorAll('.inv-tab').forEach(function (b) {
-      b.addEventListener('click', function () { setTab(b.getAttribute('data-tab')); });
-    });
+    loadProveedores();
 
     var addBtn = $('btn-add-prov');
     if (addBtn) addBtn.addEventListener('click', openCreate);

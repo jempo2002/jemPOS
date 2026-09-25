@@ -16,11 +16,16 @@ from app.services.auth_service import (
     LIBERAR_USUARIO_SQL,
     update_profile_basic,
 )
+from app.routes.seo import MENSUALIDAD
 from app.services.sales_service import (
-    get_dashboard_financial_summary,
+    _meta_paginacion,
+    get_money_flow_summary,
+    get_rendimiento_personal,
     get_stock_alerts,
     get_top_vendidos,
+    paginacion,
 )
+from app.services.cartera_service import get_resumen_cartera, get_top_deudores
 from app.utils.decorators import _is_api_request, login_required, roles_required
 from app.utils.helpers import avatar_iniciales, fmt_money, only_digits
 from app.utils.validation import parse_int, sanitize_optional_text, sanitize_text
@@ -68,62 +73,64 @@ def _add_months(base_date: date, months: int) -> date:
     return date(year, month, day)
 
 
-def _get_master_tiendas() -> list:
+# Tamano de pagina de cada listado del Panel Master.
+POR_PAGINA_TIENDAS = 10
+POR_PAGINA_VENCER = 5
+POR_PAGINA_MOVIMIENTOS = 8
+
+
+def _get_master_tiendas(page) -> tuple[list, dict]:
+    page, limit = paginacion(page, POR_PAGINA_TIENDAS, defecto=POR_PAGINA_TIENDAS)
     conn = get_db()
     try:
         cur = conn.cursor(dictionary=True)
+        cur.execute("SELECT COUNT(*) AS n FROM tiendas WHERE estado <> 'Eliminado'")
+        meta = _meta_paginacion(cur.fetchone()["n"], page, limit)
+        # Dueno = el Admin activo mas antiguo: un JOIN directo repetia la tienda
+        # por cada Admin y descuadraba el LIMIT.
         cur.execute(
             """
             SELECT t.id_tienda, t.nombre_negocio, t.nit, t.telefono,
                    t.fecha_fin_suscripcion, t.estado_suscripcion,
                    u.id_usuario AS owner_id, u.nombre_completo AS owner_name
             FROM tiendas t
-            LEFT JOIN usuarios u
-              ON u.id_tienda = t.id_tienda AND u.rol = 'Admin' AND u.estado_activo = 1
+            LEFT JOIN usuarios u ON u.id_usuario = (
+                SELECT MIN(a.id_usuario) FROM usuarios a
+                WHERE a.id_tienda = t.id_tienda AND a.rol = 'Admin' AND a.estado_activo = 1
+            )
             WHERE t.estado <> 'Eliminado'
-            ORDER BY t.nombre_negocio
-            """
+            ORDER BY t.nombre_negocio, t.id_tienda
+            LIMIT %s OFFSET %s
+            """,
+            (limit, meta["offset"]),
         )
-        rows = cur.fetchall()
+        tiendas = cur.fetchall()
     finally:
         conn.close()
-
-    tiendas = []
-    seen = set()
-    for r in rows:
-        tid = r["id_tienda"]
-        if tid in seen:
-            continue
-        seen.add(tid)
-        tiendas.append(
-            {
-                "id_tienda": tid,
-                "nombre_negocio": r["nombre_negocio"],
-                "nit": r.get("nit") or "-",
-                "telefono": r.get("telefono") or "-",
-                "fecha_fin_suscripcion": r.get("fecha_fin_suscripcion"),
-                "estado_suscripcion": r.get("estado_suscripcion") or "suspendida",
-                "owner_id": r.get("owner_id"),
-                "owner_name": r.get("owner_name") or "Sin dueno",
-            }
-        )
-    return tiendas
+    # Valores crudos (None si faltan): la plantilla pone los guiones. Antes el
+    # "-" viajaba al modal de edicion y se guardaba como NIT.
+    return tiendas, meta
 
 
-def _get_master_proximos_vencer() -> list:
+def _get_master_proximos_vencer(page) -> tuple[list, dict]:
+    page, limit = paginacion(page, POR_PAGINA_VENCER, defecto=POR_PAGINA_VENCER)
+    filtro = (
+        "FROM tiendas t "
+        "WHERE t.fecha_fin_suscripcion IS NOT NULL "
+        "AND t.fecha_fin_suscripcion <= DATE_ADD(CURDATE(), INTERVAL 5 DAY) "
+        "AND t.estado <> 'Eliminado' "
+    )
     conn = get_db()
     try:
         cur = conn.cursor(dictionary=True)
+        cur.execute("SELECT COUNT(*) AS n " + filtro)
+        meta = _meta_paginacion(cur.fetchone()["n"], page, limit)
         cur.execute(
-            """
-            SELECT t.id_tienda, t.nombre_negocio, t.telefono, t.fecha_fin_suscripcion,
-                   DATEDIFF(t.fecha_fin_suscripcion, CURDATE()) AS dias_restantes
-            FROM tiendas t
-            WHERE t.fecha_fin_suscripcion IS NOT NULL
-              AND t.fecha_fin_suscripcion <= DATE_ADD(CURDATE(), INTERVAL 5 DAY)
-              AND t.estado <> 'Eliminado'
-            ORDER BY t.fecha_fin_suscripcion ASC
-            """
+            "SELECT t.id_tienda, t.nombre_negocio, t.telefono, t.fecha_fin_suscripcion, "
+            "DATEDIFF(t.fecha_fin_suscripcion, CURDATE()) AS dias_restantes "
+            + filtro +
+            "ORDER BY t.fecha_fin_suscripcion ASC, t.id_tienda LIMIT %s OFFSET %s",
+            (limit, meta["offset"]),
         )
         rows = cur.fetchall()
     finally:
@@ -143,7 +150,83 @@ def _get_master_proximos_vencer() -> list:
                 "wa_url": f"https://wa.me/57{digits}" if digits else None,
             }
         )
-    return data
+    return data, meta
+
+
+def _get_master_resumen() -> dict:
+    """Tarjetas del Panel Master: tiendas, usuarios e ingresos del SaaS."""
+    conn = get_db()
+    try:
+        cur = conn.cursor(dictionary=True)
+        # "Al dia" = suscripcion con fecha de fin futura. Las tiendas sin fecha
+        # (registro libre, la tienda del propio Master) no pagan: no suman.
+        cur.execute(
+            "SELECT COUNT(*) AS total, "
+            "COALESCE(SUM(fecha_fin_suscripcion > CURDATE()), 0) AS al_dia "
+            "FROM tiendas WHERE estado <> 'Eliminado'"
+        )
+        tiendas = cur.fetchone()
+        cur.execute("SELECT COUNT(*) AS n FROM usuarios WHERE estado_activo = 1")
+        usuarios = cur.fetchone()["n"]
+        inicio_mes = date.today().replace(day=1)
+        cur.execute(
+            "SELECT "
+            "COALESCE(SUM(CASE WHEN tipo = 'Ingreso' THEN monto END), 0) AS ingresos, "
+            "COALESCE(SUM(CASE WHEN tipo = 'Gasto' THEN monto END), 0) AS gastos "
+            "FROM master_movimientos WHERE fecha >= %s AND fecha < %s",
+            (inicio_mes, _add_months(inicio_mes, 1)),
+        )
+        mes = cur.fetchone()
+    finally:
+        conn.close()
+
+    al_dia = int(tiendas["al_dia"])
+    ingresos, gastos = float(mes["ingresos"]), float(mes["gastos"])
+    return {
+        "tiendas": int(tiendas["total"]),
+        "tiendas_al_dia": al_dia,
+        "usuarios": int(usuarios),
+        "ingresos_estimados": fmt_money(al_dia * MENSUALIDAD),
+        "mensualidad": fmt_money(MENSUALIDAD),
+        "ingresos_mes": fmt_money(ingresos),
+        "gastos_mes": fmt_money(gastos),
+        "balance_mes": fmt_money(abs(ingresos - gastos)),
+        "balance_negativo": ingresos < gastos,
+    }
+
+
+def _get_master_movimientos(page) -> tuple[list, dict]:
+    page, limit = paginacion(page, POR_PAGINA_MOVIMIENTOS, defecto=POR_PAGINA_MOVIMIENTOS)
+    conn = get_db()
+    try:
+        cur = conn.cursor(dictionary=True)
+        cur.execute("SELECT COUNT(*) AS n FROM master_movimientos")
+        meta = _meta_paginacion(cur.fetchone()["n"], page, limit)
+        cur.execute(
+            "SELECT id_movimiento, tipo, concepto, monto, fecha FROM master_movimientos "
+            "ORDER BY fecha DESC, id_movimiento DESC LIMIT %s OFFSET %s",
+            (limit, meta["offset"]),
+        )
+        rows = cur.fetchall()
+    finally:
+        conn.close()
+    for r in rows:
+        r["monto_fmt"] = fmt_money(float(r["monto"]))
+    return rows, meta
+
+
+def _tienda_opcional(cur, raw) -> int | None:
+    """id de una tienda viva, o None si no se eligio ninguna."""
+    if raw in (None, ""):
+        return None
+    id_tienda = parse_int(raw, "Tienda", min_value=1)
+    cur.execute(
+        "SELECT 1 FROM tiendas WHERE id_tienda = %s AND estado <> 'Eliminado' LIMIT 1",
+        (id_tienda,),
+    )
+    if not cur.fetchone():
+        raise ValueError("La tienda seleccionada no existe.")
+    return id_tienda
 
 
 _CC_DUPLICADA = "Ya existe un usuario con esa cedula."
@@ -294,210 +377,100 @@ def _dashboard_period_bounds(raw_filter: str, fecha: str | None = None):
 
 
 def _build_dashboard_data(id_tienda: int, raw_filter: str, fecha: str | None = None) -> dict:
+    """Todo el Panel de Control en una respuesta.
+
+    Finanzas: del periodo elegido. Cartera y personal: siempre al momento
+    (lo que se debe hoy y como va cada turno no dependen de la capsula).
+    """
     filtro, since, until, prev_since, prev_until, badge_label = _dashboard_period_bounds(raw_filter, fecha)
+
+    flujo = get_money_flow_summary(id_tienda, since, until)
+    ventas = float(flujo["entradas"])
+    gastos = float(flujo["salidas"])
 
     conn = get_db()
     try:
         cur = conn.cursor(dictionary=True)
-
-        def scalar(sql: str, params: tuple) -> float:
-            cur.execute(sql, params)
-            row = cur.fetchone() or {}
-            return float(row.get("v") or 0)
-
-        financials = get_dashboard_financial_summary(id_tienda, since, until)
-        ventas = float(financials.get("ventas") or 0)
-        gastos = float(financials.get("gastos") or 0)
-        chart_labels = financials.get("chart", {}).get("labels", [])
-        chart_ingresos = financials.get("chart", {}).get("ingresos", [])
-        chart_gastos = financials.get("chart", {}).get("gastos", [])
-
-        ventas_prev = scalar(
-            "SELECT COALESCE(SUM(v.total_final),0) AS v "
-            "FROM ventas v "
-            "WHERE v.id_tienda=%s AND v.estado_venta='Pagada' "
+        cur.execute(
+            "SELECT COALESCE(SUM(v.total_final), 0) AS v FROM ventas v "
+            "WHERE v.id_tienda = %s AND v.estado_venta = 'Pagada' "
             "AND v.fecha_creacion >= %s AND v.fecha_creacion < %s",
             (id_tienda, prev_since, prev_until),
         )
+        ventas_prev = float((cur.fetchone() or {}).get("v") or 0)
 
-        ganancia_bruta = scalar(
-            "SELECT COALESCE(SUM((dv.precio_unitario_historico - p.precio_costo) * dv.cantidad),0) AS v "
-            "FROM detalle_ventas dv "
-            "INNER JOIN ventas v ON dv.id_venta = v.id_venta "
-            "INNER JOIN productos p ON dv.id_producto = p.id_producto "
-            "WHERE v.id_tienda=%s AND v.estado_venta='Pagada' "
+        cur.execute(
+            "SELECT COUNT(*) AS n FROM ventas v "
+            "WHERE v.id_tienda = %s AND v.estado_venta = 'Pagada' "
             "AND v.fecha_creacion >= %s AND v.fecha_creacion < %s",
             (id_tienda, since, until),
         )
-        ganancia_neta = ganancia_bruta - gastos
+        num_ventas = int((cur.fetchone() or {}).get("n") or 0)
 
-        fiado_total = scalar(
-            "SELECT COALESCE(SUM(v.total_final),0) AS v "
-            "FROM ventas v "
-            "WHERE v.id_tienda=%s AND v.estado_venta='Fiada/Pendiente' "
-            "AND v.fecha_creacion >= %s AND v.fecha_creacion < %s",
-            (id_tienda, since, until),
-        )
-        abonos = scalar(
-            "SELECT COALESCE(SUM(ab.monto_abonado),0) AS v "
-            "FROM abonos_fiados ab "
-            "INNER JOIN ventas v ON ab.id_venta = v.id_venta "
-            "WHERE ab.id_tienda=%s AND ab.fecha_creacion >= %s AND ab.fecha_creacion < %s",
-            (id_tienda, since, until),
-        )
-        cuentas_por_cobrar = max(0.0, fiado_total - abonos)
-
-        if ventas_prev > 0:
-            pct = ((ventas - ventas_prev) / ventas_prev) * 100
-            ventas_badge = {
-                "up": pct >= 0,
-                "text": f"{'+' if pct >= 0 else ''}{pct:.0f}% vs {badge_label}",
-            }
-        else:
-            ventas_badge = {"up": True, "text": "Sin datos anteriores"}
-
-        # 10 registros = 2 paginas de 5 en el frontend
-        top_vendidos = [
-            {
-                "name": r["name"],
-                "value": f"{int(float(r['total'] or 0))} und",
-                "total": float(r["total"] or 0),
-            }
-            for r in get_top_vendidos(id_tienda, since, until, limit=10)
-        ]
-
+        # Costo por unidad base: una linea vendida por empaque (rollo x100)
+        # consume empaque_cantidad unidades de costo por cada empaque.
+        # ponytail: se reconoce el empaque por su nombre en unidad_venta; si un
+        # dia se renombra el empaque, las ventas viejas se costean por unidad.
         cur.execute(
-            "SELECT p.nombre, SUM(dv.cantidad) AS total "
-            "FROM detalle_ventas dv "
-            "INNER JOIN ventas v ON dv.id_venta = v.id_venta "
-            "INNER JOIN productos p ON dv.id_producto = p.id_producto AND p.id_tienda = v.id_tienda "
-            "WHERE v.id_tienda=%s AND v.estado_venta='Pagada' "
-            "AND v.fecha_creacion >= %s AND v.fecha_creacion < %s "
-            "GROUP BY dv.id_producto, p.nombre "
-            "ORDER BY total ASC LIMIT 10",
-            (id_tienda, since, until),
-        )
-        top_menos_vendidos = [
-            {
-                "name": r["nombre"] or "Producto",
-                "value": f"{int(float(r['total'] or 0))} und",
-                "total": float(r["total"] or 0),
-            }
-            for r in cur.fetchall()
-        ]
-
-        cur.execute(
-            "SELECT p.nombre, "
-            "SUM((dv.precio_unitario_historico - p.precio_costo) * dv.cantidad) AS rent "
+            "SELECT COALESCE(SUM(dv.subtotal_linea - p.precio_costo * dv.cantidad * "
+            "  CASE WHEN dv.unidad_venta = p.empaque_nombre AND p.empaque_cantidad > 0 "
+            "       THEN p.empaque_cantidad ELSE 1 END), 0) AS v "
             "FROM detalle_ventas dv "
             "INNER JOIN ventas v ON dv.id_venta = v.id_venta "
             "INNER JOIN productos p ON dv.id_producto = p.id_producto "
-            "WHERE v.id_tienda=%s AND v.estado_venta='Pagada' "
-            "AND v.fecha_creacion >= %s AND v.fecha_creacion < %s "
-            "GROUP BY dv.id_producto, p.nombre "
-            "ORDER BY rent DESC LIMIT 10",
+            "WHERE v.id_tienda = %s AND v.estado_venta = 'Pagada' "
+            "AND v.fecha_creacion >= %s AND v.fecha_creacion < %s",
             (id_tienda, since, until),
         )
-        top_rentables = [
-            {
-                "name": r["nombre"],
-                "value": fmt_money(float(r["rent"] or 0)),
-            }
-            for r in cur.fetchall()
-        ]
-
-        stock_alertas = get_stock_alerts(id_tienda)
-
-        cur.execute(
-            "SELECT c.id_cliente, c.nombre, c.telefono, "
-            "COALESCE((SELECT SUM(GREATEST(v.total_final - COALESCE((SELECT SUM(ab.monto_abonado) FROM abonos_fiados ab WHERE ab.id_venta = v.id_venta),0),0)) FROM ventas v "
-            "         WHERE v.id_cliente = c.id_cliente AND v.id_tienda = c.id_tienda "
-            "           AND v.estado_venta = 'Fiada/Pendiente'),0) AS deuda_total, "
-            "(SELECT MIN(v.fecha_creacion) FROM ventas v "
-            "  WHERE v.id_cliente = c.id_cliente AND v.id_tienda = c.id_tienda "
-            "    AND v.estado_venta = 'Fiada/Pendiente') AS primera_deuda "
-            "FROM clientes c "
-            "WHERE c.id_tienda = %s AND c.estado_activo = 1 "
-            "ORDER BY deuda_total DESC "
-            "LIMIT 12",
-            (id_tienda,),
-        )
-        deudores = []
-        today = datetime.now().date()
-        for r in cur.fetchall():
-            deuda = float(r["deuda_total"] or 0)
-            if deuda <= 0:
-                continue
-            fecha_deuda = r.get("primera_deuda")
-            dias = (today - fecha_deuda.date()).days if fecha_deuda else 0
-            deudores.append(
-                {
-                    "name": r["nombre"],
-                    "phone": r.get("telefono") or "-",
-                    "debt": deuda,
-                    "debt_fmt": fmt_money(deuda),
-                    "days_overdue": max(0, int(dias)),
-                }
-            )
-
-        # Rendimiento del personal: siempre "hoy", independiente del filtro de periodo.
-        today0 = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
-        today1 = today0 + timedelta(days=1)
-        cur.execute(
-            "SELECT u.id_usuario, u.nombre_completo, "
-            "COALESCE((SELECT COUNT(*) FROM ventas v WHERE v.id_cajero=u.id_usuario AND v.id_tienda=u.id_tienda "
-            "          AND v.estado_venta='Pagada' AND v.fecha_creacion >= %s AND v.fecha_creacion < %s),0) AS ventas_count, "
-            "COALESCE((SELECT SUM(v.total_final) FROM ventas v WHERE v.id_cajero=u.id_usuario AND v.id_tienda=u.id_tienda "
-            "          AND v.estado_venta='Pagada' AND v.metodo_pago='Efectivo' AND v.fecha_creacion >= %s AND v.fecha_creacion < %s),0) AS efectivo_hoy, "
-            "COALESCE((SELECT SUM(g.monto) FROM gastos_caja g WHERE g.id_usuario=u.id_usuario AND g.id_tienda=u.id_tienda "
-            "          AND g.fecha_creacion >= %s AND g.fecha_creacion < %s),0) AS gastos_hoy, "
-            "EXISTS(SELECT 1 FROM turnos_caja t WHERE t.id_usuario_apertura=u.id_usuario AND t.id_tienda=u.id_tienda "
-            "       AND t.estado_turno='Abierto') AS en_turno "
-            "FROM usuarios u "
-            "WHERE u.id_tienda=%s AND u.estado_activo=1 AND u.rol IN ('Admin','Cajero') "
-            "ORDER BY en_turno DESC, ventas_count DESC LIMIT 20",
-            (today0, today1, today0, today1, today0, today1, id_tienda),
-        )
-        cajeros_abiertos = []
-        for r in cur.fetchall():
-            balance = float(r["efectivo_hoy"] or 0) - float(r["gastos_hoy"] or 0)
-            cajeros_abiertos.append(
-                {
-                    "name": r["nombre_completo"],
-                    "value": fmt_money(balance),
-                    "balance": balance,
-                    "ventas_count": int(r["ventas_count"] or 0),
-                    "status": "En turno" if r["en_turno"] else "Fuera de turno",
-                }
-            )
+        utilidad_bruta = float((cur.fetchone() or {}).get("v") or 0)
     finally:
         conn.close()
 
-        return {
-            "filtro": filtro,
-            "kpis": {
-                "ventas": ventas,
-            "ventas_fmt": fmt_money(ventas),
-            "ganancia": ganancia_neta,
-            "ganancia_fmt": fmt_money(ganancia_neta),
+    if ventas_prev > 0:
+        pct = (ventas - ventas_prev) / ventas_prev * 100
+        tendencia = {"up": pct >= 0, "text": f"{'+' if pct >= 0 else ''}{pct:.0f}% vs {badge_label}"}
+    elif filtro == "todas":
+        tendencia = None
+    else:
+        tendencia = {"up": True, "text": "Sin comparativo"}
+
+    cartera = get_resumen_cartera(id_tienda)
+    utilidad_neta = utilidad_bruta - gastos
+
+    # Punto de equilibrio: ventas con las que la utilidad bruta iguala a los
+    # gastos del periodo = gastos / margen bruto. Sin margen positivo no hay
+    # volumen de ventas que cubra los gastos: se devuelve None.
+    # ponytail: todos los gastos del periodo se tratan como fijos; separar
+    # fijos/variables cuando gastos_caja tenga esa clasificacion.
+    margen_ratio = utilidad_bruta / ventas if ventas > 0 else 0.0
+    if gastos <= 0:
+        punto_equilibrio = 0.0
+    elif margen_ratio > 0:
+        punto_equilibrio = round(gastos / margen_ratio, 2)
+    else:
+        punto_equilibrio = None
+    return {
+        "filtro": filtro,
+        "finanzas": {
+            "ventas": ventas,
+            "tendencia": tendencia,
+            "num_ventas": num_ventas,
+            "ticket_promedio": round(ventas / num_ventas, 2) if num_ventas else 0.0,
+            "utilidad_bruta": round(utilidad_bruta, 2),
+            "margen": round(utilidad_bruta / ventas * 100, 1) if ventas > 0 else None,
             "gastos": gastos,
-            "gastos_fmt": fmt_money(gastos),
-            "fiados": cuentas_por_cobrar,
-            "fiados_fmt": fmt_money(cuentas_por_cobrar),
-            "ventas_badge": ventas_badge,
+            "utilidad_neta": round(utilidad_neta, 2),
+            "punto_equilibrio": punto_equilibrio,
+            **cartera,
         },
-            "chart": {
-                "labels": chart_labels,
-                "ingresos": chart_ingresos,
-                "gastos": chart_gastos,
-                "values": chart_ingresos,
-            },
-            "stock_alertas": stock_alertas,
-            "top_vendidos": top_vendidos,
-        "top_menos_vendidos": top_menos_vendidos,
-        "top_rentables": top_rentables,
-        "cajeros_abiertos": cajeros_abiertos,
-        "deudores": deudores,
+        "deudas_antiguas": get_top_deudores(id_tienda, "antiguas"),
+        "deudas_mayores": get_top_deudores(id_tienda, "monto"),
+        "top_vendidos": [
+            {"name": r["name"], "total": r["total"]} for r in get_top_vendidos(id_tienda, since, until, limit=5)
+        ],
+        "stock_alertas": get_stock_alerts(id_tienda, limit=5),
+        "personal": get_rendimiento_personal(id_tienda),
+        "actualizado": datetime.now().strftime("%I:%M %p"),
     }
 
 
@@ -528,43 +501,8 @@ def servicio_suspendido():
 @login_required
 @roles_required("Admin", "Master")
 def dashboard_page():
-    filtro = request.args.get("filter") or request.args.get("filtro") or "hoy"
-    dashboard = _build_dashboard_data(session["id_tienda"], filtro)
-    insumos_criticos = []
-
-    if bool(session.get("es_restaurante")):
-        conn = get_db()
-        try:
-            cur = conn.cursor(dictionary=True)
-            cur.execute(
-                "SELECT nombre, stock_actual, stock_minimo_alerta, unidad_medida "
-                "FROM insumos "
-                "WHERE stock_actual <= stock_minimo_alerta "
-                "AND stock_minimo_alerta > 0 "
-                "AND id_tienda = %s "
-                "ORDER BY stock_actual ASC",
-                (session["id_tienda"],),
-            )
-            insumos_criticos = [
-                {
-                    "nombre": r.get("nombre") or "Insumo",
-                    "stock_actual": float(r.get("stock_actual") or 0),
-                    "stock_minimo_alerta": float(r.get("stock_minimo_alerta") or 0),
-                    "unidad_medida": (r.get("unidad_medida") or "Un").strip() or "Un",
-                }
-                for r in (cur.fetchall() or [])
-            ]
-        except Exception:
-            insumos_criticos = []
-        finally:
-            conn.close()
-
-    return _render_protected(
-        "pos/dashboard.html",
-        filtro_activo=dashboard["filtro"],
-        dashboard=dashboard,
-        insumos_criticos=insumos_criticos,
-    )
+    # Los datos los pide dashboard.js a /api/dashboard (y los refresca solo).
+    return _render_protected("pos/dashboard.html")
 
 
 @core_bp.route("/perfil")
@@ -578,12 +516,23 @@ def perfil_page():
 @login_required
 @roles_required("Master")
 def panel_master_page():
+    # Cada listado pagina con su propio parametro (?pt, ?pv, ?pm): moverse en
+    # uno no reinicia los otros.
+    tiendas, meta_tiendas = _get_master_tiendas(request.args.get("pt"))
+    proximos, meta_proximos = _get_master_proximos_vencer(request.args.get("pv"))
+    movimientos, meta_movimientos = _get_master_movimientos(request.args.get("pm"))
     return render_template(
         "auth/panel_master.html",
         rol=session.get("rol", ""),
         nombre_completo=session.get("nombre_completo", ""),
-        tiendas=_get_master_tiendas(),
-        proximos_vencer=_get_master_proximos_vencer(),
+        resumen=_get_master_resumen(),
+        tiendas=tiendas,
+        meta_tiendas=meta_tiendas,
+        proximos_vencer=proximos,
+        meta_proximos=meta_proximos,
+        movimientos=movimientos,
+        meta_movimientos=meta_movimientos,
+        paginas={"pt": meta_tiendas["page"], "pv": meta_proximos["page"], "pm": meta_movimientos["page"]},
         hoy=date.today(),
     )
 
@@ -867,12 +816,14 @@ def api_crear_usuario():
     if rol_sesion == "Admin":
         nuevo_rol = "Cajero"
         id_tienda = session["id_tienda"]
+        tienda_raw = None
     else:
         nuevo_rol = str(data.get("rol", "Cajero"))
         if nuevo_rol not in ("Master", "Admin", "Cajero"):
             return jsonify({"ok": False, "msg": "Rol invalido."}), 400
-        # Usuario se crea sin tienda; el vinculo tienda-dueno se hace en el modal Crear Tienda.
+        # Tienda opcional; un Master nunca se ata a una tienda.
         id_tienda = None
+        tienda_raw = None if nuevo_rol == "Master" else data.get("id_tienda")
 
     if not correo or len(correo) > 150 or not is_valid_email(correo):
         return jsonify({"ok": False, "msg": "El correo no es valido."}), 400
@@ -897,6 +848,8 @@ def api_crear_usuario():
             return jsonify({"ok": False, "msg": "Ya existe un usuario con ese correo."}), 409
         if _cc_en_uso(cur, cc):
             return jsonify({"ok": False, "msg": _CC_DUPLICADA}), 409
+        if tienda_raw not in (None, ""):
+            id_tienda = _tienda_opcional(cur, tienda_raw)
 
         clave_hash = generate_password_hash(password)
         cur.execute(
@@ -909,6 +862,8 @@ def api_crear_usuario():
         # Carrera entre el SELECT y el INSERT: uq_usuarios_correo / uq_usuarios_cc.
         conn.rollback()
         return jsonify({"ok": False, "msg": "Ya existe un usuario con ese correo o cedula."}), 409
+    except ValueError as exc:
+        return jsonify({"ok": False, "msg": str(exc)}), 400
     finally:
         conn.close()
 
@@ -919,28 +874,41 @@ def api_crear_usuario():
 @login_required
 @roles_required("Master")
 def api_master_usuarios_list():
+    page, limit = paginacion(request.args.get("page"), request.args.get("limit"), defecto=10, maximo=50)
+    q = str(request.args.get("q", "")).strip()[:100]
+    desde = (
+        "FROM usuarios u LEFT JOIN tiendas t ON t.id_tienda = u.id_tienda "
+        "WHERE u.estado_activo = 1 "
+    )
+    params: list = []
+    if q:
+        # La CC ya no se muestra en la tabla, pero sigue sirviendo para buscar.
+        desde += "AND (u.nombre_completo LIKE %s OR u.correo LIKE %s OR u.cc LIKE %s OR t.nombre_negocio LIKE %s) "
+        params = [f"%{q}%"] * 4
     conn = get_db()
     try:
         cur = conn.cursor(dictionary=True)
+        cur.execute("SELECT COUNT(*) AS n " + desde, params)
+        meta = _meta_paginacion(cur.fetchone()["n"], page, limit)
         cur.execute(
             "SELECT u.id_usuario, u.nombre_completo, u.correo, u.rol, u.cc, u.id_tienda, "
             "t.nombre_negocio, (u.id_usuario = %s) AS es_actual "
-            "FROM usuarios u LEFT JOIN tiendas t ON t.id_tienda = u.id_tienda "
-            "WHERE u.estado_activo = 1 "
-            "ORDER BY t.nombre_negocio, FIELD(u.rol, 'Master', 'Admin', 'Cajero'), u.nombre_completo",
-            (session["id_usuario"],),
+            + desde +
+            "ORDER BY t.nombre_negocio, FIELD(u.rol, 'Master', 'Admin', 'Cajero'), u.nombre_completo, u.id_usuario "
+            "LIMIT %s OFFSET %s",
+            [session["id_usuario"], *params, limit, meta["offset"]],
         )
         usuarios = cur.fetchall()
     finally:
         conn.close()
     for u in usuarios:
         u["es_actual"] = bool(u["es_actual"])
-    return jsonify({"ok": True, "usuarios": usuarios})
+    return jsonify({"ok": True, "usuarios": usuarios, "meta": meta})
 
 
 def _get_usuario_activo(cur, id_usuario: int) -> dict | None:
     cur.execute(
-        "SELECT id_usuario, id_tienda, rol FROM usuarios "
+        "SELECT id_usuario, id_tienda, rol, cc, correo FROM usuarios "
         "WHERE id_usuario = %s AND estado_activo = 1 LIMIT 1",
         (id_usuario,),
     )
@@ -954,17 +922,21 @@ def api_master_usuarios_update(id_usuario):
     data = request.get_json(silent=True) or {}
     try:
         nombre = sanitize_text(data.get("nombre"), "El nombre completo", max_len=150)
-        cc = _parse_cc(data.get("cc"))
     except ValueError as exc:
         return jsonify({"ok": False, "msg": str(exc)}), 400
     nuevo_rol = str(data.get("rol", ""))
     if nuevo_rol not in ("Master", "Admin", "Cajero"):
         return jsonify({"ok": False, "msg": "Rol invalido."}), 400
+    correo = str(data.get("correo") or "").strip().lower()
+    if correo and (len(correo) > 150 or not is_valid_email(correo)):
+        return jsonify({"ok": False, "msg": "El correo no es valido."}), 400
 
     password = str(data.get("password") or "")
     if password:
         if len(password) > 128:
             return jsonify({"ok": False, "msg": "La contrasena supera el maximo permitido."}), 400
+        if password != str(data.get("confirm_password") or ""):
+            return jsonify({"ok": False, "msg": "Las contrasenas no coinciden."}), 400
         pwd_error = first_password_policy_error(password)
         if pwd_error:
             return jsonify({"ok": False, "msg": pwd_error}), 400
@@ -976,16 +948,48 @@ def api_master_usuarios_update(id_usuario):
         usuario = _get_usuario_activo(cur, id_usuario)
         if not usuario:
             return jsonify({"ok": False, "msg": "Usuario no encontrado."}), 404
+
+        # La CC es inmutable: el input va bloqueado en el panel y aqui se
+        # rechaza cualquier cambio que llegue por fuera. Solo las cuentas
+        # antiguas sin CC pueden registrarla, una vez.
+        cc_raw = data.get("cc")
+        try:
+            if usuario["cc"]:
+                if cc_raw not in (None, "") and only_digits(cc_raw) != usuario["cc"]:
+                    return jsonify({"ok": False, "msg": "La cedula no se puede modificar."}), 400
+                cc = usuario["cc"]
+            else:
+                cc = _parse_cc(cc_raw)
+            # Un Master no se ata a tiendas: su id_tienda no se toca (el suyo
+            # propio sostiene su sesion). Sin la clave, la tienda no cambia.
+            if nuevo_rol == "Master" or "id_tienda" not in data:
+                nueva_tienda = usuario["id_tienda"]
+            else:
+                nueva_tienda = _tienda_opcional(cur, data.get("id_tienda"))
+        except ValueError as exc:
+            return jsonify({"ok": False, "msg": str(exc)}), 400
+
         if es_actual and nuevo_rol != usuario["rol"]:
             return jsonify({"ok": False, "msg": "No puedes cambiar tu propio rol."}), 400
-        if nuevo_rol != "Admin" and _es_ultimo_admin(cur, usuario):
-            return jsonify({"ok": False, "msg": "Es el unico Admin de su tienda; asigna otro Admin antes de cambiar su rol."}), 400
+        if (nuevo_rol != "Admin" or nueva_tienda != usuario["id_tienda"]) and _es_ultimo_admin(cur, usuario):
+            return jsonify({"ok": False, "msg": "Es el unico Admin de su tienda; asigna otro Admin antes de cambiar su rol o su tienda."}), 400
         if _cc_en_uso(cur, cc, id_usuario):
             return jsonify({"ok": False, "msg": _CC_DUPLICADA}), 409
+        if correo and correo != usuario["correo"]:
+            liberar_datos_inactivos(cur, correo)
+            cur.execute(
+                "SELECT 1 FROM usuarios WHERE correo = %s AND id_usuario <> %s LIMIT 1",
+                (correo, id_usuario),
+            )
+            if cur.fetchone():
+                return jsonify({"ok": False, "msg": "Ya existe un usuario con ese correo."}), 409
+        else:
+            correo = usuario["correo"]
 
         cur.execute(
-            "UPDATE usuarios SET nombre_completo = %s, rol = %s, cc = %s WHERE id_usuario = %s",
-            (nombre, nuevo_rol, cc, id_usuario),
+            "UPDATE usuarios SET nombre_completo = %s, correo = %s, rol = %s, cc = %s, id_tienda = %s "
+            "WHERE id_usuario = %s",
+            (nombre, correo, nuevo_rol, cc, nueva_tienda, id_usuario),
         )
         if password:
             cur.execute(
@@ -995,7 +999,7 @@ def api_master_usuarios_update(id_usuario):
         conn.commit()
     except IntegrityError:
         conn.rollback()
-        return jsonify({"ok": False, "msg": _CC_DUPLICADA}), 409
+        return jsonify({"ok": False, "msg": "Ya existe un usuario con ese correo o cedula."}), 409
     finally:
         conn.close()
 
@@ -1047,32 +1051,70 @@ def api_master_usuarios_delete(id_usuario):
     return jsonify({"ok": True, "msg": "Usuario eliminado."})
 
 
+# Finanzas propias del SaaS: mensualidades cobradas y gastos operativos.
+@core_bp.route("/api/master/movimientos", methods=["POST"])
+@login_required
+@roles_required("Master")
+def api_master_movimientos_create():
+    data = request.get_json(silent=True) or {}
+    tipo = str(data.get("tipo", ""))
+    if tipo not in ("Ingreso", "Gasto"):
+        return jsonify({"ok": False, "msg": "Tipo invalido."}), 400
+    try:
+        concepto = sanitize_text(data.get("concepto"), "El concepto", max_len=150)
+        # Pesos enteros; decimal(12,2) aguanta hasta 9.999.999.999.
+        monto = parse_int(data.get("monto"), "El monto", min_value=1, max_value=9_999_999_999)
+        fecha_raw = str(data.get("fecha") or "").strip()
+        try:
+            fecha = date.fromisoformat(fecha_raw) if fecha_raw else date.today()
+        except ValueError:
+            raise ValueError("Fecha invalida.") from None
+        if fecha > date.today():
+            raise ValueError("La fecha no puede ser futura.")
+    except ValueError as exc:
+        return jsonify({"ok": False, "msg": str(exc)}), 400
+
+    conn = get_db()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "INSERT INTO master_movimientos (tipo, concepto, monto, fecha, id_usuario) "
+            "VALUES (%s, %s, %s, %s, %s)",
+            (tipo, concepto, monto, fecha, session["id_usuario"]),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    return jsonify({"ok": True, "msg": f"{tipo} registrado."})
+
+
+@core_bp.route("/api/master/movimientos/<int:id_movimiento>", methods=["DELETE"])
+@login_required
+@roles_required("Master")
+def api_master_movimientos_delete(id_movimiento):
+    conn = get_db()
+    try:
+        cur = conn.cursor()
+        cur.execute("DELETE FROM master_movimientos WHERE id_movimiento = %s", (id_movimiento,))
+        if cur.rowcount == 0:
+            return jsonify({"ok": False, "msg": "Movimiento no encontrado."}), 404
+        conn.commit()
+    finally:
+        conn.close()
+    _registrar_auditoria(
+        session.get("id_tienda"), session.get("id_usuario"), "eliminar_movimiento_master",
+        f"Se borro movimiento id={id_movimiento}",
+    )
+    return jsonify({"ok": True, "msg": "Movimiento eliminado."})
+
+
 @core_bp.route("/api/dashboard", methods=["GET"])
 @login_required
 @roles_required("Admin", "Master")
 def api_dashboard():
     filtro = request.args.get("filter") or request.args.get("filtro") or request.args.get("period") or "hoy"
     fecha = request.args.get("fecha") or None
-    data = _build_dashboard_data(session["id_tienda"], filtro, fecha)
-
-    return jsonify(
-        {
-            "ok": True,
-            "filtro": data["filtro"],
-            "ventas": data["kpis"]["ventas"],
-            "ganancia": data["kpis"]["ganancia"],
-            "gastos": data["kpis"]["gastos"],
-            "fiados": data["kpis"]["fiados"],
-            "ventasBadge": data["kpis"]["ventas_badge"],
-            "vendidos": data["top_vendidos"],
-            "menosVendidos": data["top_menos_vendidos"],
-            "rentables": data["top_rentables"],
-            "cajeros": data["cajeros_abiertos"],
-            "deudores": data["deudores"],
-            "chart": data["chart"],
-            "stock_alertas": data["stock_alertas"],
-        }
-    )
+    return jsonify({"ok": True, **_build_dashboard_data(session["id_tienda"], filtro, fecha)})
 
 
 @core_bp.route("/api/perfil", methods=["GET"])

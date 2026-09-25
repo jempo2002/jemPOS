@@ -14,13 +14,20 @@ document.addEventListener('DOMContentLoaded', () => {
   const clientesApi = '/pos/api/clientes/buscar';
   const userRol = (document.body?.dataset?.userRol || '').toLowerCase();
   const isAdminUser = userRol === 'admin';
+  /* /pos/venta-mayorista sirve esta misma caja con data-modo="mayorista":
+     el buscador trae el precio mayorista y la venta exige cliente mayorista.
+     El servidor aplica las dos reglas por su cuenta; aqui solo es la UI. */
+  const modoMayorista = document.body?.dataset?.modo === 'mayorista';
+  const clienteMayorista = document.getElementById('mayorista-cliente');
   const offlineQueueKey = 'jempos_offline_sales_queue';
   const offlineLogKey = 'jempos_offline_sales_log';
   const maxOfflineLogRows = 8;
   const SEARCH_DEBOUNCE_MS = 300;
 
   /* ── Estado del carrito ────────────────────────────────────
-     items: Map<productId, { name, price, qty }>
+     items: Map<"id:pres", { id, pres, name, price, qty, unitLabel, fraccionable }>
+     pres = 'unidad' (unidad base, fracciones si la unidad lo permite) o
+     'empaque' (rollo, paquete...: su propio precio, siempre entero).
   ─────────────────────────────────────────────────────────── */
   const cart = new Map();
   let selectedPayMethod = 'efectivo';
@@ -112,9 +119,27 @@ document.addEventListener('DOMContentLoaded', () => {
   /* ── Busqueda de productos (dropdown) ─────────────────────── */
   let searchResults = [];
 
+  /* Cada producto sale una vez por presentacion vendible: el metro suelto y,
+     si tiene empaque, el rollo completo con su propio precio. */
   async function searchProducts(query) {
-    const data = await getJson('productos', `${cajaApiBase}/productos?q=${encodeURIComponent(query)}`);
-    return data.ok ? data.productos || [] : [];
+    const extra = modoMayorista ? '&mayorista=1' : '';
+    const data = await getJson('productos', `${cajaApiBase}/productos?q=${encodeURIComponent(query)}${extra}`);
+    const productos = data.ok ? data.productos || [] : [];
+    const opciones = [];
+    productos.forEach((p) => {
+      opciones.push({ ...p, pres: 'unidad', unitLabel: p.unidad || 'Unidad' });
+      if (p.empaque) {
+        opciones.push({
+          ...p,
+          pres: 'empaque',
+          name: `${p.name} (${p.empaque.nombre} x${fmtQty(p.empaque.cantidad)} ${p.unidad})`,
+          price: p.empaque.price,
+          unitLabel: p.empaque.nombre,
+          fraccionable: false,
+        });
+      }
+    });
+    return opciones;
   }
 
   function hideSearchDropdown() {
@@ -127,10 +152,19 @@ document.addEventListener('DOMContentLoaded', () => {
       ? items.map((p, idx) => `
           <button type="button" class="search-item" data-index="${idx}">
             <span class="search-item-name">${escapeHtml(p.name)}</span>
-            <span class="search-item-price">${money(p.price)}</span>
+            <span class="search-item-price">${money(p.price)}${unitSuffix(p.unitLabel)}</span>
           </button>`).join('')
-      : '<p class="search-empty">Sin resultados</p>';
+      : `<p class="search-empty">${modoMayorista ? 'Sin productos con precio mayorista' : 'Sin resultados'}</p>`;
     searchDropdown.classList.remove('hidden');
+  }
+
+  /* "$1.000 / Metro"; en la unidad generica basta el precio. */
+  function unitSuffix(unitLabel) {
+    return unitLabel && unitLabel !== 'Unidad' ? ` / ${escapeHtml(unitLabel)}` : '';
+  }
+
+  function fmtQty(n) {
+    return String(Math.round(Number(n) * 1000) / 1000);
   }
 
   const liveProductSearch = debounce(async (query) => {
@@ -146,7 +180,7 @@ document.addEventListener('DOMContentLoaded', () => {
     /* Sin toast de confirmacion: la fila aparece en el carrito y el total de
        la barra cambia en el mismo frame. Un aviso encima de eso solo tapa la
        pantalla en la operacion que mas se repite del turno. */
-    addToCart(p.id, 1, p.name, p.price);
+    addToCart(p);
     searchInput.value = '';
     liveProductSearch.cancel();
     cancelRequest('productos');
@@ -177,7 +211,8 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!isAbort(err)) showToast('No se pudo buscar el producto.', true);
       return;
     }
-    const match = searchResults.find((p) => p.barcode === query)
+    /* Un codigo de barras identifica la unidad base, no el empaque. */
+    const match = searchResults.find((p) => p.barcode === query && p.pres === 'unidad')
       || (searchResults.length === 1 ? searchResults[0] : null);
     if (match) addProduct(match);
     else renderSearchDropdown(searchResults);
@@ -197,8 +232,9 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('btn-scan').addEventListener('click', () => {
     BarcodeScanner.open(async (code) => {
       try {
-        const match = (await searchProducts(code)).find((p) => p.barcode === code);
+        const match = (await searchProducts(code)).find((p) => p.barcode === code && p.pres === 'unidad');
         if (match) addProduct(match);
+        else if (modoMayorista) showToast(`El código ${code} no existe o no tiene precio mayorista.`, true, 4000);
         else showToast(`El código ${code} no está registrado en el inventario.`, true, 4000);
       } catch (err) {
         if (!isAbort(err)) showToast('No se pudo buscar el producto escaneado.', true);
@@ -253,18 +289,47 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function buildSalePayload(method) {
     const total = calcTotal();
-    return { items: cartToArray(), subtotal: total, discount: 0, total, method };
+    const payload = { items: cartToArray(), subtotal: total, discount: 0, total, method };
+    if (modoMayorista) {
+      payload.mayorista = true;
+      payload.id_cliente = Number(clienteMayorista.value) || null;
+    }
+    return payload;
   }
+
+  /* ── Selector de cliente mayorista ─────────────────────────── */
+  function clienteMayoristaNombre() {
+    return clienteMayorista?.selectedOptions[0]?.textContent || '';
+  }
+
+  /** false (y aviso) si falta el cliente mayorista. */
+  function requireClienteMayorista() {
+    if (!modoMayorista || clienteMayorista.value) return true;
+    showToast('Selecciona el cliente mayorista antes de cobrar.', true, 3200);
+    clienteMayorista.focus();
+    return false;
+  }
+
+  async function loadClientesMayoristas() {
+    try {
+      const data = await getJson('mayoristas', '/pos/api/mayorista/clientes');
+      const clientes = data.ok ? data.clientes || [] : [];
+      clienteMayorista.innerHTML = clientes.length
+        ? '<option value="">Selecciona el cliente...</option>' + clientes.map((c) =>
+          `<option value="${Number(c.id)}">${escapeHtml(c.name)}${c.nit ? ' · NIT ' + escapeHtml(c.nit) : ''}</option>`).join('')
+        : '<option value="">No hay clientes mayoristas: créalos en Mayorista</option>';
+    } catch (err) {
+      if (!isAbort(err)) clienteMayorista.innerHTML = '<option value="">No se pudieron cargar los clientes</option>';
+    }
+  }
+
+  if (modoMayorista) loadClientesMayoristas();
 
   /** Envia la venta. Devuelve { ok, offline?, msg? } sin mostrar UI. */
   async function processSale(payload) {
     try {
       const data = await submitSale(payload);
       if (!data.ok) return { ok: false, msg: data.msg || 'Error al registrar la venta.' };
-      if (Number(data.descuento_b2b) > 0) {
-        /* El descuento mayorista lo aplica el servidor: el cajero se entera aqui. */
-        showToast(`Descuento mayorista ${data.lista_b2b || ''}: -${COP.format(data.descuento_b2b)}`.trim(), false, 4000);
-      }
       if (Array.isArray(data.stock_alerts) && data.stock_alerts.length) {
         showStockAlerts(data.stock_alerts);
       }
@@ -287,7 +352,9 @@ document.addEventListener('DOMContentLoaded', () => {
   ─────────────────────────────────────────────────────────── */
 
   function openCobroDialog() {
-    if (cart.size === 0) return;
+    if (cart.size === 0 || !requireClienteMayorista()) return;
+    const cobroCliente = document.getElementById('cobro-cliente');
+    if (cobroCliente) cobroCliente.textContent = clienteMayoristaNombre();
     cobroTotal.textContent = money(calcTotal());
     cashReceived.value = '';
     resetChange();
@@ -328,6 +395,9 @@ document.addEventListener('DOMContentLoaded', () => {
          del backdrop. */
       closeCobroDialog();
       showToast(`¡Venta de ${money(total)} registrada!`);
+      /* La siguiente venta mayorista suele ser de otro cliente: se vuelve a
+         pedir, para no cargarle una compra al cliente anterior por descuido. */
+      if (modoMayorista) clienteMayorista.value = '';
     } else {
       showToast(result.msg, true, result.offline ? 4200 : 6000);
     }
@@ -352,8 +422,25 @@ document.addEventListener('DOMContentLoaded', () => {
   let fiarCliente = null;   /* cliente existente elegido en el live search */
   let fiarMatches = [];
 
-  btnFiar.addEventListener('click', () => {
+  btnFiar.addEventListener('click', async () => {
     if (cart.size === 0) return;
+    if (modoMayorista) {
+      /* El deudor ya esta elegido (cliente mayorista): no hace falta la hoja
+         de alta de clientes, el fiado va directo a su cuenta. */
+      if (!requireClienteMayorista()) return;
+      const total = calcTotal();
+      const nombre = clienteMayoristaNombre();
+      btnCobrar.disabled = true;
+      btnFiar.disabled = true;
+      const result = await processSale(buildSalePayload('fiado'));
+      btnCobrar.disabled = false;
+      btnFiar.disabled = false;
+      if (!result.ok) { showToast(result.msg, true, result.offline ? 4200 : 6000); return; }
+      closeCobroDialog();
+      clienteMayorista.value = '';
+      showToast(`Fiado de ${money(total)} registrado a ${nombre}.`, false, 3200);
+      return;
+    }
     /* Se cierra el modal de cobro antes de abrir la hoja de fiado: dos
        <dialog> modales a la vez apilan backdrops y el de abajo se queda
        capturando el foco. */
@@ -524,53 +611,66 @@ document.addEventListener('DOMContentLoaded', () => {
      FUNCIONES DEL CARRITO
      ══════════════════════════════════════════════════════════ */
 
-  function addToCart(productId, qty = 1, name = '', price = 0) {
-    if (cart.has(productId)) {
-      cart.get(productId).qty += qty;
-      updateItemRow(productId);
+  /** Agrega una opcion del buscador (una presentacion de un producto). */
+  function addToCart(p, qty = 1) {
+    const key = `${p.id}:${p.pres || 'unidad'}`;
+    if (cart.has(key)) {
+      cart.get(key).qty += qty;
+      updateItemRow(key);
     } else {
-      cart.set(productId, { name, price, qty });
-      renderItemRow(productId);
+      cart.set(key, {
+        id: p.id,
+        pres: p.pres || 'unidad',
+        name: p.name,
+        price: p.price,
+        qty,
+        unitLabel: p.unitLabel || 'Unidad',
+        fraccionable: Boolean(p.fraccionable),
+      });
+      renderItemRow(key);
     }
     updateTotals();
   }
 
-  function renderItemRow(productId) {
-    const item = cart.get(productId);
+  function renderItemRow(key) {
+    const item = cart.get(key);
     const row = document.createElement('li');
     row.className = 'cart-item';
-    row.id = `cart-item-${productId}`;
+    row.id = `cart-item-${key}`;
     row.innerHTML = buildRowHTML(item);
     cartList.appendChild(row);
-    bindRowEvents(row, productId);
+    bindRowEvents(row, key);
     cartEmpty.hidden = true;
   }
 
   /** Actualiza cantidad y subtotal de una fila sin re-renderizarla. */
-  function updateItemRow(productId) {
-    const row = document.getElementById(`cart-item-${productId}`);
+  function updateItemRow(key) {
+    const row = document.getElementById(`cart-item-${key}`);
     if (!row) return;
-    const item = cart.get(productId);
-    row.querySelector('.qty-display').value = item.qty;
+    const item = cart.get(key);
+    row.querySelector('.qty-display').value = fmtQty(item.qty);
     row.querySelector('.item-subtotal').textContent = money(item.price * item.qty);
   }
 
   function buildRowHTML(item) {
     const name = escapeHtml(item.name);
+    const unitPrice = item.unitLabel === 'Unidad'
+      ? `${money(item.price)} c/u`
+      : `${money(item.price)} / ${escapeHtml(item.unitLabel)}`;
     return `
       <span class="item-name">${name}</span>
       <span class="item-subtotal">${money(item.price * item.qty)}</span>
-      <span class="item-unit-price">${money(item.price)} c/u</span>
+      <span class="item-unit-price">${unitPrice}</span>
       <div class="item-actions">
         <button type="button" class="qty-btn minus" aria-label="Quitar una unidad de ${name}">
           <i class="fa-solid fa-minus" aria-hidden="true"></i>
         </button>
         <input
-          class="qty-display"
-          type="tel"
-          inputmode="numeric"
-          value="${item.qty}"
-          aria-label="Cantidad de ${name}"
+          class="qty-display${item.fraccionable ? ' qty-fraccion' : ''}"
+          type="text"
+          inputmode="${item.fraccionable ? 'decimal' : 'numeric'}"
+          value="${fmtQty(item.qty)}"
+          aria-label="Cantidad de ${name}${item.unitLabel !== 'Unidad' ? ' en ' + escapeHtml(item.unitLabel) : ''}"
         />
         <button type="button" class="qty-btn plus" aria-label="Agregar una unidad de ${name}">
           <i class="fa-solid fa-plus" aria-hidden="true"></i>
@@ -582,54 +682,61 @@ document.addEventListener('DOMContentLoaded', () => {
     `;
   }
 
-  function bindRowEvents(row, productId) {
+  function bindRowEvents(row, key) {
     const qtyInput = row.querySelector('.qty-display');
+    const fraccionable = cart.get(key).fraccionable;
 
     row.querySelector('.qty-btn.plus').addEventListener('click', () => {
-      cart.get(productId).qty++;
-      updateItemRow(productId);
+      cart.get(key).qty = Math.round((cart.get(key).qty + 1) * 1000) / 1000;
+      updateItemRow(key);
       updateTotals();
     });
 
     row.querySelector('.qty-btn.minus').addEventListener('click', () => {
-      const item = cart.get(productId);
+      const item = cart.get(key);
       if (item.qty <= 1) {
-        removeFromCart(productId);
+        removeFromCart(key);
       } else {
-        item.qty--;
-        updateItemRow(productId);
+        item.qty = Math.round((item.qty - 1) * 1000) / 1000;
+        updateItemRow(key);
         updateTotals();
       }
     });
 
-    /* Edicion directa de cantidad */
+    /* Edicion directa de cantidad: entera, o con decimales (coma o punto)
+       si la unidad se vende por fraccion (libras, metros). */
     qtyInput.addEventListener('change', () => {
-      const raw = parseInt(qtyInput.value.replace(/\D/g, ''), 10);
-      if (isNaN(raw) || raw < 1) {
-        removeFromCart(productId);
+      const texto = qtyInput.value.replace(',', '.');
+      const raw = fraccionable
+        ? Math.round(parseFloat(texto) * 1000) / 1000
+        : parseInt(texto.replace(/\D/g, ''), 10);
+      if (!Number.isFinite(raw) || raw <= 0) {
+        removeFromCart(key);
         return;
       }
-      cart.get(productId).qty = raw;
-      updateItemRow(productId);
+      cart.get(key).qty = raw;
+      updateItemRow(key);
       updateTotals();
     });
 
     qtyInput.addEventListener('input', () => {
-      qtyInput.value = qtyInput.value.replace(/\D/g, '');
+      qtyInput.value = fraccionable
+        ? qtyInput.value.replace(/[^\d.,]/g, '')
+        : qtyInput.value.replace(/\D/g, '');
     });
 
-    row.querySelector('.btn-delete').addEventListener('click', () => removeFromCart(productId));
+    row.querySelector('.btn-delete').addEventListener('click', () => removeFromCart(key));
   }
 
   /** Elimina un item del carrito con animacion. */
-  function removeFromCart(productId) {
-    const row = document.getElementById(`cart-item-${productId}`);
+  function removeFromCart(key) {
+    const row = document.getElementById(`cart-item-${key}`);
     if (!row) return;
 
     row.classList.add('removing');
     row.addEventListener('animationend', () => {
       row.remove();
-      cart.delete(productId);
+      cart.delete(key);
       updateTotals();
       if (cart.size === 0) cartEmpty.hidden = false;
     }, { once: true });
@@ -968,8 +1075,9 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function cartToArray() {
-    return Array.from(cart.entries()).map(([id, item]) => ({
-      id,
+    return Array.from(cart.values()).map((item) => ({
+      id    : item.id,
+      pres  : item.pres,
       name  : item.name,
       qty   : item.qty,
       price : item.price,

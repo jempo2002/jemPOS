@@ -4,6 +4,11 @@
      siempre los mismos enlaces, en el mismo orden (Nielsen: consistencia
      y estandares). Se incluye una sola vez por plantilla, dentro de
      .app-shell. -->
+{% set rol_actual = (session.get('rol') or '')|lower %}
+{# Mayorista: el admin entra por Clientes, el cajero directo a Venta Mayorista
+   (Clientes es solo de administracion). 'match' marca el enlace activo en
+   las dos pestanas. #}
+{% set gestor_mayorista = rol_actual in ['admin', 'master'] %}
 {% set nav_items = [
   {'endpoint': 'sales_bp.turno', 'icon': 'fa-business-time', 'label': 'Mi Turno'},
   {'endpoint': 'core_bp.dashboard_page', 'icon': 'fa-gauge-high',
@@ -11,14 +16,16 @@
    'roles': ['admin', 'master']},
   {'endpoint': 'sales_bp.caja', 'icon': 'fa-cash-register', 'label': 'Caja'},
   {'endpoint': 'inventory_bp.inventario_page', 'icon': 'fa-boxes-stacked', 'label': 'Inventario'},
+  {'endpoint': 'inventory_bp.proveedores_page', 'icon': 'fa-truck-field', 'label': 'Proveedores',
+   'roles': ['admin', 'master']},
   {'endpoint': 'sales_bp.fiados', 'icon': 'fa-handshake-simple', 'label': 'Cartera'},
-  {'endpoint': 'cartera_bp.clientes_proveer_page', 'icon': 'fa-truck-field',
-   'label': 'Clientes a Proveer', 'admin_only': true},
+  {'endpoint': 'cartera_bp.clientes_proveer_page' if gestor_mayorista else 'sales_bp.venta_mayorista',
+   'icon': 'fa-warehouse', 'label': 'Mayorista',
+   'match': ['/pos/clientes-proveer', '/pos/venta-mayorista']},
   {'endpoint': 'sales_bp.ventas', 'icon': 'fa-file-invoice-dollar', 'label': 'Ventas'},
   {'endpoint': 'sales_bp.gastos', 'icon': 'fa-receipt', 'label': 'Gastos'},
   {'endpoint': 'core_bp.perfil_page', 'icon': 'fa-circle-user', 'label': 'Mi Perfil', 'admin_only': true},
 ] %}
-{% set rol_actual = (session.get('rol') or '')|lower %}
 {% set is_admin = rol_actual == 'admin' %}
 {# 'roles' replica el @roles_required de la ruta. El enlace al panel se ocultaba
    antes con JS (nav-rbac.js) despues de cargar la pagina; filtrarlo aqui deja
@@ -35,7 +42,7 @@
   <nav class="sidebar-nav">
     {% for item in nav_items if (not item.admin_only or is_admin) and (not item.roles or rol_actual in item.roles) %}
     {% set href = url_for(item.endpoint) %}
-    {% set is_active = request.path == href or request.path.startswith(href ~ '/') %}
+    {% set is_active = request.path == href or request.path.startswith(href ~ '/') or request.path in (item.match or []) %}
     <a href="{{ href }}" class="nav-link{% if is_active %} active{% endif %}"{% if is_active %} aria-current="page"{% endif %}>
       <i class="fa-solid {{ item.icon }}"></i>
       <span>{{ item.label }}</span>
@@ -67,7 +74,7 @@
 <nav class="bottom-bar" role="navigation" aria-label="Navegacion principal" data-bottom-nav>
   {% for item in nav_items if (not item.admin_only or is_admin) and (not item.roles or rol_actual in item.roles) %}
   {% set href = url_for(item.endpoint) %}
-  {% set is_active = request.path == href or request.path.startswith(href ~ '/') %}
+  {% set is_active = request.path == href or request.path.startswith(href ~ '/') or request.path in (item.match or []) %}
   <a href="{{ href }}" class="bottom-btn{% if is_active %} active{% endif %}"{% if is_active %} aria-current="page"{% endif %} aria-label="{{ item.label }}">
     <i class="fa-solid {{ item.icon }}"></i>
     <span>{{ item.label }}</span>

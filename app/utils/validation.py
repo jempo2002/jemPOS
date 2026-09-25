@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import math
+
 from markupsafe import escape
 
 
@@ -70,6 +72,9 @@ def parse_float(
         value = float(raw_value)
     except (TypeError, ValueError) as exc:
         raise ValueError(f"{field_label} invalido.") from exc
+    # float() acepta "nan" e "inf": NaN pasaba cualquier comparacion de rango.
+    if not math.isfinite(value):
+        raise ValueError(f"{field_label} invalido.")
     if not allow_zero and value == 0:
         raise ValueError(f"{field_label} invalido.")
     if min_value is not None and value < min_value:

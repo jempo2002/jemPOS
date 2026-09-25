@@ -2,9 +2,9 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   {% include "_favicon.html" %}
-  <title>jemPOS - Resumen Financiero</title>
+  <title>jemPOS - Panel de Control</title>
   <meta name="robots" content="noindex, nofollow">
 
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -19,6 +19,10 @@
   />
 
   <link rel="stylesheet" href="/static/css/caja.css" />
+  {# gastos.css + ventas.css: tarjeta, tabla y ticket de venta del modal de
+     trabajador, los mismos del Historial de Ventas. #}
+  <link rel="stylesheet" href="/static/css/gastos.css" />
+  <link rel="stylesheet" href="/static/css/ventas.css" />
   <link rel="stylesheet" href="/static/css/dashboard.css" />
   <link rel="stylesheet" href="/static/css/global.css" />
   <meta name="csrf-token" content="{{ csrf_token() }}" />
@@ -28,142 +32,117 @@
 <div class="app-shell">
   {% include "pos/_nav.html" %}
 
+  {# Cabecera + dos secciones en rejilla (dashboard.css): las tarjetas se
+     reparten en filas segun el ancho y la pagina desplaza en vertical. #}
   <main class="dash-main">
-    <header class="dash-topbar">
-      <h1 class="dash-title">Resumen Financiero</h1>
-      <p class="dash-subtitle">Centro de Mando Financiero</p>
-    </header>
-
-    <!-- ===== Resumen Financiero ===== -->
-    <section class="dash-master dash-anim" aria-label="Resumen financiero">
-      <div class="dash-master-head">
-        <h2>Resumen Financiero</h2>
-      </div>
-      <div class="dash-summary-grid">
-        <article class="dash-subcard">
-          <h3 class="dash-subcard-label">Ingresos Totales</h3>
-          <p class="dash-subcard-value" id="kpi-ingresos">—</p>
-        </article>
-        <article class="dash-subcard">
-          <h3 class="dash-subcard-label">Gastos Totales</h3>
-          <p class="dash-subcard-value" id="kpi-gastos">—</p>
-        </article>
-        <article class="dash-subcard">
-          <h3 class="dash-subcard-label">Balance Neto</h3>
-          <p class="dash-subcard-value" id="kpi-balance">—</p>
-        </article>
-        <article class="dash-subcard">
-          <h3 class="dash-subcard-label">Punto de Equilibrio</h3>
-          <p class="dash-subcard-value" id="kpi-equilibrio">—</p>
-        </article>
-      </div>
-    </section>
-
-    <!-- ===== Comportamiento Financiero ===== -->
-    <section class="dash-master dash-anim" aria-label="Comportamiento financiero">
-      <div class="dash-master-head">
-        <h2>Comportamiento Financiero</h2>
-      </div>
-
-      <div class="dash-behavior-controls">
-        <div class="dash-pills" id="dash-pills" role="group" aria-label="Filtrar por periodo">
-          <button type="button" class="dash-pill is-active" data-period="hoy">Hoy</button>
-          <button type="button" class="dash-pill" data-period="ayer">Ayer</button>
-          <button type="button" class="dash-pill" data-period="semana">Esta semana</button>
-          <button type="button" class="dash-pill" data-period="mes">Este mes</button>
-          <button type="button" class="dash-pill" data-period="tres_meses">Últimos 3 meses</button>
-          <button type="button" class="dash-pill" data-period="seis_meses">Últimos 6 meses</button>
-          <button type="button" class="dash-pill" data-period="anio">Este año</button>
-          <button type="button" class="dash-pill" data-period="todas">Todas</button>
+    <header class="dash-head">
+      <div class="dash-head-row">
+        <div class="dash-head-text">
+          <h1 class="dash-title">Panel de Control</h1>
+          <p class="dash-updated" aria-live="polite">Actualizado <span id="dash-actualizado">—</span></p>
         </div>
-        <input type="date" id="filtro-fecha" class="dash-date-input" aria-label="Elegir fecha concreta" />
-      </div>
-
-      <div class="dash-chart-wrap">
-        <canvas id="graficaFinanzas" aria-label="Grafica de entradas y salidas"></canvas>
-      </div>
-
-      <div class="dash-chart-pager" id="chart-pager" hidden>
-        <button type="button" class="dash-pager-btn" id="chart-prev" aria-label="Pagina anterior">
-          <i class="fa-solid fa-chevron-left" aria-hidden="true"></i>
+        <button type="button" class="dash-icon-btn" id="btn-refrescar" aria-label="Actualizar ahora">
+          <i class="fa-solid fa-rotate" aria-hidden="true"></i>
         </button>
-        <span class="dash-pager-info" id="chart-pageinfo">1 / 1</span>
-        <button type="button" class="dash-pager-btn" id="chart-next" aria-label="Pagina siguiente">
-          <i class="fa-solid fa-chevron-right" aria-hidden="true"></i>
-        </button>
-      </div>
-    </section>
-
-    <!-- ===== Analisis de Productos ===== -->
-    <section class="dash-master dash-anim" aria-label="Analisis de productos">
-      <div class="dash-master-head">
-        <h2>Análisis de Productos</h2>
-      </div>
-      <div class="dash-products-grid">
-        <article class="dash-subcard dash-product-card" data-top="vendidos">
-          <h3 class="dash-product-title">Los más vendidos</h3>
-          <ul class="dash-list" data-list></ul>
-          <div class="dash-pager dash-mini-pager" data-pager hidden>
-            <button type="button" class="dash-pager-btn" data-prev aria-label="Anterior">
-              <i class="fa-solid fa-chevron-left" aria-hidden="true"></i>
-            </button>
-            <span class="dash-pager-info" data-info>1 / 1</span>
-            <button type="button" class="dash-pager-btn" data-next aria-label="Siguiente">
-              <i class="fa-solid fa-chevron-right" aria-hidden="true"></i>
-            </button>
-          </div>
-        </article>
-
-        <article class="dash-subcard dash-product-card" data-top="menos">
-          <h3 class="dash-product-title">Los menos vendidos</h3>
-          <ul class="dash-list" data-list></ul>
-          <div class="dash-pager dash-mini-pager" data-pager hidden>
-            <button type="button" class="dash-pager-btn" data-prev aria-label="Anterior">
-              <i class="fa-solid fa-chevron-left" aria-hidden="true"></i>
-            </button>
-            <span class="dash-pager-info" data-info>1 / 1</span>
-            <button type="button" class="dash-pager-btn" data-next aria-label="Siguiente">
-              <i class="fa-solid fa-chevron-right" aria-hidden="true"></i>
-            </button>
-          </div>
-        </article>
-
-        <article class="dash-subcard dash-product-card" data-top="rentables">
-          <h3 class="dash-product-title">Los más rentables</h3>
-          <ul class="dash-list" data-list></ul>
-          <div class="dash-pager dash-mini-pager" data-pager hidden>
-            <button type="button" class="dash-pager-btn" data-prev aria-label="Anterior">
-              <i class="fa-solid fa-chevron-left" aria-hidden="true"></i>
-            </button>
-            <span class="dash-pager-info" data-info>1 / 1</span>
-            <button type="button" class="dash-pager-btn" data-next aria-label="Siguiente">
-              <i class="fa-solid fa-chevron-right" aria-hidden="true"></i>
-            </button>
-          </div>
-        </article>
-      </div>
-    </section>
-
-    <!-- ===== Alertas de Stock ===== -->
-    <section class="dash-master dash-anim" aria-label="Alertas de stock">
-      <div class="dash-master-head">
-        <h2>Alertas de Stock</h2>
-      </div>
-      <ul id="lista-stock-bajo" class="dash-list"></ul>
-    </section>
-
-    <!-- ===== Rendimiento del Personal ===== -->
-    <section class="dash-master dash-anim" aria-label="Rendimiento del personal">
-      <div class="dash-master-head">
-        <h2>Rendimiento del Personal</h2>
         <button type="button" id="btn-crear-cajero" class="dash-primary-btn">
           <i class="fa-solid fa-user-plus" aria-hidden="true"></i>
-          Crear Cajero
+          <span class="dash-btn-label">Crear Cajero</span>
         </button>
       </div>
-      <div id="lista-staff" class="dash-staff-list"></div>
+
+      <div class="dash-filters">
+        <div class="dash-pills" id="dash-pills" role="group" aria-label="Periodo del resumen financiero">
+          <button type="button" class="dash-pill is-active" data-period="hoy">Hoy</button>
+          <button type="button" class="dash-pill" data-period="ayer">Ayer</button>
+          <button type="button" class="dash-pill" data-period="semana">Semana</button>
+          <button type="button" class="dash-pill" data-period="mes">Mes</button>
+          <button type="button" class="dash-pill" data-period="tres_meses">3 meses</button>
+          <button type="button" class="dash-pill" data-period="anio">Año</button>
+          {# La fecha va al final del mismo carrusel: fuera de el, en 320px se
+             comia la mitad del ancho y dejaba ver solo dos capsulas. #}
+          <input type="date" id="filtro-fecha" class="dash-date-input" aria-label="Elegir un dia" />
+        </div>
+      </div>
+    </header>
+
+    <section class="dash-row" aria-labelledby="dash-fin-title">
+      <h2 class="dash-row-title" id="dash-fin-title">Resumen financiero <span class="dash-row-sub" id="dash-periodo">hoy</span></h2>
+      <div class="dash-fin" id="dash-finanzas"></div>
+    </section>
+
+    <section class="dash-row" aria-labelledby="dash-staff-title">
+      <h2 class="dash-row-title" id="dash-staff-title">Personal en tiempo real <span class="dash-row-sub" id="dash-en-turno"></span></h2>
+      <div class="dash-staff" id="dash-personal"></div>
     </section>
   </main>
+
+  <!-- Modal de trabajador: sus cifras y su historial de ventas por periodo.
+       Capsulas + fecha + paginador con JemFiltros (filtros-paginacion.js);
+       lista y ticket con JemVentas (ventas-comun.js), igual que en Ventas. -->
+  <div id="modal-personal" class="dash-modal dash-modal-wide" hidden aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="mp-nombre">
+    <div class="dash-modal-overlay" data-close-personal></div>
+    <div class="dash-modal-card mp-card" role="document">
+      <div class="dash-modal-head mp-head">
+        <div class="dash-avatar" id="mp-avatar" aria-hidden="true"></div>
+        <div class="staff-id">
+          <h2 id="mp-nombre" class="mp-nombre">-</h2>
+          <p class="staff-sub" id="mp-sub"></p>
+        </div>
+        <button type="button" class="dash-modal-close" data-close-personal aria-label="Cerrar">
+          <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+        </button>
+      </div>
+
+      <div class="jem-filters mp-filters" data-jem-filters="personal">
+        <div class="jem-pills" role="group" aria-label="Periodo de las ventas del trabajador">
+          <button type="button" class="jem-pill active" data-periodo="hoy">Hoy</button>
+          <button type="button" class="jem-pill" data-periodo="ayer">Ayer</button>
+          <button type="button" class="jem-pill" data-periodo="semana">Esta semana</button>
+          <button type="button" class="jem-pill" data-periodo="mes">Este mes</button>
+          <button type="button" class="jem-pill" data-periodo="anio">Este año</button>
+        </div>
+        <div class="jem-date-wrap">
+          <input type="date" class="jem-date" id="personal-fecha" data-jem-fecha aria-label="Buscar un dia especifico" />
+          <button type="button" class="jem-date-clear hidden" data-jem-fecha-clear aria-label="Quitar filtro de fecha">Quitar</button>
+        </div>
+      </div>
+
+      {# vent-main: mismas reglas de tarjeta que el Historial de Ventas #}
+      <div class="mp-body vent-main" id="mp-body" aria-busy="false">
+        <div class="mp-stats" id="mp-stats" aria-live="polite"></div>
+        <div id="mp-turno"></div>
+
+        <h3 class="staff-ventas-title">Historial de ventas</h3>
+        <div class="gast-cards" id="mp-cards" aria-label="Ventas del trabajador"></div>
+        <div class="gast-table-wrap" id="mp-table-wrap">
+          <table class="gast-table vent-table" aria-label="Ventas del trabajador">
+            <thead>
+              <tr>
+                <th>Venta</th>
+                <th>Fecha</th>
+                <th>Cliente</th>
+                <th>Cajero</th>
+                <th>Metodo de pago</th>
+                <th>Estado</th>
+                <th class="th-monto">Total</th>
+                <th><span class="sr-only">Accion</span></th>
+              </tr>
+            </thead>
+            <tbody id="mp-table-body"></tbody>
+          </table>
+        </div>
+        {% with filtros_id='personal' %}
+          {% include "pos/_paginador.html" %}
+        {% endwith %}
+        <div class="gast-empty hidden" id="mp-empty">
+          <i class="fa-solid fa-receipt" aria-hidden="true"></i>
+          <p>Sin ventas en este periodo</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {% include "pos/_ticket_modal.html" %}
 
   <!-- Modal Crear Cajero (Admin) -->
   <div id="modal-crear-cajero" class="dash-modal" hidden aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="cc-title">
@@ -206,7 +185,9 @@
 </div>
 
 <script src="/static/js/logout.js" defer></script>
-<script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" defer></script>
+<script src="/static/js/filtros-paginacion.js" defer></script>
+<script src="/static/js/ventas-comun.js" defer></script>
 <script src="/static/js/dashboard.js" defer></script>
 <div id="app-context"
      data-user-rol="{{ rol }}"

@@ -294,9 +294,11 @@ with app.test_client() as c:
     assert len(data["ventas"]) <= 5, len(data["ventas"])
     assert data["filtro"] == "todas", data["filtro"]
     if data["ventas"]:
-        # Solo los campos que pinta la vista: ni turno, ni metodo de pago, ni ids internos.
+        # Solo los campos que pinta la vista (el metodo de pago ya es columna):
+        # ni turno ni ids internos.
         assert set(data["ventas"][0]) == {
             "id_venta", "total_final", "estado_venta", "fecha", "nombre_cliente", "nombre_cajero",
+            "metodo_pago",
         }, sorted(data["ventas"][0])
 
     # Contrato de gastos.

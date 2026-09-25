@@ -2,8 +2,9 @@
 
 Dos bloques:
   1) Servicios + BD dentro de UNA transaccion que se revierte al final:
-     no deja datos. Cubre descuento mayorista, dashboard B2B, pagos parciales,
-     validaciones y ausencia de registros huerfanos.
+     no deja datos. Cubre clientes mayoristas, dashboard B2B, pagos parciales,
+     validaciones y ausencia de registros huerfanos. El precio mayorista fijo
+     y Venta Mayorista se prueban en check_mayorista_servicios.py.
   2) Rutas HTTP con el test client de Flask: autenticacion y rol por endpoint.
 
 Requiere migrations/2026-09-22_cartera_b2b.sql aplicada y una tienda con turno
@@ -109,84 +110,38 @@ try:
     cur.execute("UPDATE productos SET stock_actual = stock_actual + 50 WHERE id_producto = %s", (producto,))
     item = [{"id": producto, "qty": 1, "price": precio}]
 
-    # ── 1) Listas mayoristas ────────────────────────────────
-    id_lista = cart.crear_lista_precios(tienda, usuario, "QA Mayorista 10", 10, 0)
-    listas = cart.get_listas_precios(tienda)
-    lista = next(l for l in listas if l["id"] == id_lista)
-    assert lista["descuento_pct"] == 10.0 and lista["min_pedidos"] == 0, lista
-
-    espera(Conflicto, cart.crear_lista_precios, tienda, usuario, "QA Mayorista 10", 5, 0)
-    espera(Validacion, cart.crear_lista_precios, tienda, usuario, "QA Mala", 101, 0)
-    espera(Validacion, cart.crear_lista_precios, tienda, usuario, "QA Mala", -1, 0)
-    espera(Validacion, cart.crear_lista_precios, tienda, usuario, "QA Mala", "diez", 0)
-    espera(Validacion, cart.crear_lista_precios, tienda, usuario, "", 10, 0)
-
-    # ── 2) Cliente B2B con lista asignada ───────────────────
-    cid = cart.upsert_cliente_b2b(tienda, usuario, "QA Distribuidora", "3990001122", "900123456-7", id_lista)
+    # ── 1) Cliente mayorista (B2B) ──────────────────────────
+    cid = cart.upsert_cliente_b2b(tienda, usuario, "QA Distribuidora", "3990001122", "900123456-7")
     clientes = cart.get_clientes_b2b(tienda)
     cliente = next(c for c in clientes if c["id"] == cid)
-    assert cliente["lista"]["id"] == id_lista and cliente["pedidos"] == 0, cliente
+    assert cliente["pedidos"] == 0, cliente
     assert cliente["frecuencia_dias"] is None, "sin pedidos no hay frecuencia"
-    # La respuesta solo trae lo que pinta la vista: nada de cedula ni direccion.
+    # La respuesta solo trae lo que pinta la vista: nada de cedula, direccion
+    # ni la lista porcentual retirada.
     assert set(cliente) == {
         "id", "name", "phone", "nit", "debt", "pedidos", "comprado",
-        "ticket_promedio", "frecuencia_dias", "dias_sin_comprar", "lista",
+        "ticket_promedio", "frecuencia_dias", "dias_sin_comprar",
     }, sorted(cliente)
 
-    espera(Validacion, cart.upsert_cliente_b2b, tienda, usuario, "QA", "123", None, None)
-    espera(Validacion, cart.upsert_cliente_b2b, tienda, usuario, "", "3990001133", None, None)
+    espera(Validacion, cart.upsert_cliente_b2b, tienda, usuario, "QA", "123", None)
+    espera(Validacion, cart.upsert_cliente_b2b, tienda, usuario, "", "3990001133", None)
     espera(NoEncontrado, cart.upsert_cliente_b2b, tienda, usuario, "QA", "3990001144", None, 99999999)
 
-    # ── 3) Descuento mayorista automatico al cobrar ─────────
-    r1 = svc.registrar_venta(tienda, usuario, item, "efectivo", cid, precio, precio, 0)
-    esperado = round(precio * 0.10, 2)
-    assert r1["descuento_b2b"] == esperado, (r1["descuento_b2b"], esperado)
-    assert r1["total_final"] == round(precio - esperado, 2), r1
-    fila = venta_de(r1["id_venta"])
-    assert fila["tipo_descuento"] == "PORCENTAJE", fila
-    assert float(fila["valor_descuento"]) == 10.0, fila
-    assert float(fila["descuento_aplicado"]) == esperado, fila
-    assert float(fila["total_final"]) == round(precio - esperado, 2), fila
-    assert "Mayorista" in (fila["observaciones"] or ""), fila
+    # ── 2) Sin descuento porcentual: un cliente B2B con una lista heredada
+    #       paga el precio del servidor en Caja, mande lo que mande el navegador.
+    cur.execute("INSERT INTO listas_precios (id_tienda, nombre, descuento_pct) VALUES (%s, 'QA Mayorista 10', 10)",
+                (tienda,))
+    cur.execute("UPDATE clientes SET id_lista_precios = %s WHERE id_cliente = %s", (cur.lastrowid, cid))
+    for descuento in (0, 99999, 0, 0):
+        r = svc.registrar_venta(tienda, usuario, item, "efectivo", cid, precio, precio, descuento)
+        assert r["total_final"] == precio and "descuento_b2b" not in r, r
+        fila = venta_de(r["id_venta"])
+        assert fila["tipo_descuento"] == "NINGUNO" and float(fila["descuento_aplicado"]) == 0, fila
 
-    # El porcentaje NO puede llegar del navegador: mandar otro no cambia nada.
-    r2 = svc.registrar_venta(tienda, usuario, item, "efectivo", cid, precio, precio, 99999)
-    assert r2["descuento_b2b"] == esperado, r2
-
-    # ── 4) Recurrencia: la lista con minimo alto no aplica ──
-    id_lista_alta = cart.crear_lista_precios(tienda, usuario, "QA Mayorista 99 pedidos", 20, 99)
-    cart.asignar_lista_cliente(tienda, usuario, cid, id_lista_alta)
-    r3 = svc.registrar_venta(tienda, usuario, item, "efectivo", cid, precio, precio, 0)
-    assert r3["descuento_b2b"] == 0.0, r3
-    assert venta_de(r3["id_venta"])["tipo_descuento"] == "NINGUNO"
-
-    # "Desde el pedido N": un cliente nuevo con N=2 no descuenta en su primera
-    # compra y si en la segunda.
-    id_lista_2 = cart.crear_lista_precios(tienda, usuario, "QA Desde el 2", 15, 2)
-    cid2 = cart.upsert_cliente_b2b(tienda, usuario, "QA Segundo Pedido", "3990002255", None, id_lista_2)
-    p1 = svc.registrar_venta(tienda, usuario, item, "efectivo", cid2, precio, precio, 0)
-    assert p1["descuento_b2b"] == 0.0, p1
-    p2 = svc.registrar_venta(tienda, usuario, item, "efectivo", cid2, precio, precio, 0)
-    assert p2["descuento_b2b"] == round(precio * 0.15, 2), p2
-
-    # Y con N=1 descuenta desde la primera compra, igual que N=0.
-    id_lista_1 = cart.crear_lista_precios(tienda, usuario, "QA Desde el 1", 5, 1)
-    cid3 = cart.upsert_cliente_b2b(tienda, usuario, "QA Primer Pedido", "3990003366", None, id_lista_1)
-    p3 = svc.registrar_venta(tienda, usuario, item, "efectivo", cid3, precio, precio, 0)
-    assert p3["descuento_b2b"] == round(precio * 0.05, 2), p3
-
-    # Cliente sin lista: tampoco descuenta.
-    cart.asignar_lista_cliente(tienda, usuario, cid, None)
-    r4 = svc.registrar_venta(tienda, usuario, item, "efectivo", cid, precio, precio, 0)
-    assert r4["descuento_b2b"] == 0.0, r4
-    cart.asignar_lista_cliente(tienda, usuario, cid, id_lista)
-
-    espera(NoEncontrado, cart.asignar_lista_cliente, tienda, usuario, cid, 99999999)
-    espera(NoEncontrado, cart.asignar_lista_cliente, tienda, usuario, 99999999, id_lista)
-
-    # ── 5) Dashboard del cliente comercial ──────────────────
+    # ── 3) Dashboard del cliente comercial ──────────────────
     dash = cart.get_cliente_b2b_dashboard(tienda, cid)
     assert dash["pedidos"] == 4, dash["pedidos"]
+    assert dash["comprado"] == round(precio * 4, 2), dash
     assert dash["ticket_promedio"] > 0, dash
     assert round(dash["ticket_promedio"], 2) == round(dash["comprado"] / dash["pedidos"], 2), dash
     assert dash["frecuencia_dias"] == 0.0, dash["frecuencia_dias"]  # 4 pedidos el mismo dia
@@ -200,14 +155,14 @@ try:
     if otro:
         espera(NoEncontrado, cart.get_cliente_b2b_dashboard, tienda, otro["id_cliente"])
 
-    # ── 6) Cuentas por cobrar: mora y tipo ──────────────────
+    # ── 4) Cuentas por cobrar: mora y tipo ──────────────────
     svc.registrar_venta(tienda, usuario, item, "fiado", None, precio, precio,
                         0, {"id": cid, "nombre": "QA Distribuidora", "telefono": "3990001122"})
     cobrar = next(c for c in svc.get_fiados_clientes(tienda) if c["id"] == cid)
     assert cobrar["tipo"] == "B2B", cobrar
     assert cobrar["debt"] > 0 and cobrar["dias_mora"] == 0, cobrar
 
-    # ── 7) Cuentas por pagar ────────────────────────────────
+    # ── 5) Cuentas por pagar ────────────────────────────────
     id_cta = cart.crear_cuenta_por_pagar(
         tienda, usuario, "Nomina", "QA Nomina quincena", "detalle qa", 100000, "2026-10-05", None
     )
@@ -219,7 +174,8 @@ try:
     assert res["saldo"] == 60000.0 and res["estado"] == "Pendiente", res
     assert cuenta_de(cart.get_cuentas_por_pagar(tienda), id_cta)["saldo"] == 60000.0
 
-    # El gasto automatico: monto exacto, concepto con deuda y origen, fuente OK.
+    # El gasto automatico: monto exacto, categoria fija "Cuentas por pagar" y
+    # la cuenta, a quien se pago y el origen en la descripcion.
     cur.execute(
         "SELECT concepto, descripcion, monto, fuente_dinero FROM gastos_caja WHERE id_gasto = %s",
         (res["id_gasto"],),
@@ -227,9 +183,10 @@ try:
     gasto = cur.fetchone()
     assert gasto is not None, "el pago no genero gasto"
     assert float(gasto["monto"]) == 40000.0, gasto
-    assert gasto["concepto"] == "Abono a deuda de QA Nomina quincena - Origen: Transferencia", gasto
+    assert gasto["concepto"] == "Cuentas por pagar", gasto
     assert gasto["fuente_dinero"] == "Bancos", gasto
-    assert f"#{id_cta}" in (gasto["descripcion"] or ""), gasto
+    for parte in (f"#{id_cta}", "(Nomina)", "Origen: Transferencia", "Pagado a: QA Nomina quincena"):
+        assert parte in (gasto["descripcion"] or ""), (parte, gasto)
 
     # Origen fuera de la lista estricta: 400, y NADA se toca (ni deuda ni gasto).
     cur.execute("SELECT COUNT(*) AS n FROM gastos_caja WHERE id_tienda = %s", (tienda,))
@@ -290,7 +247,7 @@ try:
     espera(Validacion, cart.crear_cuenta_por_pagar, tienda, usuario, "Nomina", "QA", None, 1000, "2026-13-40", None)
     espera(NoEncontrado, cart.crear_cuenta_por_pagar, tienda, usuario, "Proveedor", "QA", None, 1000, None, 99999999)
 
-    # ── 8) Resumen de las dos pestanas ──────────────────────
+    # ── 6) Resumen de las dos pestanas ──────────────────────
     resumen = cart.get_resumen_cartera(tienda)
     assert resumen["por_cobrar"] > 0 and resumen["deudores"] >= 1, resumen
     assert resumen["por_pagar"] >= 0 and resumen["vencido"] >= 0, resumen
@@ -308,7 +265,7 @@ try:
     )
     cur.execute("UPDATE clientes SET estado_activo = 1 WHERE id_cliente = %s", (cid,))
 
-    # ── 9) Sin datos huerfanos al eliminar ──────────────────
+    # ── 7) Sin datos huerfanos al eliminar ──────────────────
     # Proveedor borrado: la obligacion sobrevive sin proveedor (ON DELETE SET NULL).
     cur.execute(
         "INSERT INTO proveedores (id_tienda, nombre_empresa, celular) VALUES (%s, 'QA Prov', '3001112233')",
@@ -324,21 +281,7 @@ try:
     assert fila_cta is not None and fila_cta["id_proveedor"] is None, fila_cta
     assert cuenta_de(cart.get_cuentas_por_pagar(tienda), id_cta_prov)["proveedor"] == ""
 
-    # Lista eliminada (soft): el cliente queda sin lista y sin descuento.
-    cart.eliminar_lista_precios(tienda, usuario, id_lista)
-    cur.execute("SELECT id_lista_precios FROM clientes WHERE id_cliente = %s", (cid,))
-    assert cur.fetchone()["id_lista_precios"] is None, "el cliente quedo apuntando a una lista inactiva"
-    r5 = svc.registrar_venta(tienda, usuario, item, "efectivo", cid, precio, precio, 0)
-    assert r5["descuento_b2b"] == 0.0, r5
-    espera(NoEncontrado, cart.eliminar_lista_precios, tienda, usuario, id_lista)
-
-    # Lista borrada fisicamente: la FK limpia la referencia del cliente.
-    cart.asignar_lista_cliente(tienda, usuario, cid, id_lista_alta)
-    cur.execute("DELETE FROM listas_precios WHERE id_lista = %s", (id_lista_alta,))
-    cur.execute("SELECT id_lista_precios FROM clientes WHERE id_cliente = %s", (cid,))
-    assert cur.fetchone()["id_lista_precios"] is None, "FK sin ON DELETE SET NULL"
-
-    print("OK bloque 1: descuento mayorista, dashboard B2B, cuentas por pagar, validaciones, sin huerfanos")
+    print("OK bloque 1: clientes mayoristas sin descuento porcentual, dashboard B2B, cuentas por pagar, validaciones, sin huerfanos")
 finally:
     _real_rollback()
     conn.close()
@@ -375,14 +318,10 @@ SOLO_ADMIN = [
     ("POST", "/pos/api/cartera/por-pagar"),
     ("POST", "/pos/api/cartera/por-pagar/1/pagar"),
     ("DELETE", "/pos/api/cartera/por-pagar/1"),
-    ("GET", "/pos/api/b2b/listas"),
-    ("POST", "/pos/api/b2b/listas"),
-    ("PUT", "/pos/api/b2b/listas/1"),
-    ("DELETE", "/pos/api/b2b/listas/1"),
     ("GET", "/pos/api/b2b/clientes"),
     ("POST", "/pos/api/b2b/clientes"),
     ("GET", "/pos/api/b2b/clientes/1"),
-    ("PUT", "/pos/api/b2b/clientes/1/lista"),
+    ("GET", "/inventario/proveedores"),
     ("DELETE", "/pos/api/fiados/1"),
 ]
 
@@ -413,7 +352,7 @@ with app.test_client() as c:
 with app.test_client() as c:
     sesion(c, "Admin")
     assert c.get("/pos/clientes-proveer").status_code == 200
-    for ruta in ("/pos/api/cartera/por-pagar", "/pos/api/b2b/listas", "/pos/api/b2b/clientes"):
+    for ruta in ("/pos/api/cartera/por-pagar", "/pos/api/b2b/clientes", "/pos/api/mayorista/clientes"):
         assert c.get(ruta).status_code == 200, ruta
     resumen = c.get("/pos/api/cartera/resumen").get_json()["resumen"]
     assert set(resumen) == {"por_cobrar", "deudores", "por_pagar", "obligaciones", "vencido"}, resumen

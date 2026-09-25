@@ -1,329 +1,187 @@
-.ventas-main {
-  flex: 1;
-  min-width: 0;
+/* ============================================================
+   Ruta: static/css/ventas.css
+   Pantalla: Historial de Ventas
+   El esqueleto viene de gastos.css (gast-*): aqui solo el color de
+   entrada (verde), la tarjeta de venta y el ticket del PDF.
+   ============================================================ */
+
+.vent-summary-hoy {
+  background: #F0FDF4;
+  border-color: rgba(16, 185, 129, 0.25);
+}
+.vent-summary-hoy .gast-summary-amount { color: #047857; }
+
+/* 320px: dos tarjetas lado a lado. La cifra se achica con el ancho en vez
+   de partirse ("$38.470.50 / 0"): 5vw deja ~105px a "$38.470.500". */
+.gast-summary-card { min-width: 0; }
+.gast-summary-amount { white-space: nowrap; font-size: clamp(1rem, 5vw, 1.2rem); }
+@media (min-width: 768px) { .gast-summary-amount { font-size: 1.4rem; } }
+
+.vent-main .gast-card-meta { flex-wrap: wrap; row-gap: 0.25rem; }
+.vent-main .gast-card-meta span { white-space: nowrap; }
+
+.vent-card-icon {
+  background: #F0FDF4;
+  border-color: rgba(16, 185, 129, 0.2);
+  color: #047857;
+}
+.vent-card-head {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+.vent-card-side {
   display: flex;
   flex-direction: column;
-  background: #f8fafc;
+  align-items: flex-end;
+  gap: 0.45rem;
+  flex-shrink: 0;
 }
+.vent-amount { color: #047857; }
+.vent-anulada .vent-amount { color: #57667A; text-decoration: line-through; }
 
-.ventas-mobile-only { display: block; }
-.ventas-desktop-only { display: none; }
-
-.ventas-topbar {
-  padding: 1rem 1rem 0.75rem;
-  border-bottom: 1px solid #e2e8f0;
-  background: #ffffff;
-}
-
-.ventas-logo {
-  display: block;
-  margin-bottom: 0.5rem;
-  font-size: 1.75rem;
-  font-weight: 800;
-}
-
-.ventas-logo .jem { color: #0f172a; }
-.ventas-logo .pos { color: #3b82f6; }
-
-.ventas-heading-wrap {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.ventas-title {
-  margin: 0;
-  font-size: 1.4rem;
-  font-weight: 800;
-  color: #0f172a;
-}
-
-.ventas-caption {
-  margin: 0;
-  font-size: 0.9rem;
-  color: #57667A;
-  font-weight: 600;
-}
-
-.ventas-filter-form {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.ventas-filter-form label {
-  font-size: 0.85rem;
-  color: #57667A;
-  font-weight: 600;
-}
-
-.ventas-filter-form select {
-  border: 1px solid #cbd5e1;
-  border-radius: 0.75rem;
-  background: #fff;
-  color: #0f172a;
-  font-weight: 600;
-  font-size: 0.9rem;
-  padding: 0.45rem 0.7rem;
-}
-
-.ventas-content {
-  padding: 1rem;
-  overflow: auto;
-}
-
-.ventas-mobile-view {
-  display: grid;
-  gap: 0.8rem;
-}
-
-.venta-card {
-  border: 1px solid #dbe3ef;
-  border-radius: 1rem;
-  background: #ffffff;
-  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.08);
-  padding: 0.85rem;
-}
-
-.venta-card-top {
-  display: flex;
-  justify-content: space-between;
-  gap: 0.75rem;
-  margin-bottom: 0.45rem;
-}
-
-.venta-id {
-  margin: 0;
-  color: #0f172a;
-  font-weight: 800;
-  font-size: 1rem;
-}
-
-.venta-hour {
-  margin: 0.1rem 0 0;
-  color: #57667A;
-  font-weight: 600;
-  font-size: 0.82rem;
-}
-
-.venta-meta {
-  color: #334155;
-  font-size: 0.9rem;
-  margin-bottom: 0.7rem;
-}
-
-.venta-card-bottom {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.6rem;
-}
-
-.venta-total {
-  color: #0f172a;
-  font-size: 1.12rem;
-}
-
-.venta-status {
+.vent-estado {
   border-radius: 999px;
-  padding: 0.22rem 0.62rem;
-  font-size: 0.76rem;
-  font-weight: 800;
+  padding: 0.1rem 0.5rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  background: #E2E8F0;
+  color: #334155;
 }
+.vent-estado.pagada { background: #DCFCE7; color: #166534; }
+.vent-estado.fiada  { background: #FFEDD5; color: #9A3412; }
+.vent-estado.anulada { background: #FEE2E2; color: #991B1B; }
 
-.venta-status-paid {
-  background: #dcfce7;
-  color: #166534;
-}
-
-.venta-status-pending {
-  background: #fef3c7;
-  color: #92400e;
-}
-
-.venta-status-cancel {
-  background: #fee2e2;
-  color: #991b1b;
-}
-
-.btn-detalle {
+.btn-ver-detalle {
   border: 0;
-  border-radius: 0.75rem;
-  padding: 0.45rem 0.7rem;
-  font-size: 0.82rem;
+  border-radius: 0.6rem;
+  padding: 0.4rem 0.7rem;
+  min-height: 36px;
+  background: #DBEAFE;
+  color: #1D4ED8;
+  font: inherit;
+  font-size: 0.78rem;
   font-weight: 700;
   cursor: pointer;
+  white-space: nowrap;
 }
+.btn-ver-detalle:hover { background: #BFDBFE; }
 
-.btn-detalle-blue {
-  background: #dbeafe;
-  color: #1d4ed8;
+.vent-table .gast-td-monto { color: #047857; }
+
+/* ── Ticket / factura (lo que captura el PDF) ─────────────────── */
+.ticket-meta {
+  display: grid;
+  gap: 0.2rem;
+  font-size: 0.8rem;
 }
+.ticket-meta > div { display: flex; gap: 0.5rem; }
+.ticket-meta dt { min-width: 4.5rem; color: #57667A; font-weight: 600; }
+.ticket-meta dd { margin: 0; color: #0f172a; overflow-wrap: anywhere; }
 
-.btn-detalle-gray {
-  background: #e2e8f0;
-  color: #334155;
-}
-
-.ventas-table-wrap {
-  border: 1px solid #dbe3ef;
-  background: #fff;
-  border-radius: 1rem;
-  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.08);
-  overflow: auto;
-}
-
-.ventas-table {
+.ticket-table {
   width: 100%;
+  table-layout: fixed;
   border-collapse: collapse;
+  font-size: 0.8rem;
 }
-
-.ventas-table th,
-.ventas-table td {
-  padding: 0.75rem;
+.ticket-table .c-prod { width: 40%; }
+.ticket-table .c-cant { width: 18%; }
+.ticket-table .c-val  { width: 20%; }
+.ticket-table .c-sub  { width: 22%; }
+.ticket-table th {
+  padding: 0.4rem 0.25rem;
   border-bottom: 1px solid #e2e8f0;
-  text-align: left;
-  font-size: 0.88rem;
-  color: #1e293b;
-}
-
-.ventas-table th {
   color: #57667A;
-  font-size: 0.78rem;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
+  font-size: 0.68rem;
   font-weight: 700;
-  background: #f8fafc;
+  text-transform: uppercase;
+  text-align: left;
 }
-
-.ventas-empty,
-.ventas-empty-row {
-  text-align: center;
-  color: #57667A;
-  font-weight: 600;
-  padding: 1rem;
+.ticket-table td {
+  padding: 0.45rem 0.25rem;
+  border-bottom: 1px solid #f1f5f9;
+  color: #334155;
+  vertical-align: top;
+  overflow-wrap: anywhere;
 }
+.ticket-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+.ticket-table .strong { font-weight: 700; color: #0f172a; }
+.ticket-metodo { text-align: right; overflow-wrap: anywhere; }
 
-.venta-modal-overlay {
+/* ── Modal del ticket (templates/pos/_ticket_modal.html) ──────────
+   CSS propio y no utilidades de Tailwind: el mismo modal se abre en el
+   Panel de Control, que no carga Tailwind. z-index por encima de los
+   modales del panel (.dash-modal, 100): el ticket se abre sobre ellos. */
+.ticket-modal {
   position: fixed;
   inset: 0;
-  z-index: 50;
-  background: rgba(2, 6, 23, 0.55);
+  z-index: 120;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 1rem;
+  background: rgba(0, 0, 0, 0.4);
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
 }
-
-.venta-modal-card {
+.ticket-card {
   position: relative;
   width: 100%;
-  max-width: 32rem;
+  max-width: 28rem;
   max-height: 90vh;
-  display: flex;
-  flex-direction: column;
-  border-radius: 1rem;
-  background: #ffffff;
-  box-shadow: 0 28px 56px rgba(15, 23, 42, 0.24);
-}
-
-.venta-modal-head {
-  border-bottom: 1px solid #e2e8f0;
-  padding: 1rem 1rem 0.85rem;
-}
-
-.venta-modal-head h3 {
-  margin: 0;
-  color: #0f172a;
-  font-size: 1rem;
-  font-weight: 800;
-  padding-right: 2rem;
-}
-
-.venta-modal-body {
+  max-height: 90dvh;
   overflow-y: auto;
-  padding: 1rem;
+  overscroll-behavior: contain;
+  padding: 1.5rem;
+  background: #FFFFFF;
+  border-radius: 2rem;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
 }
-
-.detalle-loading,
-.detalle-empty,
-.detalle-error {
-  margin: 0;
-  color: #475569;
-  font-weight: 600;
-}
-
-.detalle-table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-.detalle-table th,
-.detalle-table td {
-  border-bottom: 1px solid #e2e8f0;
-  padding: 0.55rem 0.35rem;
-  font-size: 0.84rem;
-  text-align: left;
-}
-
-.detalle-table th {
-  color: #57667A;
-  font-size: 0.72rem;
-  text-transform: uppercase;
-}
-
-.venta-modal-total-wrap {
-  border-top: 1px solid #e2e8f0;
-  padding: 0.8rem 1rem;
+.ticket-close {
+  position: absolute;
+  top: 0.6rem;
+  right: 0.6rem;
+  width: var(--touch-target-min, 44px);
+  height: var(--touch-target-min, 44px);
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  justify-content: center;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
 }
-
-.venta-modal-total-wrap span {
-  color: #475569;
-  font-weight: 700;
+.ticket-close img { width: 1.5rem; height: 1.5rem; }
+.ticket-content { padding-right: 1.5rem; }
+.ticket-title { margin: 0; font-size: 1.125rem; line-height: 1.75rem; font-weight: 700; color: #1F2937; }
+.ticket-msg { margin: 0.5rem 0 0; font-size: 0.875rem; color: #6B7280; }
+.ticket-msg.is-error { color: #DC2626; }
+.ticket-meta { margin-top: 0.75rem; }
+.ticket-detalle { margin-top: 1rem; }
+.ticket-line {
+  margin-top: 0.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  font-size: 0.875rem;
+  color: #4B5563;
 }
-
-.venta-modal-total-wrap strong {
-  color: #0f172a;
-  font-size: 1.3rem;
-  font-weight: 800;
+.ticket-line-sep { margin-top: 1rem; padding-top: 0.75rem; border-top: 1px solid #E5E7EB; }
+.ticket-line .ticket-metodo { font-weight: 600; color: #111827; }
+.ticket-total { font-size: 1.125rem; font-weight: 700; color: #111827; }
+.ticket-pdf {
+  margin-top: 1.25rem;
+  width: 100%;
+  padding: 0.625rem;
+  border: 0;
+  border-radius: 0.5rem;
+  background: #111827;
+  color: #FFFFFF;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.15s;
 }
-
-@media (min-width: 768px) {
-  .ventas-mobile-only { display: none; }
-  .ventas-desktop-only { display: block; }
-
-  .ventas-logo {
-    display: none;
-  }
-
-  .ventas-topbar {
-    padding: 1.1rem 1.3rem 0.9rem;
-  }
-
-  .ventas-title {
-    font-size: 1.55rem;
-  }
-
-  .ventas-content {
-    padding: 1.3rem;
-  }
-
-  .ventas-mobile-view {
-    display: none;
-  }
-
-  .ventas-table.hidden.md\\:table {
-    display: table;
-  }
-}
-
-@media (max-width: 767.98px) {
-  .ventas-table-wrap {
-    display: none;
-  }
-}
+.ticket-pdf:hover { background: #374151; }

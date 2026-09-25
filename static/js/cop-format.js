@@ -25,6 +25,9 @@
    * @returns {string}  "1.200.000" | "" si no es un numero valido.
    */
   function format(value) {
+    /* Un number con decimales (0,75 lb x $1.999 = 1499.25) se redondea antes:
+       quitar los no-digitos de "1499.25" daria 149925. */
+    if (typeof value === 'number') value = Math.round(value);
     const digits = String(value).replace(/[^\d]/g, '');
     if (digits === '') return '';
     const n = parseInt(digits, 10);

@@ -5,7 +5,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   {% include "_favicon.html" %}
-  <title>jemPOS - Caja</title>
+  <title>jemPOS - {{ 'Venta Mayorista' if modo_mayorista else 'Caja' }}</title>
   <meta name="robots" content="noindex, nofollow">
   <meta name="description" content="Caja de jemPOS: busca o escanea productos, cobra en efectivo, Nequi o tarjeta y registra fiados." />
   <meta name="csrf-token" content="{{ csrf_token() }}" />
@@ -21,7 +21,7 @@
   <link rel="stylesheet" href="/static/css/global.css" />
 </head>
 
-<body class="page-caja" data-user-rol="{{ (rol or '')|lower }}">
+<body class="page-caja" data-user-rol="{{ (rol or '')|lower }}"{% if modo_mayorista %} data-modo="mayorista"{% endif %}>
 
 {% with messages = get_flashed_messages(with_categories=true) %}
   {% if messages %}
@@ -79,9 +79,24 @@
       </button>
     </header>
 
+    {% if modo_mayorista %}
+    {# Venta Mayorista: misma caja, precio mayorista fijo de cada producto y
+       cliente mayorista obligatorio (caja.js no deja cobrar sin el). #}
+    <div class="mayorista-bar">
+      {% with tab_mayorista='venta' %}{% include "pos/_mayorista_tabs.html" %}{% endwith %}
+      <label for="mayorista-cliente" class="mayorista-label">
+        <i class="fa-solid fa-dolly" aria-hidden="true"></i> Cliente mayorista
+      </label>
+      <select id="mayorista-cliente" class="mayorista-select" required aria-describedby="mayorista-hint">
+        <option value="">Cargando clientes...</option>
+      </select>
+      <p class="mayorista-hint" id="mayorista-hint">Precios mayoristas. Solo aparecen productos con precio mayorista.</p>
+    </div>
+    {% endif %}
+
     <div class="pos-container">
       <section class="cart" aria-labelledby="cart-title">
-        <h1 class="cart-title" id="cart-title">Carrito</h1>
+        <h1 class="cart-title" id="cart-title">{{ 'Venta mayorista' if modo_mayorista else 'Carrito' }}</h1>
         <div class="cart-section">
           <p class="cart-empty" id="cart-empty" role="status">
             <i class="fa-solid fa-cart-shopping" aria-hidden="true"></i>
@@ -151,13 +166,14 @@
 <dialog class="sheet sheet-form" id="cobro-dialog" aria-labelledby="cobro-title">
   <div class="sheet-body">
     <div class="sheet-header">
-      <h2 class="sheet-title" id="cobro-title">Cobrar venta</h2>
+      <h2 class="sheet-title" id="cobro-title">{{ 'Cobrar venta mayorista' if modo_mayorista else 'Cobrar venta' }}</h2>
       <button type="button" class="sheet-close" id="cobro-close" aria-label="Cerrar">
         <i class="fa-solid fa-xmark" aria-hidden="true"></i>
       </button>
     </div>
 
     <div class="cobro-total-block">
+      {% if modo_mayorista %}<span class="cobro-cliente" id="cobro-cliente"></span>{% endif %}
       <span class="cobro-total-label">Total a pagar</span>
       <output class="cobro-total-amount" id="cobro-total" aria-live="polite">$0</output>
     </div>

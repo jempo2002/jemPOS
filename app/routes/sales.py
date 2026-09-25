@@ -21,7 +21,9 @@ from app.services.sales_service import (
     get_dias_restantes,
     get_fiados_clientes,
     get_gastos,
+    get_resumen_ventas_cajero,
     get_turno_estado,
+    get_totales_ventas,
     get_ventas,
     periodo_bounds,
     registrar_venta,
@@ -29,6 +31,7 @@ from app.services.sales_service import (
 )
 from app.utils.decorators import login_required, roles_required
 from app.utils.helpers import avatar_iniciales, only_digits as solo_digitos
+from app.utils.validation import parse_int
 
 sales_bp = Blueprint("sales_bp", __name__, url_prefix="/pos")
 sales_api_bp = Blueprint("sales_api_bp", __name__, url_prefix="/pos")
@@ -67,6 +70,13 @@ def turno():
 @login_required
 def caja():
     return _render_sales("pos/caja.html")
+
+
+# Misma caja con otra regla de precio: caja.js lee data-modo del <body>.
+@sales_bp.get("/venta-mayorista")
+@login_required
+def venta_mayorista():
+    return _render_sales("pos/caja.html", modo_mayorista=True)
 
 
 @sales_bp.get("/ventas")
@@ -153,7 +163,8 @@ def api_turno_cerrar():
 @login_required
 def api_caja_productos():
     q = str(request.args.get("q", "")).strip()
-    return jsonify({"ok": True, "productos": get_caja_productos(int(session["id_tienda"]), q)})
+    mayorista = request.args.get("mayorista") == "1"
+    return jsonify({"ok": True, "productos": get_caja_productos(int(session["id_tienda"]), q, mayorista)})
 
 
 @sales_api_bp.post("/api/ventas")
@@ -183,6 +194,7 @@ def api_ventas_crear():
             monto_total,
             descuento,
             datos.get("cliente"),
+            mayorista=datos.get("mayorista") is True,
         )
         for alerta in resultado.get("stock_alerts", []):
             flash(alerta, "alerta_stock")
@@ -336,24 +348,45 @@ def api_fiados_eliminar(id_cliente: int):
 @login_required
 @limiter.limit("60 per minute")
 def api_ventas_listar():
+    id_tienda = int(session["id_tienda"])
+    rol = (session.get("rol") or "").strip()
+    # ?id_cajero=: ventas de un trabajador (modal del Panel de Control). Solo
+    # Admin/Master; al Cajero get_ventas ya lo limita a las suyas. El filtro
+    # por id_tienda de la sesion impide ver trabajadores de otra tienda.
+    id_cajero = None
+    if request.args.get("id_cajero") and rol in {"Admin", "Master"}:
+        try:
+            id_cajero = parse_int(request.args.get("id_cajero"), "Trabajador", min_value=1)
+        except ValueError as exc:
+            return jsonify({"ok": False, "msg": str(exc)}), 400
     try:
         lista, filtro, meta = get_ventas(
-            int(session["id_tienda"]),
-            (session.get("rol") or "").strip(),
+            id_tienda,
+            rol,
             session.get("id_usuario"),
             request.args.get("filtro"),
             request.args.get("fecha"),
             request.args.get("page"),
             request.args.get("limit"),
+            id_cajero=id_cajero,
+        )
+        resumen = (
+            get_resumen_ventas_cajero(id_tienda, id_cajero, request.args.get("filtro"), request.args.get("fecha"))
+            if id_cajero
+            else None
         )
     except SalesValidationError as exc:
         return jsonify({"ok": False, "msg": str(exc)}), 400
+    # Las tarjetas Hoy/Mes son de la pantalla Ventas; el modal usa `resumen`.
+    totales = None if id_cajero else get_totales_ventas(id_tienda, rol, session.get("id_usuario"))
 
     return jsonify(
         {
             "ok": True,
             "filtro": filtro,
             "meta": meta,
+            "totales": totales,
+            "resumen": resumen,
             "ventas": [
                 {
                     "id_venta": v["id_venta"],
@@ -362,6 +395,7 @@ def api_ventas_listar():
                     "fecha": v["fecha_creacion"].strftime("%Y-%m-%d %H:%M") if v["fecha_creacion"] else "",
                     "nombre_cliente": v["nombre_cliente"],
                     "nombre_cajero": v["nombre_cajero"],
+                    "metodo_pago": v["metodo_pago"],
                 }
                 for v in lista
             ],

@@ -47,162 +47,11 @@ def _dias_desde(valor) -> int | None:
 
 
 # ══════════════════════════════════════════════════════════════
-# LISTAS DE PRECIOS MAYORISTAS
-# ══════════════════════════════════════════════════════════════
-
-def get_listas_precios(id_tienda: int) -> list[dict]:
-    """Listas activas de la tienda con cuantos clientes las usan."""
-    id_tienda = parse_int(id_tienda, "Tienda", min_value=1)
-    conn = get_db()
-    try:
-        cur = conn.cursor(dictionary=True)
-        cur.execute(
-            """
-            SELECT l.id_lista, l.nombre, l.descuento_pct, l.min_pedidos_recurrentes,
-                   (SELECT COUNT(*) FROM clientes c
-                     WHERE c.id_lista_precios = l.id_lista AND c.estado_activo = 1) AS clientes
-            FROM listas_precios l
-            WHERE l.id_tienda = %s AND l.estado_activo = 1
-            ORDER BY l.descuento_pct DESC, l.nombre
-            """,
-            (id_tienda,),
-        )
-        filas = cur.fetchall() or []
-    finally:
-        conn.close()
-
-    return [
-        {
-            "id": f["id_lista"],
-            "nombre": f["nombre"],
-            "descuento_pct": float(f["descuento_pct"] or 0),
-            "min_pedidos": int(f["min_pedidos_recurrentes"] or 0),
-            "clientes": int(f["clientes"] or 0),
-        }
-        for f in filas
-    ]
-
-
-def crear_lista_precios(
-    id_tienda: int, id_usuario: int, nombre: str, descuento_pct: float, min_pedidos: int
-) -> int:
-    try:
-        id_tienda = parse_int(id_tienda, "Tienda", min_value=1)
-        id_usuario = parse_int(id_usuario, "Usuario", min_value=1)
-        nombre = sanitize_text(nombre, "El nombre de la lista", max_len=100)
-        descuento_pct = parse_float(descuento_pct, "El descuento", min_value=0, max_value=100)
-        min_pedidos = parse_int(min_pedidos, "Los pedidos minimos", min_value=0, max_value=999)
-    except ValueError as exc:
-        _raise_validation(exc)
-
-    conn = get_db()
-    try:
-        cur = conn.cursor()
-        try:
-            cur.execute(
-                "INSERT INTO listas_precios "
-                "(id_tienda, nombre, descuento_pct, min_pedidos_recurrentes) "
-                "VALUES (%s, %s, %s, %s)",
-                (id_tienda, nombre, descuento_pct, min_pedidos),
-            )
-        except IntegrityError as exc:
-            raise SalesConflictError("Ya existe una lista con ese nombre.") from exc
-        nuevo_id = cur.lastrowid
-        conn.commit()
-    except Exception:
-        conn.rollback()
-        raise
-    finally:
-        conn.close()
-
-    registrar_auditoria(
-        id_tienda, id_usuario, "crear_lista_precios",
-        f"Lista '{nombre}' id={nuevo_id} descuento={descuento_pct}%",
-    )
-    return nuevo_id
-
-
-def actualizar_lista_precios(
-    id_tienda: int, id_usuario: int, id_lista: int, nombre: str, descuento_pct: float, min_pedidos: int
-) -> None:
-    try:
-        id_tienda = parse_int(id_tienda, "Tienda", min_value=1)
-        id_usuario = parse_int(id_usuario, "Usuario", min_value=1)
-        id_lista = parse_int(id_lista, "Lista", min_value=1)
-        nombre = sanitize_text(nombre, "El nombre de la lista", max_len=100)
-        descuento_pct = parse_float(descuento_pct, "El descuento", min_value=0, max_value=100)
-        min_pedidos = parse_int(min_pedidos, "Los pedidos minimos", min_value=0, max_value=999)
-    except ValueError as exc:
-        _raise_validation(exc)
-
-    conn = get_db()
-    try:
-        cur = conn.cursor()
-        try:
-            cur.execute(
-                "UPDATE listas_precios "
-                "SET nombre = %s, descuento_pct = %s, min_pedidos_recurrentes = %s "
-                "WHERE id_lista = %s AND id_tienda = %s AND estado_activo = 1",
-                (nombre, descuento_pct, min_pedidos, id_lista, id_tienda),
-            )
-        except IntegrityError as exc:
-            raise SalesConflictError("Ya existe una lista con ese nombre.") from exc
-        if cur.rowcount == 0:
-            raise SalesNotFoundError("Lista de precios no encontrada.")
-        conn.commit()
-    except Exception:
-        conn.rollback()
-        raise
-    finally:
-        conn.close()
-
-    registrar_auditoria(
-        id_tienda, id_usuario, "editar_lista_precios",
-        f"Lista id={id_lista} -> '{nombre}' descuento={descuento_pct}%",
-    )
-
-
-def eliminar_lista_precios(id_tienda: int, id_usuario: int, id_lista: int) -> None:
-    """Desactiva la lista y desvincula a sus clientes.
-
-    Soft delete: las ventas historicas que se cobraron con esa lista no deben
-    perder su referencia contable, y ningun cliente queda apuntando a una
-    lista inactiva (la FK ya es ON DELETE SET NULL para el borrado fisico).
-    """
-    try:
-        id_tienda = parse_int(id_tienda, "Tienda", min_value=1)
-        id_usuario = parse_int(id_usuario, "Usuario", min_value=1)
-        id_lista = parse_int(id_lista, "Lista", min_value=1)
-    except ValueError as exc:
-        _raise_validation(exc)
-
-    conn = get_db()
-    try:
-        cur = conn.cursor()
-        cur.execute(
-            "UPDATE listas_precios SET estado_activo = 0 "
-            "WHERE id_lista = %s AND id_tienda = %s AND estado_activo = 1",
-            (id_lista, id_tienda),
-        )
-        if cur.rowcount == 0:
-            raise SalesNotFoundError("Lista de precios no encontrada.")
-        cur.execute(
-            "UPDATE clientes SET id_lista_precios = NULL "
-            "WHERE id_lista_precios = %s AND id_tienda = %s",
-            (id_lista, id_tienda),
-        )
-        conn.commit()
-    except Exception:
-        conn.rollback()
-        raise
-    finally:
-        conn.close()
-
-    registrar_auditoria(id_tienda, id_usuario, "eliminar_lista_precios", f"Lista id={id_lista}")
-
-
-# ══════════════════════════════════════════════════════════════
-# CLIENTES B2B ("Clientes a Proveer")
+# CLIENTES MAYORISTAS (B2B)
+#
+# El precio mayorista es un valor fijo por producto (productos.precio_mayorista)
+# que se cobra en Venta Mayorista. Las listas con descuento porcentual
+# (listas_precios) quedaron sin uso: la tabla se conserva por historial.
 # ══════════════════════════════════════════════════════════════
 
 _DEUDA_CLIENTE = """
@@ -227,8 +76,6 @@ def get_clientes_b2b(id_tienda: int) -> list[dict]:
         cur.execute(
             f"""
             SELECT c.id_cliente, c.nombre, c.telefono, c.nit,
-                   l.id_lista, l.nombre AS lista_nombre, l.descuento_pct,
-                   l.min_pedidos_recurrentes,
                    {_DEUDA_CLIENTE} AS deuda,
                    (SELECT COUNT(*) FROM ventas v
                      WHERE v.id_cliente = c.id_cliente AND v.id_tienda = c.id_tienda
@@ -243,8 +90,6 @@ def get_clientes_b2b(id_tienda: int) -> list[dict]:
                      WHERE v.id_cliente = c.id_cliente AND v.id_tienda = c.id_tienda
                        AND {_VENTAS_REALES}) AS primera_compra
             FROM clientes c
-            LEFT JOIN listas_precios l
-              ON l.id_lista = c.id_lista_precios AND l.estado_activo = 1
             WHERE c.id_tienda = %s AND c.estado_activo = 1 AND c.tipo = 'B2B'
             ORDER BY comprado DESC, c.nombre
             """,
@@ -271,12 +116,6 @@ def _fila_cliente_b2b(f: dict) -> dict:
         "ticket_promedio": (comprado / pedidos) if pedidos else 0.0,
         "frecuencia_dias": _frecuencia_dias(f.get("primera_compra"), f.get("ultima_compra"), pedidos),
         "dias_sin_comprar": _dias_desde(f.get("ultima_compra")),
-        "lista": {
-            "id": f.get("id_lista"),
-            "nombre": f.get("lista_nombre") or "",
-            "descuento_pct": float(f["descuento_pct"] or 0) if f.get("descuento_pct") is not None else 0.0,
-            "min_pedidos": int(f["min_pedidos_recurrentes"] or 0) if f.get("min_pedidos_recurrentes") is not None else 0,
-        },
     }
 
 
@@ -306,8 +145,6 @@ def get_cliente_b2b_dashboard(id_tienda: int, id_cliente: int) -> dict:
         cur.execute(
             f"""
             SELECT c.id_cliente, c.nombre, c.telefono, c.nit,
-                   l.id_lista, l.nombre AS lista_nombre, l.descuento_pct,
-                   l.min_pedidos_recurrentes,
                    {_DEUDA_CLIENTE} AS deuda,
                    (SELECT COUNT(*) FROM ventas v
                      WHERE v.id_cliente = c.id_cliente AND v.id_tienda = c.id_tienda
@@ -322,8 +159,6 @@ def get_cliente_b2b_dashboard(id_tienda: int, id_cliente: int) -> dict:
                      WHERE v.id_cliente = c.id_cliente AND v.id_tienda = c.id_tienda
                        AND {_VENTAS_REALES}) AS primera_compra
             FROM clientes c
-            LEFT JOIN listas_precios l
-              ON l.id_lista = c.id_lista_precios AND l.estado_activo = 1
             WHERE c.id_cliente = %s AND c.id_tienda = %s AND c.estado_activo = 1
             LIMIT 1
             """,
@@ -371,7 +206,6 @@ def upsert_cliente_b2b(
     nombre: str,
     telefono: str,
     nit: str | None,
-    id_lista: int | None,
     id_cliente: int | None = None,
 ) -> int:
     """Crea un cliente comercial o convierte uno existente a B2B."""
@@ -382,8 +216,6 @@ def upsert_cliente_b2b(
         nit_limpio = sanitize_optional_text(nit, "El NIT", max_len=30)
         if id_cliente is not None:
             id_cliente = parse_int(id_cliente, "Cliente", min_value=1)
-        if id_lista is not None:
-            id_lista = parse_int(id_lista, "Lista de precios", min_value=1)
     except ValueError as exc:
         _raise_validation(exc)
 
@@ -394,25 +226,21 @@ def upsert_cliente_b2b(
     conn = get_db()
     try:
         cur = conn.cursor(dictionary=True)
-        if id_lista is not None and not _lista_existe(cur, id_tienda, id_lista):
-            raise SalesNotFoundError("Lista de precios no encontrada.")
-
         try:
             if id_cliente is None:
                 cur.execute(
-                    "INSERT INTO clientes "
-                    "(id_tienda, nombre, telefono, tipo, nit, id_lista_precios) "
-                    "VALUES (%s, %s, %s, 'B2B', %s, %s)",
-                    (id_tienda, nombre, telefono_digits, nit_limpio, id_lista),
+                    "INSERT INTO clientes (id_tienda, nombre, telefono, tipo, nit) "
+                    "VALUES (%s, %s, %s, 'B2B', %s)",
+                    (id_tienda, nombre, telefono_digits, nit_limpio),
                 )
                 id_cliente = cur.lastrowid
                 accion = "crear_cliente_b2b"
             else:
                 cur.execute(
                     "UPDATE clientes "
-                    "SET nombre = %s, telefono = %s, tipo = 'B2B', nit = %s, id_lista_precios = %s "
+                    "SET nombre = %s, telefono = %s, tipo = 'B2B', nit = %s "
                     "WHERE id_cliente = %s AND id_tienda = %s AND estado_activo = 1",
-                    (nombre, telefono_digits, nit_limpio, id_lista, id_cliente, id_tienda),
+                    (nombre, telefono_digits, nit_limpio, id_cliente, id_tienda),
                 )
                 if cur.rowcount == 0:
                     cur.execute(
@@ -434,101 +262,32 @@ def upsert_cliente_b2b(
         conn.close()
 
     registrar_auditoria(
-        id_tienda, id_usuario, accion, f"Cliente B2B id={id_cliente} lista={id_lista}"
+        id_tienda, id_usuario, accion, f"Cliente B2B id={id_cliente}"
     )
     return id_cliente
 
 
-def _lista_existe(cur, id_tienda: int, id_lista: int) -> bool:
-    cur.execute(
-        "SELECT id_lista FROM listas_precios "
-        "WHERE id_lista = %s AND id_tienda = %s AND estado_activo = 1 LIMIT 1",
-        (id_lista, id_tienda),
-    )
-    return cur.fetchone() is not None
+def get_clientes_mayoristas_min(id_tienda: int) -> list[dict]:
+    """id + nombre + NIT de los clientes B2B: el selector de Venta Mayorista.
 
-
-def asignar_lista_cliente(id_tienda: int, id_usuario: int, id_cliente: int, id_lista: int | None) -> None:
-    """Asigna (o quita con None) la lista mayorista de un cliente B2B."""
-    try:
-        id_tienda = parse_int(id_tienda, "Tienda", min_value=1)
-        id_usuario = parse_int(id_usuario, "Usuario", min_value=1)
-        id_cliente = parse_int(id_cliente, "Cliente", min_value=1)
-        if id_lista is not None:
-            id_lista = parse_int(id_lista, "Lista de precios", min_value=1)
-    except ValueError as exc:
-        _raise_validation(exc)
-
+    Aparte de get_clientes_b2b porque ese trae compras y deuda (dashboard de
+    admin) y Venta Mayorista la usa tambien el Cajero.
+    """
+    id_tienda = parse_int(id_tienda, "Tienda", min_value=1)
     conn = get_db()
     try:
         cur = conn.cursor(dictionary=True)
-        if id_lista is not None and not _lista_existe(cur, id_tienda, id_lista):
-            raise SalesNotFoundError("Lista de precios no encontrada.")
-
         cur.execute(
-            "UPDATE clientes SET id_lista_precios = %s, tipo = 'B2B' "
-            "WHERE id_cliente = %s AND id_tienda = %s AND estado_activo = 1",
-            (id_lista, id_cliente, id_tienda),
+            "SELECT id_cliente, nombre, nit FROM clientes "
+            "WHERE id_tienda = %s AND estado_activo = 1 AND tipo = 'B2B' "
+            "ORDER BY nombre LIMIT 500",
+            (id_tienda,),
         )
-        if cur.rowcount == 0:
-            cur.execute(
-                "SELECT id_cliente FROM clientes "
-                "WHERE id_cliente = %s AND id_tienda = %s AND estado_activo = 1 LIMIT 1",
-                (id_cliente, id_tienda),
-            )
-            if not cur.fetchone():
-                raise SalesNotFoundError("Cliente no encontrado.")
-        conn.commit()
-    except Exception:
-        conn.rollback()
-        raise
+        filas = cur.fetchall() or []
     finally:
         conn.close()
 
-    registrar_auditoria(
-        id_tienda, id_usuario, "asignar_lista_precios",
-        f"Cliente id={id_cliente} -> lista={id_lista}",
-    )
-
-
-def descuento_b2b_para_venta(cur, id_tienda: int, id_cliente: int | None) -> dict | None:
-    """Descuento mayorista aplicable a una venta, o None.
-
-    Corre DENTRO de la transaccion de la venta (recibe el cursor abierto) para
-    que el porcentaje sea el vigente al momento de cobrar. El descuento nunca
-    llega del navegador: se lee de la lista asignada al cliente.
-    """
-    if not id_cliente:
-        return None
-
-    cur.execute(
-        """
-        SELECT l.id_lista, l.nombre, l.descuento_pct, l.min_pedidos_recurrentes,
-               (SELECT COUNT(*) FROM ventas v
-                 WHERE v.id_cliente = c.id_cliente AND v.id_tienda = c.id_tienda
-                   AND v.estado_venta <> 'Anulada') AS pedidos
-        FROM clientes c
-        INNER JOIN listas_precios l
-          ON l.id_lista = c.id_lista_precios AND l.estado_activo = 1
-        WHERE c.id_cliente = %s AND c.id_tienda = %s
-          AND c.estado_activo = 1 AND c.tipo = 'B2B'
-        LIMIT 1
-        """,
-        (id_cliente, id_tienda),
-    )
-    fila = cur.fetchone()
-    if not fila:
-        return None
-
-    pct = float(fila["descuento_pct"] or 0)
-    minimo = int(fila["min_pedidos_recurrentes"] or 0)
-    # `pedidos` son los anteriores a esta venta: +1 la cuenta, para que
-    # min_pedidos_recurrentes = N signifique "desde el pedido N" como dice la UI
-    # (N = 0 o 1 aplican desde la primera compra).
-    if pct <= 0 or int(fila["pedidos"] or 0) + 1 < minimo:
-        return None
-
-    return {"id_lista": fila["id_lista"], "nombre": fila["nombre"], "pct": pct}
+    return [{"id": f["id_cliente"], "name": f["nombre"], "nit": f.get("nit") or ""} for f in filas]
 
 
 # ══════════════════════════════════════════════════════════════
@@ -710,6 +469,20 @@ def _resolver_origen(origen) -> dict:
     return ORIGENES_PAGO[clave]
 
 
+CATEGORIA_GASTO_CXP = "Cuentas por pagar"
+
+
+def _descripcion_gasto_cxp(id_cuenta: int, cuenta: dict, proveedor: str, origen: str) -> str:
+    partes = [
+        f"Abono cuenta por pagar #{id_cuenta} ({cuenta['categoria']})",
+        f"Origen: {origen}",
+        f"Pagado a: {proveedor or cuenta['concepto']}",
+    ]
+    if proveedor:
+        partes.append(f"Concepto: {cuenta['concepto']}")
+    return " - ".join(partes)[:255]
+
+
 def pagar_cuenta_por_pagar(
     id_tienda: int, id_usuario: int, id_cuenta: int, monto: float, origen: str
 ) -> dict:
@@ -736,7 +509,7 @@ def pagar_cuenta_por_pagar(
     try:
         cur = conn.cursor(dictionary=True)
         cur.execute(
-            "SELECT concepto, categoria, monto_total, monto_pagado, estado "
+            "SELECT concepto, categoria, id_proveedor, monto_total, monto_pagado, estado "
             "FROM cuentas_por_pagar "
             "WHERE id_cuenta = %s AND id_tienda = %s LIMIT 1 FOR UPDATE",
             (id_cuenta, id_tienda),
@@ -770,16 +543,25 @@ def pagar_cuenta_por_pagar(
             ),
         )
 
+        proveedor = ""
+        if cuenta["id_proveedor"]:
+            cur.execute(
+                "SELECT nombre_empresa FROM proveedores WHERE id_proveedor = %s AND id_tienda = %s LIMIT 1",
+                (cuenta["id_proveedor"], id_tienda),
+            )
+            fila_prov = cur.fetchone()
+            proveedor = (fila_prov or {}).get("nombre_empresa") or ""
+
         # Gasto automatico, mismo cursor y misma transaccion que el UPDATE.
-        concepto_gasto = (
-            f"Abono a deuda de {cuenta['concepto']} - Origen: {config_origen['etiqueta']}"
-        )[:150]
+        # Categoria fija: asi el reporte de gastos agrupa todos los abonos a
+        # deudas. A quien se pago y de que cuenta va en la descripcion, con
+        # cuenta y origen primero para que el recorte a 255 nunca los pierda.
         id_gasto = insertar_gasto(
             cur,
             id_tienda,
             id_usuario,
-            concepto_gasto,
-            f"Cuenta por pagar #{id_cuenta} - {cuenta['categoria']}"[:255],
+            CATEGORIA_GASTO_CXP,
+            _descripcion_gasto_cxp(id_cuenta, cuenta, proveedor, config_origen["etiqueta"]),
             config_origen["metodo_pago"],
             config_origen["fuente_dinero"],
             monto,
@@ -882,3 +664,58 @@ def get_resumen_cartera(id_tienda: int) -> dict:
         "obligaciones": int(pagar.get("obligaciones") or 0),
         "vencido": float(pagar.get("vencido") or 0),
     }
+
+
+# ORDER BY no admite parametros: la columna sale de esta lista blanca, nunca
+# del cliente. El desempate por id deja el top estable entre refrescos.
+_ORDEN_DEUDORES = {
+    "antiguas": "deuda_desde ASC, c.id_cliente",
+    "monto": "saldo DESC, c.id_cliente",
+}
+
+
+def get_top_deudores(id_tienda: int, orden: str, limit: int = 5) -> list[dict]:
+    """Top de clientes con deuda pendiente, por antiguedad o por monto.
+
+    Misma deuda que get_resumen_cartera (fiados pendientes menos sus abonos,
+    solo clientes activos) y misma mora que get_fiados_clientes: dias desde
+    la venta pendiente mas antigua.
+    """
+    id_tienda = parse_int(id_tienda, "Tienda", min_value=1)
+    limit = parse_int(limit, "Limite", min_value=1, max_value=50)
+    orden_sql = _ORDEN_DEUDORES[orden]
+    conn = get_db()
+    try:
+        cur = conn.cursor(dictionary=True)
+        cur.execute(
+            f"""
+            SELECT c.id_cliente, c.nombre,
+              SUM(GREATEST(v.total_final - COALESCE((
+                SELECT SUM(ab.monto_abonado) FROM abonos_fiados ab WHERE ab.id_venta = v.id_venta
+              ), 0), 0)) AS saldo,
+              MIN(v.fecha_creacion) AS deuda_desde
+            FROM ventas v
+            INNER JOIN clientes c
+              ON c.id_cliente = v.id_cliente AND c.id_tienda = v.id_tienda
+             AND c.estado_activo = 1
+            WHERE v.id_tienda = %s AND v.estado_venta = 'Fiada/Pendiente'
+            GROUP BY c.id_cliente, c.nombre
+            HAVING saldo > 0
+            ORDER BY {orden_sql}
+            LIMIT %s
+            """,
+            (id_tienda, limit),
+        )
+        filas = cur.fetchall() or []
+    finally:
+        conn.close()
+
+    return [
+        {
+            "id": f["id_cliente"],
+            "nombre": f["nombre"],
+            "saldo": round(float(f["saldo"] or 0), 2),
+            "dias": _dias_desde(f["deuda_desde"]) or 0,
+        }
+        for f in filas
+    ]

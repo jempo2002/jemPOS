@@ -714,6 +714,11 @@
   appearance: none;
 }
 .modal-field input::placeholder { color: #57667A; }
+.modal-field input:disabled {
+  background: #F1F5F9;
+  color: #57667A;
+  cursor: not-allowed;
+}
 .modal-field input:focus,
 .modal-field select:focus {
   border-color: #3B82F6;
@@ -875,6 +880,37 @@
   gap: 0.75rem;
 }
 
+/* Empaque: nombre | cantidad | precio. En pantallas estrechas el nombre va
+   solo arriba para que los dos numeros no queden de 90px. */
+.modal-field-row-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+@media (max-width: 420px) {
+  .modal-field-row-3 { grid-template-columns: 1fr 1fr; }
+  .modal-field-row-3 > :first-child { grid-column: 1 / -1; }
+}
+.modal-field-row-3 .modal-field { margin-bottom: 0.5rem; }
+
+.modal-fieldset {
+  margin: 0 0 1rem;
+  padding: 0.7rem 0.8rem 0.4rem;
+  border: 1px dashed #CBD5E1;
+  border-radius: 0.85rem;
+}
+.modal-fieldset legend {
+  padding: 0 0.35rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #1E293B;
+}
+.modal-fieldset .field-help {
+  font-size: 0.74rem;
+  color: #57667A;
+  margin: 0 0 0.4rem;
+}
+
+/* Precio mayorista y empaque en tarjetas y tabla */
+.card-price-mayor { color: #7C3AED; }
+.td-unit { display: block; font-size: 0.72rem; font-weight: 500; color: #57667A; }
+
 .modal-footer {
   display: flex;
   gap: 0.6rem;
@@ -952,38 +988,6 @@
    PROVEEDORES (pestana + tarjetas + modal de visualizacion)
    Mobile-first, hereda paleta del inventario
    ============================================================ */
-.inv-tabs {
-  display: flex;
-  gap: 0.4rem;
-  margin-top: 0.75rem;
-}
-
-.inv-tab {
-  flex: 1 1 0;
-  min-height: var(--touch-target-min, 44px);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.4rem;
-  padding: 0.55rem 0.75rem;
-  border: 1px solid #E2E8F0;
-  border-radius: 0.75rem;
-  background: #FFFFFF;
-  color: #475569;
-  font-size: 0.86rem;
-  font-weight: 700;
-  font-family: inherit;
-  cursor: pointer;
-  transition: background 0.18s, color 0.18s, border-color 0.18s;
-}
-
-.inv-tab.is-active {
-  background: #3B82F6;
-  border-color: #3B82F6;
-  color: #FFFFFF;
-  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.28);
-}
-
 /* Cabecera de la vista proveedores */
 .prov-head {
   display: flex;

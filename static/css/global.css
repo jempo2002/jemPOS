@@ -251,10 +251,13 @@ input[type="reset"] {
   border: 1px solid #DBEAFE;
   border-radius: var(--radius-sm);
   cursor: pointer;
+  text-decoration: none;
 }
 
-.jem-pager-btn:hover:not(:disabled) { background: #DBEAFE; }
+.jem-pager-btn:hover:not(:disabled):not([aria-disabled="true"]) { background: #DBEAFE; }
 
+/* [aria-disabled]: el paginador del Panel Master usa enlaces, no botones */
+.jem-pager-btn[aria-disabled="true"],
 .jem-pager-btn:disabled {
   color: #57667A;
   background: #F8FAFC;
@@ -268,6 +271,13 @@ input[type="reset"] {
   color: var(--color-text);
   min-width: 4.5rem;
   text-align: center;
+}
+
+/* 320-380px: Anterior + 1/N + Siguiente no cabian y Siguiente se cortaba */
+@media (max-width: 380px) {
+  .jem-pager-controls { gap: 0.35rem; }
+  .jem-pager-btn { padding: 0.45rem 0.6rem; }
+  .jem-pager-page { min-width: 0; }
 }
 
 /* FAB inteligente: oculta texto al colapsar en scroll */
@@ -332,3 +342,38 @@ input[type="reset"] {
     overflow: hidden;
   }
 }
+
+/* Pestanas internas (Inventario, Mayorista). En Mayorista son enlaces. */
+.inv-tabs {
+  display: flex;
+  gap: 0.4rem;
+  margin-top: 0.75rem;
+}
+
+.inv-tab {
+  flex: 1 1 0;
+  min-height: var(--touch-target-min, 44px);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.55rem 0.75rem;
+  border: 1px solid #E2E8F0;
+  border-radius: 0.75rem;
+  background: #FFFFFF;
+  color: #475569;
+  font-size: 0.86rem;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.18s, color 0.18s, border-color 0.18s;
+}
+
+.inv-tab.is-active {
+  background: #3B82F6;
+  border-color: #3B82F6;
+  color: #FFFFFF;
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.28);
+}
+
+a.inv-tab { text-decoration: none; }

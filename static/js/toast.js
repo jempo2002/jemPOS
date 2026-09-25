@@ -10,9 +10,23 @@
       host = document.createElement('div');
       host.id = 'jem-toast-host';
       host.className = 'jem-toast-host';
+      // popover="manual" mete el host en la top layer, la capa de los <dialog>
+      // abiertos con showModal() (cobro, fiar, escaner). Ahi ningun z-index
+      // compite: con solo z-index el aviso "Abre un turno antes de registrar
+      // ventas" quedaba detras del backdrop del modal de cobro.
+      if (typeof host.showPopover === 'function') host.popover = 'manual';
       document.body.appendChild(host);
     }
     return host;
+  }
+
+  // Reabrir el popover lo pone encima de lo ultimo que entro a la top layer
+  // (un modal abierto despues del primer toast).
+  // ponytail: sin Popover API (Safari < 17) queda el z-index de siempre.
+  function alFrente(host) {
+    if (typeof host.showPopover !== 'function') return;
+    if (host.matches(':popover-open')) host.hidePopover();
+    host.showPopover();
   }
 
   function normalizeType(type) {
@@ -32,6 +46,7 @@
     toast.className = `jem-toast ${toastType}`;
     toast.textContent = String(message);
     host.appendChild(toast);
+    alFrente(host);
 
     requestAnimationFrame(() => {
       toast.classList.add('show');

@@ -1,143 +1,101 @@
 /* ============================================================
    Ruta: static/css/dashboard.css
-   Centro de Mando Financiero - Mobile First
+   Panel de Control - mobile first.
+
+   .dash-main es el contenedor de scroll vertical (la pagina no desplaza en
+   horizontal nunca). Las tarjetas van en rejillas que se reparten en filas
+   segun el ancho disponible:
+     - KPIs financieros: 2 columnas en movil, 4 cuando caben (container query).
+     - Listas (deudas, stock, mas vendidos): 1, 2 o 4 columnas.
+     - Personal: tarjetas compactas en auto-fill; el detalle va en un modal.
    ============================================================ */
 
 .dash-main {
   flex: 1;
   min-width: 0;
+  min-height: 0;
+  height: 100%;
+  overflow-x: hidden;
   overflow-y: auto;
-  padding: 1rem;
-  padding-bottom: calc(76px + env(safe-area-inset-bottom, 0px));
-  display: grid;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+  display: flex;
+  flex-direction: column;
   gap: 1rem;
-  background: var(--color-background);
+  padding: 0.75rem 1rem calc(64px + 1rem + env(safe-area-inset-bottom, 0px));
+  background: var(--color-background, #F8FAFC);
 }
 
 /* ---------- Cabecera ---------- */
-.dash-topbar {
-  padding: 0.2rem 0.2rem 0;
+.dash-head {
+  flex-shrink: 0;
+  display: grid;
+  gap: 0.55rem;
+  min-width: 0;
 }
+
+.dash-head-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.dash-head-text { flex: 1; min-width: 0; }
 
 .dash-title {
   margin: 0;
-  font-size: 1.35rem;
+  font-size: 1.25rem;
   font-weight: 800;
   color: #0F172A;
   letter-spacing: -0.02em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.dash-subtitle {
-  margin: 0.28rem 0 0;
-  font-size: 0.85rem;
+.dash-updated {
+  margin: 0.1rem 0 0;
+  font-size: 0.72rem;
   color: #57667A;
 }
 
-/* ---------- Contenedor maestro ---------- */
-.dash-master {
-  background: var(--color-surface);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-sm);
-  border: 1px solid #E2E8F0;
-  padding: 1.1rem;
-  display: grid;
-  gap: 1rem;
+.dash-icon-btn {
+  flex-shrink: 0;
+  width: var(--touch-target-min, 44px);
+  height: var(--touch-target-min, 44px);
+  border: 1px solid #CBD5E1;
+  border-radius: 0.75rem;
+  background: #FFFFFF;
+  color: #475569;
+  cursor: pointer;
 }
+.dash-icon-btn:hover { border-color: var(--color-primary); color: var(--color-primary); }
+.dash-icon-btn.is-loading i { animation: dashSpin 0.8s linear infinite; }
+@keyframes dashSpin { to { transform: rotate(360deg); } }
 
-.dash-master-head {
+/* En movil el boton de crear cajero queda en icono: la fila no debe partirse */
+.dash-btn-label { display: none; }
+#btn-crear-cajero { flex-shrink: 0; }
+
+.dash-filters {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  flex-wrap: wrap;
+  gap: 0.5rem;
+  min-width: 0;
 }
 
-.dash-master-head h2 {
-  margin: 0;
-  font-size: 1.05rem;
-  font-weight: 800;
-  color: #0F172A;
-  letter-spacing: -0.01em;
-}
-
-/* ---------- Animacion sutil de entrada ---------- */
-@keyframes dashFadeInUp {
-  from { opacity: 0; transform: translateY(14px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-
-.dash-anim {
-  opacity: 0;
-  animation: dashFadeInUp 0.5s cubic-bezier(0.22, 1, 0.36, 1) forwards;
-}
-
-.dash-anim:nth-of-type(1) { animation-delay: 0.04s; }
-.dash-anim:nth-of-type(2) { animation-delay: 0.10s; }
-.dash-anim:nth-of-type(3) { animation-delay: 0.16s; }
-.dash-anim:nth-of-type(4) { animation-delay: 0.22s; }
-.dash-anim:nth-of-type(5) { animation-delay: 0.28s; }
-
-@media (prefers-reduced-motion: reduce) {
-  .dash-anim { animation: none; opacity: 1; }
-}
-
-/* Microinteraccion: fade sutil al cambiar de pagina */
-@keyframes dashFadeSwap {
-  from { opacity: 0; transform: translateY(4px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-
-.dash-fade-swap {
-  animation: dashFadeSwap 0.28s ease forwards;
-}
-
-/* ---------- Sub-tarjetas (Resumen Financiero) ---------- */
-.dash-summary-grid {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 0.8rem;
-}
-
-.dash-subcard {
-  background: #FFFFFF;
-  border: 1px solid #E2E8F0;
-  border-radius: 1rem;
-  padding: 1rem;
-}
-
-.dash-subcard-label {
-  margin: 0;
-  font-size: 0.78rem;
-  color: #57667A;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  font-weight: 700;
-}
-
-.dash-subcard-value {
-  margin: 0.5rem 0 0;
-  font-size: 1.55rem;
-  font-weight: 800;
-  letter-spacing: -0.03em;
-  color: #0F172A;
-}
-
-/* ---------- Comportamiento Financiero ---------- */
-.dash-behavior-controls {
-  display: flex;
-  flex-direction: column;
-  gap: 0.7rem;
-}
-
+/* Las capsulas del periodo si deslizan en horizontal: son una sola fila de
+   controles, no contenido. El scroll queda dentro de .dash-pills. */
 .dash-pills {
+  flex: 1;
+  min-width: 0;
   display: flex;
-  gap: 0.45rem;
+  gap: 0.4rem;
   overflow-x: auto;
-  padding-bottom: 0.2rem;
-  -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
 }
-
 .dash-pills::-webkit-scrollbar { display: none; }
 
 .dash-pill {
@@ -146,19 +104,15 @@
   background: #FFFFFF;
   color: #475569;
   border-radius: 999px;
-  padding: 0.5rem 0.9rem;
-  font-size: 0.82rem;
+  padding: 0.4rem 0.8rem;
+  min-height: 36px;
+  font: inherit;
+  font-size: 0.8rem;
   font-weight: 600;
   white-space: nowrap;
   cursor: pointer;
-  transition: background 0.18s ease, color 0.18s ease, border-color 0.18s ease;
 }
-
-.dash-pill:hover {
-  border-color: var(--color-primary);
-  color: var(--color-primary);
-}
-
+.dash-pill:hover { border-color: var(--color-primary); color: var(--color-primary); }
 .dash-pill.is-active {
   background: var(--color-primary);
   border-color: var(--color-primary);
@@ -166,219 +120,348 @@
 }
 
 .dash-date-input {
-  align-self: flex-start;
-  min-height: var(--touch-target-min);
+  flex: 0 0 auto;
+  min-height: 36px;
   border: 1px solid #CBD5E1;
   border-radius: 0.75rem;
-  padding: 0.5rem 0.75rem;
-  font-size: 0.85rem;
-  font-weight: 600;
+  padding: 0.3rem 0.4rem;
+  font-size: 16px; /* evita zoom de iOS */
   color: #0F172A;
   background: #FFFFFF;
 }
-
 .dash-date-input:focus {
   outline: none;
   border-color: var(--color-primary);
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.16);
 }
 
-.dash-chart-wrap {
-  position: relative;
-  min-height: 300px;
+/* ---------- Secciones ---------- */
+.dash-row {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 0;
 }
 
-.dash-chart-pager,
-.dash-mini-pager {
-  display: flex;
-  align-items: center;
-  justify-content: center;
+.dash-row-title {
+  margin: 0;
+  font-size: 0.8rem;
+  font-weight: 800;
+  color: #0F172A;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.dash-row-sub {
+  margin-left: 0.3rem;
+  font-weight: 600;
+  color: #57667A;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+/* ---------- Resumen financiero ---------- */
+/* container-type: las columnas dependen del ancho real de la seccion (con o
+   sin sidebar), no del viewport. Sin soporte quedan 2 y 1 columnas. */
+.dash-fin {
+  container-type: inline-size;
+  display: grid;
+  gap: 0.6rem;
+  min-width: 0;
+}
+
+/* minmax(0, 1fr): una cifra larga no ensancha su columna ni la pagina */
+.fin-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.6rem;
 }
 
-.dash-pager-btn {
-  border: 1px solid #CBD5E1;
-  background: #FFFFFF;
-  color: #475569;
-  border-radius: 0.6rem;
-  width: 2rem;
-  height: 2rem;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.75rem;
-  cursor: pointer;
-  transition: border-color 0.15s ease, color 0.15s ease;
-}
-
-.dash-pager-btn:hover:not(:disabled) {
-  border-color: var(--color-primary);
-  color: var(--color-primary);
-}
-
-.dash-pager-btn:disabled {
-  opacity: 0.4;
-  cursor: default;
-}
-
-.dash-pager-info {
-  font-size: 0.78rem;
-  font-weight: 600;
-  color: #57667A;
-  min-width: 3rem;
-  text-align: center;
-}
-
-/* ---------- Analisis de Productos ---------- */
-.dash-products-grid {
+.fin-lists {
   display: grid;
-  grid-template-columns: 1fr;
-  gap: 0.8rem;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.6rem;
 }
 
-.dash-product-card {
+@container (min-width: 34rem) {
+  .fin-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .fin-lists { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@container (min-width: 62rem) {
+  .fin-lists { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+
+.fin-card {
+  container-type: inline-size;
+  min-width: 0;
+  min-height: 6.4rem;
   display: flex;
   flex-direction: column;
-  gap: 0.7rem;
-}
-
-.dash-product-title {
-  margin: 0;
-  font-size: 0.95rem;
-  font-weight: 700;
-  color: #0F172A;
-}
-
-.dash-product-card .dash-list {
-  flex: 1;
-}
-
-.dash-mini-pager {
-  margin-top: auto;
-}
-
-.dash-mini-pager .dash-pager-btn {
-  width: 1.7rem;
-  height: 1.7rem;
-}
-
-/* ---------- Listas ---------- */
-.dash-list {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  display: grid;
-  gap: 0.5rem;
-}
-
-.dash-list-item {
-  border: 1px solid #E2E8F0;
-  border-radius: 0.7rem;
-  padding: 0.58rem 0.7rem;
-  font-size: 0.84rem;
-  color: #334155;
+  gap: 0.2rem;
+  padding: 0.65rem 0.75rem;
   background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-left: 4px solid var(--fin-accent, #3B82F6);
+  border-radius: 0.9rem;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+}
+
+.fin-label {
+  margin: 0;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #57667A;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
+  gap: 0.35rem;
+  min-width: 0;
 }
 
-.dash-list-item .dash-item-name {
+/* cqi = ancho de la propia tarjeta: "$ 1.234.567" cabe a 320px y crece
+   hasta 1.35rem donde hay sitio. overflow-wrap es la red para cifras aun
+   mas largas: parte la cifra antes que desbordar. */
+.fin-value {
+  margin: 0;
+  font-size: clamp(0.95rem, 12.5cqi, 1.35rem);
+  font-weight: 800;
+  color: #0F172A;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+}
+
+.fin-note {
+  margin: auto 0 0;
+  font-size: 0.72rem;
+  color: #57667A;
+  line-height: 1.3;
+}
+
+.fin-note.is-up { color: #15803D; font-weight: 700; }
+.fin-note.is-down { color: #B91C1C; font-weight: 700; }
+.fin-value.is-neg { color: #B91C1C; }
+.fin-value.is-pos { color: #15803D; }
+
+/* Avance hacia el punto de equilibrio */
+.fin-bar {
+  height: 0.35rem;
+  margin-top: 0.3rem;
+  border-radius: 999px;
+  background: #E2E8F0;
+  overflow: hidden;
+}
+.fin-bar span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--fin-accent, #3B82F6);
+}
+
+.fin-list {
+  margin: 0.15rem 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.78rem;
+  color: #334155;
+  display: grid;
+  gap: 0.2rem;
+}
+.fin-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  min-width: 0;
+}
+.fin-list li span:first-child {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.fin-list li span:last-child { flex-shrink: 0; font-weight: 700; }
 
-.dash-list-item .dash-item-value {
-  flex: 0 0 auto;
-  font-weight: 700;
-  color: #0F172A;
-}
-
-.dash-list-empty {
-  border: 1px dashed #E2E8F0;
-  border-radius: 0.7rem;
-  padding: 0.7rem;
-  font-size: 0.82rem;
-  color: #57667A;
-  text-align: center;
-}
-
-/* ---------- Rendimiento del Personal ---------- */
-.dash-staff-list {
+/* ---------- Personal: tarjetas compactas ---------- */
+.dash-staff {
   display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 17rem), 1fr));
   gap: 0.6rem;
+  min-width: 0;
 }
 
-.dash-staff-row {
+.staff-card {
+  width: 100%;
+  min-width: 0;
+  min-height: 4.4rem;
   display: flex;
   align-items: center;
-  gap: 0.85rem;
-  padding: 0.75rem;
-  border: 1px solid #E2E8F0;
-  border-radius: 0.9rem;
+  gap: 0.65rem;
+  padding: 0.6rem 0.75rem;
+  text-align: left;
+  font: inherit;
+  color: inherit;
   background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-left: 4px solid #CBD5E1;
+  border-radius: 0.9rem;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s;
 }
+.staff-card.is-on { border-left-color: #22C55E; }
+.staff-card:hover { border-color: #93C5FD; box-shadow: 0 4px 14px rgba(15, 23, 42, 0.08); }
+.staff-card:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
 
 .dash-avatar {
   flex: 0 0 auto;
-  width: 2.75rem;
-  height: 2.75rem;
+  width: 2.4rem;
+  height: 2.4rem;
   border-radius: 50%;
   background: var(--color-primary);
   color: #FFFFFF;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.9rem;
+  font-size: 0.82rem;
   font-weight: 800;
-  letter-spacing: 0.02em;
 }
 
-.dash-staff-info {
+.staff-id {
   flex: 1;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.15rem;
 }
 
-.dash-staff-name {
-  margin: 0;
-  font-size: 0.92rem;
-  font-weight: 700;
-  color: #0F172A;
+.staff-name,
+.staff-sub {
+  display: block;
+  max-width: 100%;
+  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
-.dash-staff-status {
-  margin: 0.15rem 0 0;
-  font-size: 0.78rem;
-  font-weight: 600;
-}
-
-.dash-staff-status.is-on { color: #15803D; }
-.dash-staff-status.is-off { color: #57667A; }
-
-.dash-staff-balance {
-  flex: 0 0 auto;
-  text-align: right;
-}
-
-.dash-staff-amount {
+.staff-name {
   margin: 0;
-  font-size: 1rem;
+  font-size: 0.92rem;
   font-weight: 800;
-  letter-spacing: -0.02em;
+  color: #0F172A;
 }
 
-.dash-staff-amount.is-pos { color: #15803D; }
-.dash-staff-amount.is-neg { color: #B91C1C; }
+.staff-sub { margin: 0; font-size: 0.72rem; color: #57667A; }
 
-.dash-staff-count {
-  margin: 0.1rem 0 0;
-  font-size: 0.72rem;
+.staff-total {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.1rem;
+}
+.staff-total b { font-size: 0.95rem; font-weight: 800; color: #0F172A; white-space: nowrap; }
+.staff-total span { font-size: 0.68rem; color: #57667A; white-space: nowrap; }
+
+.pill {
+  flex-shrink: 0;
+  border-radius: 999px;
+  padding: 0.15rem 0.55rem;
+  font-size: 0.68rem;
+  font-weight: 800;
+  white-space: nowrap;
+  background: #E2E8F0;
+  color: #334155;
+}
+.pill.on,
+.pill.ok { background: #DCFCE7; color: #166534; }
+.pill.bad { background: #FEE2E2; color: #991B1B; }
+.pill.live { background: #DBEAFE; color: #1D4ED8; }
+
+.dash-empty {
+  grid-column: 1 / -1;
+  padding: 1rem;
+  border: 1px dashed #CBD5E1;
+  border-radius: 0.9rem;
+  font-size: 0.85rem;
   color: #57667A;
+  text-align: center;
+}
+
+/* ---------- Turno y cifras (modal de trabajador) ---------- */
+.staff-turno {
+  margin: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.35rem 0.6rem;
+  padding: 0.6rem 0.7rem;
+  border-radius: 0.8rem;
+  background: #F8FAFC;
+  border: 1px solid #E2E8F0;
+}
+
+.staff-kv { min-width: 0; }
+.staff-kv dt { font-size: 0.66rem; color: #57667A; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; }
+.staff-kv dd { margin: 0; font-size: 0.9rem; font-weight: 800; color: #0F172A; overflow-wrap: anywhere; }
+
+.staff-cuadre {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding-top: 0.35rem;
+  border-top: 1px dashed #CBD5E1;
+  font-size: 0.72rem;
+  color: #475569;
+}
+
+.staff-formula {
+  grid-column: 1 / -1;
+  font-size: 0.68rem;
+  color: #57667A;
+  line-height: 1.35;
+}
+
+.staff-sin-turno {
+  margin: 0;
+  padding: 0.55rem 0.7rem;
+  border-radius: 0.8rem;
+  background: #F8FAFC;
+  border: 1px dashed #CBD5E1;
+  font-size: 0.78rem;
+  color: #57667A;
+}
+
+.staff-stat {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.3rem;
+  padding: 0.45rem 0.6rem;
+  border-radius: 0.6rem;
+  background: #F1F5F9;
+  min-width: 0;
+}
+.staff-stat b { order: 2; font-size: 0.85rem; color: #0F172A; white-space: nowrap; }
+.staff-stat span { font-size: 0.68rem; color: #57667A; font-weight: 600; }
+
+.staff-ventas-title {
+  margin: 0 0 0.35rem;
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: #334155;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+@keyframes dashFadeInUp {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
 /* ---------- Boton primario ---------- */
@@ -403,7 +486,7 @@
   filter: brightness(0.94);
 }
 
-/* ---------- Modal Crear Cajero (mobile-first: bottom sheet) ---------- */
+/* ---------- Modales (mobile-first: bottom sheet) ---------- */
 .dash-modal {
   position: fixed;
   inset: 0;
@@ -455,8 +538,8 @@
   border: none;
   background: #F1F5F9;
   color: #475569;
-  width: 2.25rem;
-  height: 2.25rem;
+  width: var(--touch-target-min, 44px);
+  height: var(--touch-target-min, 44px);
   border-radius: 0.65rem;
   font-size: 1rem;
   cursor: pointer;
@@ -510,35 +593,130 @@
 
 .dash-modal-submit { width: 100%; margin-top: 0.25rem; }
 
+/* ---------- Modal de trabajador ----------
+   Cabecera y capsulas fijas; solo .mp-body desplaza, asi un historial largo
+   nunca empuja el modal fuera de la pantalla. dvh: en movil descuenta la
+   barra del navegador (vh queda de respaldo). */
+.dash-modal-wide .mp-card {
+  max-width: 64rem;
+  max-height: 92vh;
+  max-height: 92dvh;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.mp-head {
+  flex-shrink: 0;
+  justify-content: flex-start;
+  gap: 0.65rem;
+  padding: 1rem 1rem 0.6rem;
+}
+.mp-head .staff-id { flex: 1; }
+.dash-modal-head .mp-nombre {
+  max-width: 100%;
+  font-size: 1.05rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mp-filters {
+  flex-shrink: 0;
+  margin: 0;
+  padding: 0 1rem 0.7rem;
+  border-bottom: 1px solid #E2E8F0;
+}
+
+/* Movil: las capsulas en UNA fila deslizable (como las del panel); en dos
+   filas, mas la fecha, dejaban al historial menos de la mitad del alto. */
+@media (max-width: 768px) {
+  .mp-filters .jem-pills {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  .mp-filters .jem-pills::-webkit-scrollbar { display: none; }
+  .mp-filters .jem-pill { flex: 0 0 auto; }
+  .mp-filters .jem-date { min-height: 38px; }
+}
+
+.mp-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  padding: 0.9rem 1rem calc(1.25rem + env(safe-area-inset-bottom, 0px));
+}
+.mp-body[aria-busy="true"] .mp-stats { opacity: 0.55; }
+.mp-body .jem-pager { margin-top: 0; }
+
+.mp-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.35rem;
+  transition: opacity 0.15s;
+}
+.mp-stats:empty { display: none; }
+.mp-stat-main,
+.mp-error { grid-column: 1 / -1; }
+.mp-stat-main { background: #EFF6FF; }
+.mp-stat-main b { font-size: 1.15rem; color: #1D4ED8; }
+
+@media (min-width: 640px) {
+  .mp-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
 /* ============================================================
-   Escritorio
+   Tablet / escritorio: hay sidebar, sin barra inferior
    ============================================================ */
 @media (min-width: 768px) {
+  .dash-main { padding: 1.1rem 1.4rem 1.5rem; gap: 1.1rem; }
+  .dash-title { font-size: 1.5rem; }
+  .dash-btn-label { display: inline; }
+  .dash-date-input { width: auto; }
+
+  /* El modal amplio se centra; el de crear cajero sigue como hoja */
+  .dash-modal-wide { align-items: center; padding: 1.5rem; }
+  .dash-modal-wide .mp-card {
+    border-radius: 1.25rem;
+    max-height: calc(100vh - 3rem);
+    max-height: calc(100dvh - 3rem);
+  }
+  .mp-head { padding: 1.25rem 1.5rem 0.75rem; }
+  .mp-filters { padding: 0 1.5rem 0.9rem; }
+  .mp-body { padding: 1.1rem 1.5rem 1.5rem; }
+}
+
+@media (min-width: 1024px) {
+  .mp-stats { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+}
+
+/* Celular en horizontal: caja.css cambia la barra inferior por el menu
+   lateral; .dash-main conserva el alto de la pantalla y desplaza dentro. */
+@media (orientation: landscape) and (max-height: 540px) {
   .dash-main {
-    padding: 1.3rem;
-    gap: 1.1rem;
+    height: 100dvh;
+    gap: 0.6rem;
+    padding: 0.45rem 1rem max(0.75rem, env(safe-area-inset-bottom, 0px));
   }
+  .dash-head { grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 0.6rem; }
+  .dash-updated { display: none; }
+  .dash-title { font-size: 1.05rem; }
+  .fin-card { min-height: 5.6rem; }
+}
 
-  .dash-summary-grid {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
+@media (max-height: 640px) and (orientation: portrait) {
+  .dash-updated { display: none; }
+}
 
-  .dash-products-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-
-  .dash-behavior-controls {
-    flex-direction: row;
-    align-items: center;
-    justify-content: space-between;
-  }
-
-  .dash-pills {
-    flex-wrap: wrap;
-    overflow-x: visible;
-  }
-
-  .dash-chart-wrap {
-    min-height: 450px;
-  }
+@media (prefers-reduced-motion: reduce) {
+  .dash-icon-btn.is-loading i { animation: none; }
+  .dash-modal-card { animation: none; }
 }

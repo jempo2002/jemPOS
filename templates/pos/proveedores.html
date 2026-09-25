@@ -1,0 +1,135 @@
+<!-- Ruta: templates/pos/proveedores.html
+     Proveedores: antes era una pestana del inventario; ahora tiene su entrada
+     propia en el menu. Reusa los estilos del inventario (inventario.css ya
+     trae las tarjetas y el modal de proveedores). -->
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  {% include "_favicon.html" %}
+  <title>jemPOS - Proveedores</title>
+  <meta name="robots" content="noindex, nofollow">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link
+    rel="stylesheet"
+    href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
+    crossorigin="anonymous"
+    referrerpolicy="no-referrer"
+  />
+  <link rel="stylesheet" href="/static/css/caja.css" />
+  <link rel="stylesheet" href="/static/css/inventario.css" />
+  <meta name="csrf-token" content="{{ csrf_token() }}" />
+  <link rel="stylesheet" href="/static/css/global.css" />
+</head>
+
+<body>
+
+<div class="app-shell">
+  {% include "pos/_nav.html" %}
+  <div class="inv-main">
+    <header class="inv-topbar">
+      <div class="inv-title-row">
+        <div class="inv-logo" aria-hidden="true">
+          <span class="jem">jem</span><span class="pos">POS</span>
+        </div>
+        <h1 class="inv-title">Proveedores</h1>
+        <button class="btn-add" id="btn-add-prov" type="button" data-fab-smart>
+          <i class="fa-solid fa-plus"></i>
+          <span class="fab-label">Anadir proveedor</span>
+        </button>
+      </div>
+    </header>
+
+    <div class="inv-body" data-fab-scroll-container>
+      <div class="prov-cards" id="prov-list" aria-label="Lista de proveedores">
+        <!-- Generado por proveedores.js -->
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL - CREAR / EDITAR PROVEEDOR -->
+<div class="modal-backdrop" id="modal-proveedor" role="dialog" aria-modal="true" aria-labelledby="prov-modal-title">
+  <div class="modal-card">
+    <div class="modal-header">
+      <span class="modal-title" id="prov-modal-title">Anadir Proveedor</span>
+      <button class="modal-close" id="prov-modal-close" type="button" aria-label="Cerrar">
+        <img src="/static/img/equis.png" alt="" aria-hidden="true" width="20" height="20" decoding="async" />
+      </button>
+    </div>
+
+    <div id="prov-error" class="hidden modal-inline-error" role="alert">
+      <i class="fa-solid fa-circle-exclamation"></i><span id="prov-error-text"></span>
+    </div>
+
+    <div class="modal-field">
+      <label for="prov-nombre">Nombre del proveedor</label>
+      <input type="text" id="prov-nombre" placeholder="Ej. Distribuidora XYZ" autocomplete="off" maxlength="150" />
+    </div>
+
+    <div class="modal-field">
+      <label for="prov-tel1">Telefono 1</label>
+      <input type="tel" id="prov-tel1" inputmode="numeric" placeholder="Ej. 3001234567"
+             autocomplete="off" maxlength="20" oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,20)" />
+    </div>
+
+    <div class="modal-field">
+      <label for="prov-tel2">Telefono 2 <span class="gast-optional">(opcional)</span></label>
+      <input type="tel" id="prov-tel2" inputmode="numeric" placeholder="Ej. 6012345678"
+             autocomplete="off" maxlength="20" oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,20)" />
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn-modal-cancel" id="prov-cancel" type="button">Cancelar</button>
+      <button class="btn-modal-save"   id="prov-save"   type="button">
+        <i class="fa-solid fa-floppy-disk"></i>&nbsp; Guardar
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL - VER PROVEEDOR (productos asociados) -->
+<div class="modal-backdrop" id="modal-prov-view" role="dialog" aria-modal="true" aria-labelledby="pv-title">
+  <div class="modal-card modal-card-lg">
+    <div class="modal-header">
+      <span class="modal-title" id="pv-title">Proveedor</span>
+      <button class="modal-close" id="pv-close" type="button" aria-label="Cerrar">
+        <img src="/static/img/equis.png" alt="" aria-hidden="true" width="20" height="20" decoding="async" />
+      </button>
+    </div>
+
+    <div class="pv-contact" id="pv-contact"></div>
+    <div class="pv-filters" id="pv-filters" aria-label="Filtrar por categoria"></div>
+    <div class="pv-products" id="pv-products"></div>
+
+    <div class="pv-pager" id="pv-pager" hidden>
+      <button type="button" class="pv-pager-btn" id="pv-prev" aria-label="Pagina anterior">
+        <i class="fa-solid fa-chevron-left"></i>
+      </button>
+      <span class="pv-pager-info" id="pv-pageinfo">1 / 1</span>
+      <button type="button" class="pv-pager-btn" id="pv-next" aria-label="Pagina siguiente">
+        <i class="fa-solid fa-chevron-right"></i>
+      </button>
+    </div>
+  </div>
+</div>
+
+<script src="/static/js/cop-format.js" defer></script>
+<script src="/static/js/toast.js" defer></script>
+<script src="/static/js/fab-scroll.js" defer></script>
+<script src="/static/js/proveedores.js" defer></script>
+
+<div id="app-context"
+     data-user-rol="{{ rol }}"
+     data-subs-alerta='{{ mostrar_alerta_suscripcion | tojson }}'
+     data-subs-dias="{{ dias_restantes }}"
+     hidden></div>
+<script src="/static/js/subs-context.js" defer></script>
+<script src="/static/js/subs-modal.js" defer></script>
+
+</body>
+</html>

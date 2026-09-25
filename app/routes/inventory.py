@@ -3,6 +3,8 @@ from __future__ import annotations
 from flask import Blueprint, flash, jsonify, redirect, render_template, request, session, url_for
 
 from app.services.inventory_service import (
+    UNIDADES_FRACCIONABLES,
+    UNIDADES_MEDIDA,
     InventoryNotFoundError,
     add_stock,
     create_producto,
@@ -18,7 +20,7 @@ from app.services.inventory_service import (
     update_producto,
     update_proveedor,
 )
-from app.utils.decorators import login_required, roles_required
+from app.utils.decorators import log_seguridad, login_required, roles_required
 from app.utils.helpers import avatar_iniciales, only_digits
 
 inventory_bp = Blueprint("inventory_bp", __name__, url_prefix="/inventario")
@@ -33,6 +35,18 @@ def _base_context() -> dict:
         "avatar_iniciales": avatar_iniciales(nombre),
         "mostrar_alerta_suscripcion": False,
         "dias_restantes": 0,
+    }
+
+
+def _campos_venta(fuente) -> dict:
+    """Tipo, unidad, precio mayorista y empaque: los valida el servicio."""
+    return {
+        "tipo": fuente.get("tipo") or "Producto",
+        "unidad": fuente.get("unidad") or "Unidad",
+        "mayorista": fuente.get("mayorista"),
+        "empaque_nombre": fuente.get("empaque_nombre"),
+        "empaque_cantidad": fuente.get("empaque_cantidad"),
+        "precio_empaque": fuente.get("precio_empaque"),
     }
 
 
@@ -54,9 +68,19 @@ def inventario_page():
             "productos": get_productos_inventario(id_tienda),
             "categorias": get_categorias_inventario(id_tienda),
             "proveedores": get_proveedores(id_tienda),
+            "unidades": UNIDADES_MEDIDA,
+            "unidades_fraccionables": sorted(UNIDADES_FRACCIONABLES),
         }
     )
     return render_template("pos/inventario.html", **ctx)
+
+
+@inventory_bp.route("/proveedores")
+@login_required
+@roles_required("Admin", "Master")
+def proveedores_page():
+    # La lista la pide proveedores.js a /inventario/api/proveedores.
+    return render_template("pos/proveedores.html", **_base_context())
 
 
 @inventory_api_bp.route("/api/inventario", methods=["GET"])
@@ -119,6 +143,7 @@ def api_inventario_create():
             proveedor_id,
             stock_min=stock_min,
             codigo_barras=fuente.get("codigo_barras"),
+            **_campos_venta(fuente),
         )
         return jsonify({"ok": True, "id": new_id})
     except InventoryNotFoundError as exc:
@@ -141,10 +166,14 @@ def api_inventario_update(id_producto: int):
     fuente = data if is_json else request.form
     nombre = str(fuente.get("nombre", "")).strip()
     categoria = str(fuente.get("categoria", "")).strip()
+    # El Cajero no fija precios: su formulario no manda "venta" y, si llega
+    # uno distinto al guardado (consola, script), el servicio lo rechaza.
+    es_cajero = str(session.get("rol") or "").strip().lower() == "cajero"
 
     try:
         costo = float(fuente.get("costo", 0) or 0)
-        venta = float(fuente.get("venta", 0) or 0)
+        venta_raw = fuente.get("venta")
+        venta = None if es_cajero and venta_raw in (None, "") else float(venta_raw or 0)
         stock = float(fuente.get("stock", 0) or 0)
         stock_min = float(fuente.get("stock_min", 0) or 0)
     except (TypeError, ValueError):
@@ -173,8 +202,13 @@ def api_inventario_update(id_producto: int):
             proveedor_id,
             stock_min=stock_min,
             codigo_barras=fuente.get("codigo_barras"),
+            precio_bloqueado=es_cajero,
+            **_campos_venta(fuente),
         )
         return jsonify({"ok": True})
+    except PermissionError as exc:
+        log_seguridad("precio_bloqueado_cajero", producto=id_producto)
+        return jsonify({"ok": False, "msg": str(exc)}), 403
     except InventoryNotFoundError as exc:
         return jsonify({"ok": False, "msg": str(exc)}), 404
     except ValueError as exc:
@@ -213,7 +247,7 @@ def api_inventario_stock(id_producto: int | None = None):
             id_producto = 0
 
     try:
-        cantidad = int(data.get("cantidad", 0))
+        cantidad = float(data.get("cantidad", 0))
     except (TypeError, ValueError):
         return jsonify({"ok": False, "msg": "Cantidad invalida."}), 400
 
@@ -223,7 +257,7 @@ def api_inventario_stock(id_producto: int | None = None):
         return jsonify({"ok": False, "msg": "La cantidad debe ser mayor a cero."}), 400
 
     try:
-        nuevo_stock = add_stock(int(session["id_tienda"]), int(session["id_usuario"]), int(id_producto), int(cantidad))
+        nuevo_stock = add_stock(int(session["id_tienda"]), int(session["id_usuario"]), int(id_producto), cantidad)
         return jsonify({"ok": True, "nuevo_stock": nuevo_stock})
     except InventoryNotFoundError as exc:
         return jsonify({"ok": False, "msg": str(exc)}), 404

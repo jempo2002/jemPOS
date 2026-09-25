@@ -73,7 +73,7 @@ GUIAS: list[dict] = [
             "datos defines un stock mínimo por producto y reaccionas antes de "
             "quedarte sin él."
         ),
-        "cta": "Prueba jemPOS y controla tu inventario",
+        "cta": "Controla tu inventario con jemPOS",
         "puntos": (
             "Registra toda la mercancía que entra, sin excepción.",
             "Descuenta las ventas en el momento, no al final del día.",

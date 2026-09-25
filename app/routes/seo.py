@@ -12,12 +12,14 @@ para que no se desincronicen al añadir pantallas.
 from __future__ import annotations
 
 import json
+import math
 import os
 import re
 
 from flask import Blueprint, Response, current_app, send_from_directory, url_for
 
 from app.routes.guias import GUIAS
+from app.utils.helpers import fmt_money
 
 seo_bp = Blueprint("seo_bp", __name__)
 
@@ -223,6 +225,20 @@ CONTACTO = {
 }
 
 
+# Oferta comercial. Fuente unica: la seccion #precios del landing, el FAQ y
+# las ofertas del JSON-LD leen estas constantes (Google sanciona los datos
+# estructurados que no coinciden con lo visible). Precios en COP.
+# La implementacion es obligatoria para todo cliente nuevo: se paga una vez.
+MENSUALIDAD = 65000
+IMPLEMENTACION: tuple[tuple[str, int], ...] = (
+    ("Hasta 250 productos", 250000),
+    ("De 251 a 400 productos", 350000),
+    ("401 productos o más", 500000),
+)
+# "Menos de $2.200 al dia": la mensualidad entre 30, redondeada hacia arriba a
+# la centena para que la frase siga siendo cierta.
+MENSUALIDAD_POR_DIA = math.ceil(MENSUALIDAD / 30 / 100) * 100
+
 # Horario de atencion (soporte por WhatsApp y correo), formato schema.org.
 # Fuente unica: sale en el JSON-LD (contactPoint.hoursAvailable), en el footer
 # y en la respuesta de soporte del FAQ, siempre derivado de esta cadena.
@@ -243,7 +259,8 @@ def _partes_horario(horario: str) -> tuple[list[int], str, str]:
 
 def _hora_12(hhmm: str) -> str:
     hh, mm = (int(x) for x in hhmm.split(":"))
-    return f"{(hh - 1) % 12 + 1}:{mm:02d} {'a. m.' if hh < 12 else 'p. m.'}"
+    # Espacios no separables: "9:00 a. m." nunca se parte en dos lineas.
+    return f"{(hh - 1) % 12 + 1}:{mm:02d} {'a. m.' if hh < 12 else 'p. m.'}"
 
 
 def horario_schema(horario: str) -> dict:
@@ -302,17 +319,29 @@ PREGUNTAS_FRECUENTES: tuple[dict, ...] = (
         ),
     },
     {
-        "pregunta": "¿Cuánto cuesta y hay prueba gratis?",
+        "pregunta": "¿Cuánto cuesta jemPOS?",
         "respuesta": (
-            "El plan Negocio vale $49.900 al mes y el plan Empresa $99.900 al mes. "
-            "Puedes empezar con una prueba gratis de 14 días, sin tarjeta de crédito."
+            f"La mensualidad vale {fmt_money(MENSUALIDAD)} e incluye todo el sistema. "
+            "Al empezar se paga una sola vez la implementación, en la que cargamos "
+            f"tu inventario: {fmt_money(IMPLEMENTACION[0][1])} si tienes hasta 250 "
+            f"productos, {fmt_money(IMPLEMENTACION[1][1])} de 251 a 400 y "
+            f"{fmt_money(IMPLEMENTACION[2][1])} con 401 o más."
+        ),
+    },
+    {
+        "pregunta": "¿Por qué se paga la implementación?",
+        "respuesta": (
+            "Porque registramos por ti todos tus productos, con precio de compra y "
+            "de venta, categoría y stock mínimo. Digitar cientos de productos a mano "
+            "toma días y un error ahí descuadra el inventario desde el principio; "
+            "así empiezas a vender con todo listo desde el primer día."
         ),
     },
     {
         "pregunta": "¿Cómo me dan soporte?",
         "respuesta": (
             f"Por WhatsApp al {CONTACTO['telefono_visible']} y por correo a "
-            f"{CONTACTO['correo']}, de {CONTACTO['horario']}. Te ayudamos a "
+            f"{CONTACTO['correo']}, de {CONTACTO['horario']}, y te ayudamos a "
             "configurar tu negocio desde el primer día."
         ),
     },
@@ -323,7 +352,12 @@ _GA_ID_RE = re.compile(r"^G-[A-Z0-9]{4,20}$")
 
 # CSP de las paginas publicas (landing, legales, guias). Con GA activo se abren
 # solo los dominios que Google documenta para gtag.js; sin GA queda 'self'.
-_CSP_BASE = "default-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'"
+# Inter desde Google Fonts: la misma tipografia que las vistas del POS.
+_CSP_BASE = (
+    "default-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'"
+    "; style-src 'self' https://fonts.googleapis.com"
+    "; font-src 'self' https://fonts.gstatic.com"
+)
 _CSP_GA = (
     "; script-src 'self' https://*.googletagmanager.com"
     "; img-src 'self' https://*.google-analytics.com https://*.googletagmanager.com"
@@ -355,6 +389,12 @@ def _inyectar_jsonld():
         "jsonld_landing": datos_estructurados_landing,
         "contacto": CONTACTO,
         "faq": PREGUNTAS_FRECUENTES,
+        "precios": {
+            "mensualidad": MENSUALIDAD,
+            "por_dia": MENSUALIDAD_POR_DIA,
+            "implementacion": IMPLEMENTACION,
+        },
+        "cop": fmt_money,
         "analitica": datos_analitica,
         "csp_publica": _CSP_BASE + (_CSP_GA if datos_analitica["ga_id"] else ""),
     }
@@ -423,14 +463,31 @@ def datos_estructurados_landing() -> list[dict]:
         "publisher": {"@id": f"{url_landing}#organizacion"},
         # Los precios coinciden con la seccion #precios del landing: Google
         # exige que los datos estructurados reflejen el contenido visible.
-        "offers": {
-            "@type": "AggregateOffer",
-            "priceCurrency": "COP",
-            "lowPrice": "49900",
-            "highPrice": "99900",
-            "offerCount": "2",
-            "availability": "https://schema.org/InStock",
-        },
+        "offers": [
+            {
+                "@type": "Offer",
+                "name": "Mensualidad jemPOS",
+                "price": str(MENSUALIDAD),
+                "priceCurrency": "COP",
+                "availability": "https://schema.org/InStock",
+                "priceSpecification": {
+                    "@type": "UnitPriceSpecification",
+                    "price": str(MENSUALIDAD),
+                    "priceCurrency": "COP",
+                    "referenceQuantity": {"@type": "QuantitativeValue", "value": 1, "unitCode": "MON"},
+                },
+            },
+            *(
+                {
+                    "@type": "Offer",
+                    "name": f"Implementación de inventario: {rango[0].lower() + rango[1:]} (pago único)",
+                    "price": str(precio),
+                    "priceCurrency": "COP",
+                    "availability": "https://schema.org/InStock",
+                }
+                for rango, precio in IMPLEMENTACION
+            ),
+        ],
     }
 
     # Sin LocalBusiness a proposito: jemPOS opera 100% en la nube, y Google

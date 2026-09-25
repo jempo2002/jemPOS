@@ -10,21 +10,22 @@
        vía <meta>, el navegador ignora frame-ancestors/report-to aquí; si
        se necesita protección anti-clickjacking real, debe añadirse
        X-Frame-Options / CSP también como cabecera HTTP (app/__init__.py).
-       La cadena sale de csp_publica (app/routes/seo.py): 'self' y, solo si
-       GA_MEASUREMENT_ID esta definido, los dominios de Google Analytics. -->
+       La cadena sale de csp_publica (app/routes/seo.py): 'self', Google Fonts
+       (Inter, la tipografia del POS) y, solo si GA_MEASUREMENT_ID esta
+       definido, los dominios de Google Analytics. -->
   <meta http-equiv="Content-Security-Policy" content="{{ csp_publica }}">
   {% include "_analitica.html" %}
 
   <title>jemPOS — Punto de venta y contabilidad en la nube para tu negocio</title>
   <meta name="description"
-        content="jemPOS es el sistema POS y de contabilidad en la nube para MiPyMEs: vende desde tu celular, controla inventario en tiempo real, gestiona tus finanzas y supervisa a tu equipo.">
+        content="jemPOS convierte tu celular en punto de venta para pequeños y medianos negocios: cobra, controla inventario, cuadra la caja y supervisa a tu equipo en tiempo real.">
   <meta name="robots" content="index, follow">
-  <meta name="theme-color" content="#3b82f6">
+  <meta name="theme-color" content="#2563eb">
   <link rel="canonical" href="{{ url_for('landing', _external=True) }}">
 
   <!-- Open Graph: previsualización al compartir en redes sociales -->
   <meta property="og:title" content="jemPOS — Tu negocio en la palma de tu mano">
-  <meta property="og:description" content="POS, inventario, contabilidad y gestión de personal en una sola app en la nube.">
+  <meta property="og:description" content="Punto de venta, inventario, cuadre de caja y control de empleados desde tu celular.">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="jemPOS">
   <meta property="og:locale" content="es_CO">
@@ -33,33 +34,28 @@
   <meta property="og:image" content="{{ url_for('static', filename='img/punto-de-venta-jempos.jpg', _external=True) }}">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
-  <!-- og:image:alt lo leen los lectores de pantalla de las redes al compartir. -->
   <meta property="og:image:alt" content="jemPOS: punto de venta, inventario y contabilidad en la nube.">
 
-  <!-- Twitter Card: mismo propósito que Open Graph, para X/Twitter -->
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="jemPOS — Tu negocio en la palma de tu mano">
-  <meta name="twitter:description" content="POS, inventario, contabilidad y gestión de personal en una sola app en la nube.">
+  <meta name="twitter:description" content="Punto de venta, inventario, cuadre de caja y control de empleados desde tu celular.">
   <meta name="twitter:image" content="{{ url_for('static', filename='img/punto-de-venta-jempos.jpg', _external=True) }}">
   <meta name="twitter:image:alt" content="jemPOS: punto de venta, inventario y contabilidad en la nube.">
 
   <!-- ============================================================
        DATOS ESTRUCTURADOS (JSON-LD)
-       SoftwareApplication (el producto) + Organization (quien lo publica,
-       con horario de atencion en su ContactPoint) + FAQPage (la seccion #faq),
-       enlazados por @id. El contenido lo genera
+       SoftwareApplication (el producto, con las ofertas de #precios) +
+       Organization (quien lo publica, con horario en su ContactPoint) +
+       FAQPage (la seccion #faq), enlazados por @id. Lo genera
        app/routes/seo.py::datos_estructurados_landing() y Jinja lo serializa
-       con `tojson`, que escapa comillas y < > &: escribir el JSON a mano en la
-       plantilla es lo que rompe estos bloques.
-
-       La CSP de arriba no lo bloquea: un bloque ld+json no es codigo
-       ejecutable, son datos, asi que script-src no le aplica.
-
-       Sin escribir la etiqueta literal dentro de este comentario: cualquier
-       herramienta que busque el bloque por texto encontraria el comentario
-       primero.
+       con `tojson`: escribir el JSON a mano es lo que rompe estos bloques.
        ============================================================ -->
   <script type="application/ld+json">{{ jsonld_landing() | tojson }}</script>
+
+  <!-- Inter: la misma tipografia de las vistas del POS -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
 
   <!-- Sin defer: cookies.js marca <html data-cookies-ok> antes del primer
        frame para que el aviso no parpadee a quien ya lo acepto. -->
@@ -68,18 +64,21 @@
 </head>
 <body>
 
-  <!-- Enlace de salto para lectores de pantalla / navegación por teclado (WCAG 2.4.1) -->
   <a class="skip-link" href="#contenido">Saltar al contenido principal</a>
 
+  {# Enlaces de WhatsApp con el mensaje ya escrito segun desde donde se abran. #}
+  {% set wa_quiero = contacto.whatsapp ~ '?text=' ~ ('Hola, quiero jemPOS para mi negocio' | urlencode) %}
+  {% set wa_cotizar = contacto.whatsapp ~ '?text=' ~ ('Hola, quiero cotizar la implementación de jemPOS. Mi negocio tiene aproximadamente ___ productos.' | urlencode) %}
+
   <!-- ============================================================
-       HEADER / NAVEGACIÓN
-       Fijo, translúcido con blur (estética iOS). Targets ≥ 44px.
+       HEADER
+       "Iniciar sesión" vive FUERA del menú desplegable: en móvil queda
+       siempre visible junto a la hamburguesa, que solo guarda las anclas.
        ============================================================ -->
   <header class="header" data-header>
     <nav class="header__nav" aria-label="Navegación principal">
       <a class="header__brand" href="{{ url_for('landing') }}" aria-label="jemPOS, inicio">
         <span class="header__logo" aria-hidden="true">
-          <!-- Isotipo: recibo + check, dibujado en SVG inline -->
           <svg viewBox="0 0 32 32" width="28" height="28">
             <rect x="6" y="3" width="20" height="26" rx="4" fill="currentColor" opacity="0.15"/>
             <rect x="6" y="3" width="20" height="26" rx="4" fill="none" stroke="currentColor" stroke-width="2"/>
@@ -90,297 +89,294 @@
         <span class="header__name">jem<strong>POS</strong></span>
       </a>
 
-      <!-- Botón hamburguesa (solo visible en móvil) -->
+      <div class="header__menu" id="menu-principal" data-nav-menu>
+        <ul class="header__links" role="list">
+          <li><a class="header__link" href="#ventajas">Ventajas</a></li>
+          <li><a class="header__link" href="#precios">Precios</a></li>
+          <li><a class="header__link" href="{{ url_for('guias_bp.indice') }}">Guías</a></li>
+          <li><a class="header__link" href="#faq">Preguntas</a></li>
+        </ul>
+        <a class="btn btn--ghost btn--sm header__cta" href="{{ wa_quiero }}" target="_blank" rel="noopener">Hablar con ventas</a>
+      </div>
+
+      <a class="btn btn--primary btn--sm header__login" href="{{ url_for('auth.login') }}">Iniciar sesión</a>
+
       <button class="header__toggle" type="button"
               aria-expanded="false" aria-controls="menu-principal"
               data-nav-toggle>
         <span class="header__toggle-bar" aria-hidden="true"></span>
         <span class="visually-hidden">Abrir menú</span>
       </button>
-
-      <div class="header__menu" id="menu-principal" data-nav-menu>
-        <ul class="header__links" role="list">
-          <li><a class="header__link" href="#ventajas">Ventajas</a></li>
-          <li><a class="header__link" href="#precios">Precios</a></li>
-          <li><a class="header__link" href="{{ url_for('guias_bp.indice') }}">Guías</a></li>
-          <li><a class="header__link" href="#faq-footer">Contacto</a></li>
-        </ul>
-        <div class="header__auth">
-          <!-- Botón de inicio de sesión: entra al flujo de rutas actual -->
-          <a class="btn btn--inverse btn--sm" href="{{ url_for('auth.login') }}">Iniciar sesión</a>
-          <a class="btn btn--primary btn--sm" href="{{ url_for('auth.registro') }}">Prueba gratis</a>
-        </div>
-      </div>
     </nav>
   </header>
 
   <main id="contenido">
 
     <!-- ============================================================
-         HERO
-         Propuesta de valor + doble CTA + mockup de smartphone en CSS.
+         HERO: propuesta de valor + mini tablero con los mismos
+         componentes del POS (tarjeta maestra, sub-tarjetas, botón Cobrar)
          ============================================================ -->
     <section class="hero" aria-labelledby="hero-titulo">
       <div class="hero__inner">
-        <div class="hero__copy reveal">
-          <p class="hero__eyebrow">POS + Contabilidad en la nube</p>
+        <div class="hero__copy">
+          <p class="pill">Para tiendas, minimercados y emprendimientos</p>
           <h1 class="hero__title" id="hero-titulo">
-            Tu negocio merece<br>
-            <span class="hero__title-accent">dejar el cuaderno atrás.</span>
+            Tu caja, tu inventario y tus cuentas, <span class="hero__acento">en orden desde el celular</span>
           </h1>
           <p class="hero__subtitle">
-            jemPOS convierte tu celular en una caja registradora, un contador y un
-            supervisor de equipo. Vende, controla tu inventario y conoce la salud
-            financiera de tu negocio en tiempo real — sin instalaciones ni conocimientos técnicos.
+            jemPOS convierte tu celular en un punto de venta completo: cobras en
+            segundos, el inventario se descuenta solo, la caja se cuadra al peso y
+            ves cómo va tu negocio aunque no estés en el local. Sin comprar
+            computador ni caja registradora.
           </p>
           <div class="hero__actions">
-            <a class="btn btn--primary btn--lg" href="{{ url_for('auth.registro') }}">Solicitar prueba gratis</a>
-            <a class="btn btn--ghost btn--lg" href="#ventajas">Ver demo</a>
+            <a class="btn btn--primary btn--lg" href="{{ wa_quiero }}" target="_blank" rel="noopener">Quiero jemPOS en mi negocio</a>
+            <a class="btn btn--ghost btn--lg" href="#precios">Ver precios</a>
           </div>
-          <ul class="hero__badges" role="list">
-            <li class="hero__badge">✓ Sin tarjeta de crédito</li>
-            <li class="hero__badge">✓ Listo en 5 minutos</li>
-            <li class="hero__badge">✓ 100% en la nube</li>
+          <ul class="hero__chips" role="list">
+            <li class="chip">Funciona en cualquier celular</li>
+            <li class="chip">Sin equipos costosos</li>
+            <li class="chip">Soporte por WhatsApp</li>
           </ul>
         </div>
 
-        <!-- Mockup del smartphone: construido solo con CSS + SVG -->
-        <div class="hero__visual reveal" aria-hidden="true">
-          <div class="phone">
-            <div class="phone__notch"></div>
-            <div class="phone__screen">
-              <div class="phone__statusbar">
-                <span>9:41</span>
-                <span class="phone__signal"></span>
-              </div>
-              <div class="phone__appbar">
-                <span class="phone__appbar-title">Venta rápida</span>
-                <span class="phone__appbar-chip">Caja abierta</span>
-              </div>
-              <div class="phone__items">
-                <div class="phone__item">
-                  <span class="phone__item-dot phone__item-dot--a"></span>
-                  <span class="phone__item-name">Café americano</span>
-                  <span class="phone__item-price">$4.500</span>
-                </div>
-                <div class="phone__item">
-                  <span class="phone__item-dot phone__item-dot--b"></span>
-                  <span class="phone__item-name">Croissant</span>
-                  <span class="phone__item-price">$6.000</span>
-                </div>
-                <div class="phone__item">
-                  <span class="phone__item-dot phone__item-dot--c"></span>
-                  <span class="phone__item-name">Jugo natural</span>
-                  <span class="phone__item-price">$7.500</span>
-                </div>
-              </div>
-              <div class="phone__total">
-                <span>Total</span>
-                <strong>$18.000</strong>
-              </div>
-              <div class="phone__cta">Cobrar</div>
+        <div class="hero__visual" aria-hidden="true">
+          <div class="app-mock">
+            <div class="app-mock__head">
+              <span class="app-mock__titulo">Resumen de hoy</span>
+              <span class="app-mock__estado">Caja abierta</span>
             </div>
-          </div>
-          <!-- Tarjetas flotantes decorativas alrededor del teléfono -->
-          <div class="hero__float hero__float--sales">
-            <span class="hero__float-label">Ventas de hoy</span>
-            <span class="hero__float-value">$842.300 <em>▲ 12%</em></span>
-          </div>
-          <div class="hero__float hero__float--stock">
-            <span class="hero__float-label">Stock bajo</span>
-            <span class="hero__float-value hero__float-value--warn">3 productos</span>
+            <div class="app-mock__grid">
+              <div class="kpi">
+                <span class="kpi__label">Ventas</span>
+                <span class="kpi__valor">$842.300</span>
+                <span class="kpi__nota kpi__nota--ok">▲ 12% vs ayer</span>
+              </div>
+              <div class="kpi">
+                <span class="kpi__label">Ganancia</span>
+                <span class="kpi__valor">$231.900</span>
+                <span class="kpi__nota">Después de gastos</span>
+              </div>
+              <div class="kpi">
+                <span class="kpi__label">Cuadre de caja</span>
+                <span class="kpi__valor kpi__valor--ok">Cuadrada</span>
+                <span class="kpi__nota">Turno de Ana</span>
+              </div>
+              <div class="kpi">
+                <span class="kpi__label">Stock bajo</span>
+                <span class="kpi__valor kpi__valor--alerta">3 productos</span>
+                <span class="kpi__nota">Pedir hoy</span>
+              </div>
+            </div>
+            <div class="app-mock__cobro">
+              <span class="app-mock__cobro-label">Total venta</span>
+              <span class="app-mock__cobro-monto">$18.000</span>
+            </div>
+            <span class="app-mock__btn">Cobrar</span>
           </div>
         </div>
       </div>
     </section>
 
     <!-- ============================================================
-         PRODUCT TOUR — Storytelling con scroll horizontal
-         La sección mide varios viewports de alto; su contenido queda
-         "pegado" (position: sticky) y el JS traduce el scroll vertical
-         en un desplazamiento horizontal suave de las tarjetas.
-         En móvil o con prefers-reduced-motion degrada a un carrusel
-         nativo con scroll-snap (sin JS).
+         VENTAJAS: el caos de hacerlo a mano frente al orden de jemPOS
          ============================================================ -->
-    <section class="tour" id="ventajas" aria-labelledby="tour-titulo" data-tour>
-      <div class="tour__sticky">
-        <header class="tour__header reveal">
-          <p class="tour__eyebrow">¿Por qué jemPOS?</p>
-          <h2 class="tour__title hero__title-accent" id="tour-titulo">Cuatro razones para dar el salto</h2>
-        </header>
-
-        <div class="tour__viewport" data-tour-viewport>
-          <ul class="tour__track" role="list" data-tour-track>
-
-            <!-- Ventaja 1: Mobile-first -->
-            <li class="tour-card" data-tour-card>
-              <article class="tour-card__inner">
-                <span class="tour-card__icon tour-card__icon--primary" aria-hidden="true">
-                  <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                    <rect x="7" y="2.5" width="10" height="19" rx="2.5"/>
-                    <path d="M11 18.5h2"/>
-                  </svg>
-                </span>
-                <span class="tour-card__step">01</span>
-                <h3 class="tour-card__title">Mobile-first: vende desde donde estés</h3>
-                <p class="tour-card__text">
-                  jemPOS nació para el celular, no fue adaptado después. Registra ventas,
-                  emite recibos y gestiona tu negocio con una mano, en la fila del banco
-                  o detrás del mostrador — sin configuraciones complejas ni hardware costoso.
-                </p>
-                <ul class="tour-card__list" role="list">
-                  <li>Registra una venta en menos de 10 segundos</li>
-                  <li>Recibos digitales al instante</li>
-                  <li>Funciona en cualquier smartphone con navegador</li>
-                </ul>
-              </article>
-            </li>
-
-            <!-- Ventaja 2: Inventarios -->
-            <li class="tour-card" data-tour-card>
-              <article class="tour-card__inner">
-                <span class="tour-card__icon tour-card__icon--success" aria-hidden="true">
-                  <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M4 7.5L12 3l8 4.5v9L12 21l-8-4.5z"/>
-                    <path d="M4 7.5L12 12l8-4.5M12 12v9"/>
-                  </svg>
-                </span>
-                <span class="tour-card__step">02</span>
-                <h3 class="tour-card__title">Inventario bajo control, siempre</h3>
-                <p class="tour-card__text">
-                  Cada venta descuenta el stock automáticamente. Organiza tus productos
-                  por categorías, detecta a tiempo lo que se agota y olvídate de los
-                  conteos manuales a fin de mes.
-                </p>
-                <ul class="tour-card__list" role="list">
-                  <li>Stock en tiempo real, actualizado con cada venta</li>
-                  <li>Alertas de bajas existencias antes de quedarte sin producto</li>
-                  <li>Categorías y búsqueda rápida para catálogos grandes</li>
-                </ul>
-              </article>
-            </li>
-
-            <!-- Ventaja 3: Contabilidad -->
-            <li class="tour-card" data-tour-card>
-              <article class="tour-card__inner">
-                <span class="tour-card__icon tour-card__icon--primary" aria-hidden="true">
-                  <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M4 19V5"/>
-                    <path d="M4 19h16"/>
-                    <path d="M8 15v-4M12 15V8M16 15v-6"/>
-                  </svg>
-                </span>
-                <span class="tour-card__step">03</span>
-                <h3 class="tour-card__title">Contabilidad sin ser contador</h3>
-                <p class="tour-card__text">
-                  Ingresos, gastos y cajas diarias registrados sin esfuerzo. jemPOS
-                  genera reportes automáticos que te dicen, en lenguaje claro, si tu
-                  negocio está ganando o perdiendo dinero.
-                </p>
-                <ul class="tour-card__list" role="list">
-                  <li>Control de apertura y cierre de caja diaria</li>
-                  <li>Registro de gastos con categorías</li>
-                  <li>Reportes automáticos de salud financiera</li>
-                </ul>
-              </article>
-            </li>
-
-            <!-- Ventaja 4: Gestión de trabajadores (diferencial) -->
-            <li class="tour-card tour-card--featured" data-tour-card>
-              <article class="tour-card__inner">
-                <span class="tour-card__icon tour-card__icon--secondary" aria-hidden="true">
-                  <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                    <circle cx="9" cy="8" r="3.2"/>
-                    <path d="M3.5 19c.6-3 2.8-4.7 5.5-4.7s4.9 1.7 5.5 4.7"/>
-                    <circle cx="17" cy="9.5" r="2.4"/>
-                    <path d="M15.5 14.6c2.4.2 4.2 1.6 4.9 4.4"/>
-                  </svg>
-                </span>
-                <span class="tour-card__step">04</span>
-                <span class="tour-card__badge">Exclusivo de jemPOS</span>
-                <h3 class="tour-card__title">Tu equipo, transparente y medible</h3>
-                <p class="tour-card__text">
-                  Supervisa el rendimiento de tu personal aunque no estés en el local.
-                  Descubre quién vende más, audita cada apertura y cierre de caja, y
-                  detecta balances negativos por empleado antes de que se conviertan en pérdidas.
-                </p>
-                <ul class="tour-card__list" role="list">
-                  <li>Ranking de ventas por empleado</li>
-                  <li>Auditoría completa de turnos y cajas</li>
-                  <li>Balances por trabajador: cuadres positivos y negativos</li>
-                </ul>
-              </article>
-            </li>
-
-          </ul>
-        </div>
-
-        <!-- Indicador de progreso del tour (accesible y clicable) -->
-        <div class="tour__progress" role="tablist" aria-label="Progreso del recorrido" data-tour-progress>
-          <button class="tour__dot is-active" type="button" role="tab" aria-selected="true"  aria-label="Ventaja 1: Mobile-first"></button>
-          <button class="tour__dot" type="button" role="tab" aria-selected="false" aria-label="Ventaja 2: Inventarios"></button>
-          <button class="tour__dot" type="button" role="tab" aria-selected="false" aria-label="Ventaja 3: Contabilidad"></button>
-          <button class="tour__dot" type="button" role="tab" aria-selected="false" aria-label="Ventaja 4: Trabajadores"></button>
-        </div>
-      </div>
-    </section>
-
-    <!-- ============================================================
-         PRECIOS / PLANES
-         ============================================================ -->
-    <section class="pricing" id="precios" aria-labelledby="precios-titulo">
-      <header class="pricing__header reveal">
-        <p class="pricing__eyebrow">Planes simples, sin letra pequeña</p>
-        <h2 class="pricing__title" id="precios-titulo">Elige el plan y haz crecer tu negocio</h2>
-        <p class="pricing__subtitle">Todos los planes incluyen actualizaciones automáticas y datos seguros en la nube.</p>
+    <section class="seccion" id="ventajas" aria-labelledby="ventajas-titulo">
+      <header class="seccion__head reveal">
+        <p class="seccion__eyebrow">A mano vs. con jemPOS</p>
+        <h2 class="seccion__titulo" id="ventajas-titulo">Deja de perder plata en lo que no ves</h2>
+        <p class="seccion__texto">
+          El cuaderno sirve hasta que el negocio crece. Esto es lo que cambia
+          cuando todo queda registrado desde el celular.
+        </p>
       </header>
 
-      <div class="pricing__grid">
-
-        <article class="plan plan--featured reveal">
-          <span class="plan__ribbon">Más popular</span>
-          <h3 class="plan__name">Negocio</h3>
-          <p class="plan__price"><span class="plan__amount">$49.900</span><span class="plan__period">/mes</span></p>
-          <p class="plan__desc">Para negocios en marcha que necesitan control total.</p>
-          <ul class="plan__features" role="list">
-            <li>Hasta 5 usuarios</li>
-            <li>Inventario ilimitado + alertas de stock</li>
-            <li>Contabilidad y reportes automáticos</li>
-            <li>Monitoreo de trabajadores y turnos</li>
-            <li>Soporte prioritario</li>
-          </ul>
-          <a class="btn btn--primary btn--block" href="{{ url_for('auth.registro') }}">Iniciar prueba de 14 días</a>
+      <div class="ventajas" data-reveal-grupo>
+        <article class="card ventaja reveal">
+          <span class="ventaja__icono" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M7 10v4M17 10v4"/></svg>
+          </span>
+          <h3 class="ventaja__titulo">Cuadres de caja exactos</h3>
+          <p class="ventaja__fila"><span class="tag tag--antes">A mano</span> Sumas en el cuaderno al cerrar y el faltante nadie sabe de dónde salió.</p>
+          <p class="ventaja__fila"><span class="tag tag--despues">Con jemPOS</span> El sistema calcula lo que debe haber en caja: cuentas, digitas y ves al instante si sobra o falta.</p>
         </article>
 
-        <article class="plan reveal">
-          <h3 class="plan__name">Empresa</h3>
-          <p class="plan__price"><span class="plan__amount">$99.900</span><span class="plan__period">/mes</span></p>
-          <p class="plan__desc">Para múltiples sucursales y equipos grandes.</p>
-          <ul class="plan__features" role="list">
-            <li>Usuarios ilimitados</li>
-            <li>Múltiples puntos de venta</li>
-            <li>Roles y permisos avanzados</li>
-            <li>Acompañamiento personalizado</li>
-          </ul>
-          <a class="btn btn--ghost btn--block" href="{{ url_for('auth.registro') }}">Hablar con ventas</a>
+        <article class="card ventaja reveal">
+          <span class="ventaja__icono" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7.5L12 3l8 4.5v9L12 21l-8-4.5z"/><path d="M4 7.5L12 12l8-4.5M12 12v9"/></svg>
+          </span>
+          <h3 class="ventaja__titulo">Inventario automático</h3>
+          <p class="ventaja__fila"><span class="tag tag--antes">A mano</span> Te enteras de que se acabó un producto cuando el cliente lo pide.</p>
+          <p class="ventaja__fila"><span class="tag tag--despues">Con jemPOS</span> Cada venta descuenta el stock y te avisa antes de que se agote.</p>
         </article>
 
+        <article class="card ventaja reveal">
+          <span class="ventaja__icono" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="2.5" width="10" height="19" rx="2.5"/><path d="M11 18.5h2"/></svg>
+          </span>
+          <h3 class="ventaja__titulo">Control total sin estar en el local</h3>
+          <p class="ventaja__fila"><span class="tag tag--antes">A mano</span> Si no estás en la tienda, no sabes cuánto se vendió hasta la noche.</p>
+          <p class="ventaja__fila"><span class="tag tag--despues">Con jemPOS</span> Ves ventas, gastos y quién está en turno desde tu celular, estés donde estés.</p>
+        </article>
+
+        <article class="card ventaja reveal">
+          <span class="ventaja__icono" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6"/></svg>
+          </span>
+          <h3 class="ventaja__titulo">Fiados bajo control</h3>
+          <p class="ventaja__fila"><span class="tag tag--antes">A mano</span> Las deudas quedan en hojas sueltas y lo que se olvida no se cobra.</p>
+          <p class="ventaja__fila"><span class="tag tag--despues">Con jemPOS</span> Cada cliente con su saldo, sus abonos y cuánto tiempo lleva debiendo.</p>
+        </article>
+
+        <article class="card ventaja reveal">
+          <span class="ventaja__icono" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V5"/><path d="M4 19h16"/><path d="M8 15v-4M12 15V8M16 15v-6"/></svg>
+          </span>
+          <h3 class="ventaja__titulo">Ganancia real, no solo ventas</h3>
+          <p class="ventaja__fila"><span class="tag tag--antes">A mano</span> Sabes cuánto vendiste, pero no cuánto ganaste después de gastos.</p>
+          <p class="ventaja__fila"><span class="tag tag--despues">Con jemPOS</span> Gastos por categoría y ganancia del día, la semana o el mes, sin hojas de cálculo.</p>
+        </article>
+
+        <article class="card ventaja reveal">
+          <span class="ventaja__icono" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.2"/><path d="M3.5 19c.6-3 2.8-4.7 5.5-4.7s4.9 1.7 5.5 4.7"/><circle cx="17" cy="9.5" r="2.4"/><path d="M15.5 14.6c2.4.2 4.2 1.6 4.9 4.4"/></svg>
+          </span>
+          <h3 class="ventaja__titulo">Empleados con cuentas claras</h3>
+          <p class="ventaja__fila"><span class="tag tag--antes">A mano</span> Cuando falta plata, no hay forma de saber en qué turno pasó.</p>
+          <p class="ventaja__fila"><span class="tag tag--despues">Con jemPOS</span> Cada venta y cada gasto quedan a nombre de quien los hizo, turno por turno.</p>
+        </article>
       </div>
     </section>
 
     <!-- ============================================================
-         GUIAS: la landing es la pagina pilar del cluster de contenidos;
-         cada guia enlaza de vuelta aqui (ver app/routes/guias.py).
+         PRECIOS: salen de MENSUALIDAD e IMPLEMENTACION en
+         app/routes/seo.py, las mismas constantes del JSON-LD y del FAQ.
          ============================================================ -->
-    <section class="guias-home" id="guias" aria-labelledby="guias-titulo">
-      <header class="guias-home__header reveal">
-        <p class="pricing__eyebrow">Aprende gratis</p>
-        <h2 class="pricing__title" id="guias-titulo">Guías para administrar mejor tu negocio</h2>
+    <section class="seccion seccion--suave" id="precios" aria-labelledby="precios-titulo">
+      <header class="seccion__head reveal">
+        <p class="seccion__eyebrow">Precios claros, sin letra pequeña</p>
+        <h2 class="seccion__titulo" id="precios-titulo">Un solo plan con todo incluido</h2>
+        <p class="seccion__texto">
+          Pagas una mensualidad por usar el sistema y, una sola vez al empezar,
+          la implementación: dejamos tu inventario cargado y listo para vender.
+        </p>
       </header>
-      <ul class="guias-home__grid" role="list">
+
+      <div class="precios" data-reveal-grupo>
+        <article class="card plan plan--destacado reveal">
+          <p class="plan__etiqueta">Mensualidad</p>
+          <h3 class="plan__nombre">jemPOS completo</h3>
+          <p class="plan__precio">
+            <span class="plan__monto">{{ cop(precios.mensualidad) }}</span>
+            <span class="plan__periodo">COP / mes</span>
+          </p>
+          <p class="plan__nota">
+            Menos de {{ cop(precios.por_dia) }} al día. Si te evita un solo
+            faltante de caja al mes, ya se pagó.
+          </p>
+          <ul class="plan__lista" role="list">
+            <li>Punto de venta en tu celular, con lector de códigos por cámara</li>
+            <li>Inventario con alertas de stock bajo</li>
+            <li>Cuadre de caja por turnos y control de empleados</li>
+            <li>Fiados, abonos y cuentas por pagar a proveedores</li>
+            <li>Gastos por categoría y reportes de ganancia</li>
+            <li>Usuarios para tus cajeros</li>
+            <li>Soporte por WhatsApp, {{ contacto.horario }}</li>
+          </ul>
+          <a class="btn btn--primary btn--block" href="{{ wa_quiero }}" target="_blank" rel="noopener">Quiero jemPOS</a>
+        </article>
+
+        <article class="card plan reveal">
+          <p class="plan__etiqueta">Pago único al empezar</p>
+          <h3 class="plan__nombre">Implementación de inventario</h3>
+          <p class="plan__desc">
+            Registramos por ti todos tus productos con precio de compra y de
+            venta, categoría y stock mínimo. Empiezas a vender con todo cargado,
+            sin pasar días digitando.
+          </p>
+          <ul class="tramos" role="list">
+            {% for rango, precio in precios.implementacion %}
+            <li class="tramo">
+              <span class="tramo__rango">{{ rango }}</span>
+              <span class="tramo__precio">{{ cop(precio) }}</span>
+            </li>
+            {% endfor %}
+          </ul>
+          <p class="plan__nota">
+            Se paga una sola vez. El valor depende de cuántos productos maneja tu negocio.
+          </p>
+          <a class="btn btn--ghost btn--block" href="{{ wa_cotizar }}" target="_blank" rel="noopener">Cotizar mi implementación</a>
+        </article>
+      </div>
+
+      <p class="precios__ejemplo reveal">
+        <strong>Ejemplo:</strong> una tienda con 180 productos paga
+        {{ cop(precios.implementacion[0][1]) }} una sola vez y después
+        {{ cop(precios.mensualidad) }} al mes.
+      </p>
+
+      <div class="card valor reveal">
+        <h3 class="valor__titulo">¿Por qué vale la pena para un negocio pequeño?</h3>
+        <div class="valor__grid">
+          <div class="valor__item">
+            <h4 class="valor__h4">Tu celular ya es la caja</h4>
+            <p>No compras computador, caja registradora ni lector de códigos: el celular que ya tienes hace todo.</p>
+          </div>
+          <div class="valor__item">
+            <h4 class="valor__h4">Mandas aunque no estés</h4>
+            <p>Ventas, caja y turnos de tus empleados, al día y desde donde estés.</p>
+          </div>
+          <div class="valor__item">
+            <h4 class="valor__h4">Deja de perder plata</h4>
+            <p>Un faltante, un fiado olvidado o un producto agotado cuestan más que la mensualidad.</p>
+          </div>
+          <div class="valor__item">
+            <h4 class="valor__h4">Sin amarrarte</h4>
+            <p>Pagas mes a mes y cancelas cuando quieras.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================
+         COMO EMPEZAR: explica por que la implementacion va primero
+         ============================================================ -->
+    <section class="seccion" id="empezar" aria-labelledby="empezar-titulo">
+      <header class="seccion__head reveal">
+        <p class="seccion__eyebrow">Así empiezas</p>
+        <h2 class="seccion__titulo" id="empezar-titulo">Vendiendo con jemPOS en tres pasos</h2>
+      </header>
+      <ol class="pasos" data-reveal-grupo>
+        <li class="card paso reveal">
+          <span class="paso__num" aria-hidden="true">1</span>
+          <h3 class="paso__titulo">Nos escribes por WhatsApp</h3>
+          <p>Nos cuentas qué vendes y cuántos productos manejas, y te damos el valor exacto de la implementación.</p>
+        </li>
+        <li class="card paso reveal">
+          <span class="paso__num" aria-hidden="true">2</span>
+          <h3 class="paso__titulo">Cargamos tu inventario</h3>
+          <p>Registramos tus productos con precios, categorías y stock mínimo, y dejamos tu cuenta lista.</p>
+        </li>
+        <li class="card paso reveal">
+          <span class="paso__num" aria-hidden="true">3</span>
+          <h3 class="paso__titulo">Vendes desde el celular</h3>
+          <p>Abres la caja con tu base y empiezas a cobrar. Si tienes empleados, cada uno entra con su usuario.</p>
+        </li>
+      </ol>
+    </section>
+
+    <!-- ============================================================
+         GUIAS: la landing es la pagina pilar del cluster de contenidos
+         ============================================================ -->
+    <section class="seccion seccion--suave" id="guias" aria-labelledby="guias-titulo">
+      <header class="seccion__head reveal">
+        <p class="seccion__eyebrow">Aprende gratis</p>
+        <h2 class="seccion__titulo" id="guias-titulo">Guías para administrar mejor tu negocio</h2>
+      </header>
+      <ul class="guias-home__grid" role="list" data-reveal-grupo>
         {% for g in guias %}
-        <li>
-          <article class="guia-card">
+        <li class="reveal">
+          <article class="card guia-card">
             <h3 class="guia-card__titulo">
               <a class="guia-card__enlace" href="{{ url_for('guias_bp.guia', slug=g.slug) }}">{{ g.titulo }}</a>
             </h3>
@@ -393,15 +389,13 @@
     </section>
 
     <!-- ============================================================
-         PREGUNTAS FRECUENTES
-         Se pintan desde PREGUNTAS_FRECUENTES (app/routes/seo.py), la misma
-         lista que genera el FAQPage del JSON-LD: nunca se desincronizan.
-         <details> nativo: acordeon sin JavaScript (la CSP no deja inline).
+         PREGUNTAS FRECUENTES: PREGUNTAS_FRECUENTES en app/routes/seo.py,
+         la misma lista que genera el FAQPage del JSON-LD.
          ============================================================ -->
-    <section class="faq" id="faq" aria-labelledby="faq-titulo">
-      <header class="faq__header reveal">
-        <p class="pricing__eyebrow">Resolvemos tus dudas</p>
-        <h2 class="pricing__title" id="faq-titulo">Preguntas frecuentes sobre jemPOS</h2>
+    <section class="seccion" id="faq" aria-labelledby="faq-titulo">
+      <header class="seccion__head reveal">
+        <p class="seccion__eyebrow">Resolvemos tus dudas</p>
+        <h2 class="seccion__titulo" id="faq-titulo">Preguntas frecuentes sobre jemPOS</h2>
       </header>
       <div class="faq__lista">
         {% for p in faq %}
@@ -417,8 +411,11 @@
     <section class="cta-final reveal" aria-labelledby="cta-final-titulo">
       <div class="cta-final__card">
         <h2 class="cta-final__title" id="cta-final-titulo">Tu negocio merece dejar el cuaderno atrás</h2>
-        <p class="cta-final__text">Únete a los negocios que ya venden, cuadran caja y duermen tranquilos con jemPOS.</p>
-        <a class="btn btn--inverse btn--lg" href="{{ url_for('auth.registro') }}">Solicitar prueba gratis</a>
+        <p class="cta-final__text">Escríbenos, te cotizamos la implementación y en pocos días estás vendiendo desde tu celular.</p>
+        <div class="cta-final__acciones">
+          <a class="btn btn--inverse btn--lg" href="{{ wa_quiero }}" target="_blank" rel="noopener">Hablar por WhatsApp</a>
+          <a class="btn btn--sobre-oscuro btn--lg" href="{{ url_for('auth.registro') }}">Crear mi cuenta</a>
+        </div>
         {% with compartir_url=url_for('landing', _external=True), compartir_texto="jemPOS: punto de venta y contabilidad en la nube para tu negocio" %}
           {% include "_compartir.html" %}
         {% endwith %}
@@ -427,14 +424,11 @@
 
   </main>
 
-  <!-- ============================================================
-       FOOTER
-       ============================================================ -->
   <footer class="footer" id="faq-footer">
     <div class="footer__inner">
       <div class="footer__brand">
         <span class="header__name">jem<strong>POS</strong></span>
-        <p class="footer__tagline">Punto de venta y contabilidad en la nube para MiPyMEs.</p>
+        <p class="footer__tagline">Punto de venta y contabilidad en la nube para pequeños y medianos negocios.</p>
       </div>
 
       <nav class="footer__col" aria-label="Producto">
@@ -457,14 +451,8 @@
         </ul>
       </nav>
 
-      {# Columna de contacto. Los valores salen de CONTACTO en app/routes/seo.py,
-         el mismo diccionario que alimenta el JSON-LD: asi el telefono que ve el
-         visitante y el que lee Google no pueden quedar desincronizados.
-
-         rel="me" en Instagram: declara que ese perfil es de esta misma entidad
-         y respalda el sameAs de los datos estructurados.
-         rel="noopener": sin el, la pestana que se abre puede manipular esta
-         mediante window.opener. #}
+      {# Contacto: CONTACTO en app/routes/seo.py, el mismo del JSON-LD.
+         rel="me" en Instagram respalda el sameAs de los datos estructurados. #}
       <nav class="footer__col" aria-label="Contacto">
         <h3 class="footer__heading">Contacto</h3>
         <ul role="list">
@@ -487,7 +475,7 @@
     <p class="footer__copy">© 2026 jemPOS. Todos los derechos reservados.</p>
   </footer>
 
-  {% include "_cta_movil.html" %}
+  {% include "_whatsapp.html" %}
   {% include "_cookies.html" %}
 
   <script src="/static/js/landing.js" defer></script>

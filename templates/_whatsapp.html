@@ -1,0 +1,14 @@
+{# Ruta: templates/_whatsapp.html
+   Boton flotante de WhatsApp, esquina inferior derecha, en todas las paginas
+   publicas (landing, legales, guias, 404). Numero: CONTACTO en app/routes/seo.py.
+
+   z-index 900: por encima del contenido y del header (50), por debajo del
+   aviso de cookies (1000) para no tapar su boton Aceptar. El footer reserva
+   espacio abajo, asi que al final de la pagina no tapa enlaces. El pulso se
+   apaga con prefers-reduced-motion. #}
+<a class="wa-flotante"
+   href="{{ contacto.whatsapp }}?text={{ 'Hola, tengo una pregunta sobre jemPOS' | urlencode }}"
+   target="_blank" rel="noopener"
+   aria-label="Escribir a jemPOS por WhatsApp ({{ contacto.telefono_visible }})">
+  <svg viewBox="0 0 24 24" width="30" height="30" aria-hidden="true" fill="currentColor"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2Zm0 18.2a8.2 8.2 0 0 1-4.2-1.2l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1 1 12 20.2Zm4.5-6.1c-.2-.1-1.5-.7-1.7-.8s-.4-.1-.6.1-.7.8-.8 1-.3.2-.5.1a6.7 6.7 0 0 1-3.3-2.9c-.3-.4.2-.4.7-1.4a.5.5 0 0 0 0-.4l-.8-1.8c-.2-.5-.4-.4-.6-.4h-.5a1 1 0 0 0-.7.3 3 3 0 0 0-.9 2.2 5.2 5.2 0 0 0 1.1 2.7 11.8 11.8 0 0 0 4.5 4 5.2 5.2 0 0 0 3.2.7 2.7 2.7 0 0 0 1.8-1.3 2.2 2.2 0 0 0 .1-1.3c0-.1-.2-.2-.5-.3Z"/></svg>
+</a>

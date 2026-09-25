@@ -37,7 +37,7 @@ ULTIMA_ACTUALIZACION = "25 de septiembre de 2026"
 EMPRESA = {
     "razon_social": "jemPOS",
     "nit": "",
-    "domicilio": "Operación 100% en la nube, Colombia",
+    "domicilio": "Operación 100% en la nube",
     "ciudad": "Colombia",
 }
 

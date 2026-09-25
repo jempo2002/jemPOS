@@ -12,7 +12,7 @@ No toca la base de datos: test client de Flask + lectura de archivos.
      descripciones unicos, jerarquia sin saltos, estructura de las guias
      (intro, CTA, 5 puntos, <= 3 listas/tablas), cluster enlazado, slugs.
   8) GA4 y Search Console desde el entorno, con CSP y textos legales acordes.
-  9) CTA movil y botones de compartir.
+  9) Header movil con login visible, WhatsApp flotante y botones de compartir.
   4) Favicons: etiquetas presentes, archivos servidos sin 404, apple-touch-icon.
   5) Imagenes: ninguna <img> sin alt en plantillas ni en el JS que genera HTML.
   6) Peso y dimensiones de static/img: detecta activos pesados o sobredimensionados.
@@ -192,13 +192,24 @@ assert aplicacion["publisher"]["@id"] == organizacion["@id"], (
 
 # Los precios del JSON-LD deben coincidir con los visibles: Google sanciona
 # los datos estructurados que no reflejan la pagina.
-oferta = aplicacion["offers"]
-assert oferta["priceCurrency"] == "COP", oferta
-plantilla_landing = open(os.path.join(RAIZ, "templates", "landing.html"), encoding="utf-8").read()
-for clave in ("lowPrice", "highPrice"):
-    valor = int(oferta[clave])
-    visible = f"{valor:,}".replace(",", ".")          # 49900 -> 49.900
-    assert visible in plantilla_landing, f"{clave}={valor} no aparece como ${visible} en el landing"
+# Oferta vigente: mensualidad de 65.000 + implementacion unica por tramos.
+from app.routes.seo import IMPLEMENTACION, MENSUALIDAD  # noqa: E402
+
+ofertas = aplicacion["offers"]
+assert MENSUALIDAD == 65000, MENSUALIDAD
+assert [p for _r, p in IMPLEMENTACION] == [250000, 350000, 500000], IMPLEMENTACION
+assert len(ofertas) == 1 + len(IMPLEMENTACION), ofertas
+assert ofertas[0]["priceSpecification"]["referenceQuantity"]["unitCode"] == "MON", ofertas[0]
+seccion_precios = re.search(r'id="precios".*?</section>', cuerpo, re.S).group(0)
+for oferta in ofertas:
+    assert oferta["priceCurrency"] == "COP", oferta
+    visible = "$" + f"{int(oferta['price']):,}".replace(",", ".")    # 65000 -> $65.000
+    assert visible in seccion_precios, f"{oferta['name']}: {visible} no se ve en #precios"
+for rango, _p in IMPLEMENTACION:
+    assert rango in seccion_precios, f"tramo {rango!r} no se ve en #precios"
+# Sin la oferta vieja ni la prueba gratis retirada.
+for viejo in ("49.900", "99.900", "prueba gratis", "Prueba gratis", "14 días", "tarjeta de crédito"):
+    assert viejo not in cuerpo, f"la landing aun dice {viejo!r}"
 
 # Sin valoraciones inventadas: incumple las politicas de Google.
 assert "aggregateRating" not in aplicacion, "no se pueden declarar valoraciones inexistentes"
@@ -220,8 +231,10 @@ assert organizacion["sameAs"], "falta sameAs con los perfiles oficiales"
 # FAQPage: las mismas preguntas y respuestas que la seccion visible #faq.
 from html import unescape  # noqa: E402
 
-faq_jsonld = [(q["name"], q["acceptedAnswer"]["text"]) for q in por_tipo["FAQPage"]["mainEntity"]]
-seccion_faq = re.search(r'<section class="faq" id="faq".*?</section>', cuerpo, re.S)
+# split() normaliza espacios (incluidos los no separables del horario).
+faq_jsonld = [(q["name"], " ".join(q["acceptedAnswer"]["text"].split())) for q in por_tipo["FAQPage"]["mainEntity"]]
+assert not any(".." in r for _q, r in faq_jsonld), "respuesta del FAQ con doble punto"
+seccion_faq = re.search(r'<section [^>]*id="faq".*?</section>', cuerpo, re.S)
 assert seccion_faq, "falta la seccion #faq visible"
 faq_visible = [
     (unescape(q).strip(), unescape(" ".join(a.split())))
@@ -525,6 +538,13 @@ with app.test_client() as c:
         assert cta and cta.group(1).endswith("/registro"), f"{ruta}: CTA sin enlace a /registro"
         resumen = articulo[i_resumen:articulo.index("</aside>")]
         assert resumen.count("<li>") == 5, f"{ruta}: el resumen no tiene 5 puntos"
+        # Educativa primero: jemPOS solo aparece en el ultimo parrafo del cuerpo.
+        parrafos = re.findall(r'<p class="legal__p">(.*?)</p>', articulo[articulo.index("</aside>"):], re.S)
+        con_marca = [i for i, p in enumerate(parrafos) if "jemPOS" in p]
+        assert con_marca == [len(parrafos) - 1], f"{ruta}: jemPOS en parrafos {con_marca} de {len(parrafos)}"
+        palabras = len(texto(articulo).split())
+        assert palabras >= 600, f"{ruta}: {palabras} palabras, articulo demasiado corto"
+        assert articulo.count("<h3") >= 3, f"{ruta}: sin subsecciones <h3>"
         # Cluster: la guia enlaza a las demas y a la pilar; la pilar y el indice a ella.
         for otra in GUIAS:
             if otra is not g:
@@ -619,7 +639,7 @@ print("OK 8: GA4 y Search Console desde el entorno, solo tras aceptar cookies, C
 
 
 # ══════════════════════════════════════════════════════════════
-# 9) CTA MOVIL Y COMPARTIR
+# 9) HEADER MOVIL, WHATSAPP FLOTANTE Y COMPARTIR
 # ══════════════════════════════════════════════════════════════
 css = open(os.path.join(RAIZ, "static", "css", "landing.css"), encoding="utf-8").read()
 
@@ -630,21 +650,38 @@ def z_index(patron: str) -> int:
     return int(bloque.group(1))
 
 
-z_cta, z_header, z_cookies = z_index(r"\.cta-movil \{\s*position"), z_index(r"\.header \{"), z_index(r"\.cookies \{")
-assert z_cta < z_header < z_cookies, (z_cta, z_header, z_cookies)
-assert ".cta-movil { display: none; }" in css, "el CTA fijo tiene que estar oculto fuera de movil"
-media = css[css.index("@media (max-width: 768px) {\n  .cta-movil"):]
-assert "position: fixed" in media[:400] and "safe-area-inset-bottom" in media[:600]
-assert re.search(r"\.footer \{\s*padding-bottom: 7rem;", css), "el footer tiene que reservar el hueco del CTA"
+# WhatsApp por encima del contenido y del header, por debajo del aviso de
+# cookies (no le tapa el boton Aceptar).
+z_wa, z_header, z_cookies = z_index(r"\.wa-flotante \{"), z_index(r"\.header \{"), z_index(r"\.cookies \{")
+assert z_header < z_wa < z_cookies, (z_header, z_wa, z_cookies)
+bloque_wa = re.search(r"\.wa-flotante \{[^}]*\}", css).group(0)
+assert "position: fixed" in bloque_wa and "right:" in bloque_wa and "bottom:" in bloque_wa, bloque_wa
+assert re.search(r"prefers-reduced-motion: reduce\)\s*\{\s*\.wa-flotante::before \{ display: none; \}", css), (
+    "el pulso tiene que apagarse con movimiento reducido"
+)
+assert re.search(r"\.footer \{\s*padding-bottom: 7rem;", css), "el footer tiene que reservar el hueco inferior"
+# Nada del header se oculta en movil salvo el menu de anclas.
+assert not re.search(r"\.header__login[^{]*\{[^}]*display:\s*none", css), "el login no puede ocultarse"
 
 with app.test_client() as c:
+    landing_html = c.get("/landing").get_data(as_text=True)
+    # "Iniciar sesion" fuera del menu desplegable: visible sin abrir la hamburguesa.
+    menu = re.search(r'<div class="header__menu"[^>]*data-nav-menu>.*?</div>', landing_html, re.S).group(0)
+    assert "auth.login" not in menu and "/login" not in menu, "el login quedo dentro del menu movil"
+    nav = landing_html[landing_html.index('<nav class="header__nav"'):landing_html.index("</nav>")]
+    assert re.search(r'class="btn btn--primary btn--sm header__login" href="/login"', nav), "falta el login visible"
+
+    for ruta in ("/landing", f"/guias/{GUIAS[0]['slug']}", "/legal/aviso-legal"):
+        html = c.get(ruta).get_data(as_text=True)
+        wa = re.search(r'<a class="wa-flotante"\s+href="([^"]+)"', html)
+        assert wa and wa.group(1).startswith("https://wa.me/573106152268?text="), f"{ruta}: WhatsApp flotante"
+        assert 'aria-label="Escribir a jemPOS por WhatsApp' in html, ruta
     for ruta in ("/landing", f"/guias/{GUIAS[0]['slug']}"):
         html = c.get(ruta).get_data(as_text=True)
-        assert 'class="cta-movil"' in html and 'href="https://wa.me/573' in html and 'href="tel:+57' in html, ruta
         assert "data-compartir-nativo hidden" in html, f"{ruta}: sin boton nativo de compartir"
         assert "https://wa.me/?text=" in html and "facebook.com/sharer" in html, f"{ruta}: sin enlaces de respaldo"
         assert "/static/js/compartir.js" in html, ruta
 assert "navigator.share" in open(os.path.join(RAIZ, "static", "js", "compartir.js"), encoding="utf-8").read()
 
-print(f"OK 9: CTA fijo solo en movil (z-index {z_cta} < header {z_header} < cookies {z_cookies}); "
-      "compartir nativo con enlaces de respaldo")
+print(f"OK 9: login visible fuera del menu, WhatsApp flotante a +573106152268 "
+      f"(z-index header {z_header} < WhatsApp {z_wa} < cookies {z_cookies}), compartir con respaldo")

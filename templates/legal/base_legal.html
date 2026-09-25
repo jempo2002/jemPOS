@@ -39,6 +39,10 @@
   {# Sin defer: cookies.js marca <html data-cookies-ok> antes del primer frame
      para que el aviso no parpadee a quien ya lo acepto. #}
   <script src="/static/js/cookies.js"></script>
+  {# Inter: la tipografia del POS (permitida en csp_publica). #}
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
   <link rel="stylesheet" href="/static/css/landing.css">
   {% block head_extra %}{% endblock %}
 </head>
@@ -138,7 +142,7 @@
     <p class="footer__copy">&copy; 2026 jemPOS. Todos los derechos reservados.</p>
   </footer>
 
-  {% include "_cta_movil.html" %}
+  {% include "_whatsapp.html" %}
   {% include "_cookies.html" %}
 
   {% block scripts_extra %}{% endblock %}

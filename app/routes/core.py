@@ -4,8 +4,8 @@ import calendar
 import re
 from datetime import date, datetime, timedelta
 
-from flask import Blueprint, jsonify, redirect, render_template, request, session, url_for
-from mysql.connector import IntegrityError
+from flask import Blueprint, current_app, jsonify, redirect, render_template, request, session, url_for
+from mysql.connector import Error as MySQLError, IntegrityError
 from werkzeug.security import generate_password_hash
 
 from app.services.auth_service import (
@@ -1114,7 +1114,14 @@ def api_master_movimientos_delete(id_movimiento):
 def api_dashboard():
     filtro = request.args.get("filter") or request.args.get("filtro") or request.args.get("period") or "hoy"
     fecha = request.args.get("fecha") or None
-    return jsonify({"ok": True, **_build_dashboard_data(session["id_tienda"], filtro, fecha)})
+    try:
+        data = _build_dashboard_data(session["id_tienda"], filtro, fecha)
+    except MySQLError as exc:
+        # El mensaje del motor dice que falta ("Unknown column 'dv.unidad_venta'"):
+        # casi siempre una migracion sin aplicar. Solo lo ven Admin/Master.
+        current_app.logger.exception("api_dashboard: error de base de datos")
+        return jsonify({"ok": False, "msg": f"Error de base de datos ({exc.errno}): {exc.msg}"}), 500
+    return jsonify({"ok": True, **data})
 
 
 @core_bp.route("/api/perfil", methods=["GET"])

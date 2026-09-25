@@ -333,20 +333,27 @@
     if (estado.fecha) params.set('fecha', estado.fecha);
     else params.set('filter', estado.period);
     if (btnRefrescar) btnRefrescar.classList.add('is-loading');
+    var res = null;
     try {
-      var res = await fetch('/api/dashboard?' + params.toString(), {
+      res = await fetch('/api/dashboard?' + params.toString(), {
         headers: { 'X-Requested-With': 'XMLHttpRequest' },
       });
       if (res.status === 401) { window.location.href = '/login'; return; }
-      var data = await res.json();
+      /* Un 500 de HTML (proxy, gunicorn caido) no es JSON: no tapar el status. */
+      var data = await res.json().catch(function () { return {}; });
       if (mia !== peticion) return;
-      if (!res.ok || !data.ok) throw new Error(data.msg || 'Respuesta invalida');
+      if (!res.ok || !data.ok) throw new Error('HTTP ' + res.status + ': ' + (data.msg || res.statusText || 'Respuesta invalida'));
       renderFinanzas(data);
       renderPersonal(data.personal || []);
       document.getElementById('dash-actualizado').textContent = data.actualizado || '';
     } catch (err) {
-      console.error(err);
-      if (mia === peticion) document.getElementById('dash-actualizado').textContent = 'sin conexion, reintentando';
+      /* Sin `res` el fetch no llego al servidor (red, CORS, DNS). Con `res`
+         el servidor respondio: 500 = fallo SQL/backend, 200 = fallo al pintar. */
+      console.error(res ? '[dashboard] /api/dashboard respondio ' + res.status + ':' : '[dashboard] sin respuesta de /api/dashboard:', err);
+      if (mia === peticion) {
+        document.getElementById('dash-actualizado').textContent =
+          res ? 'error del servidor, reintentando' : 'sin conexion, reintentando';
+      }
     } finally {
       if (mia === peticion && btnRefrescar) btnRefrescar.classList.remove('is-loading');
     }

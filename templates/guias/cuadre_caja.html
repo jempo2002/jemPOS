@@ -1,0 +1,114 @@
+{# Guia: cuadre de caja. Metadatos en app/routes/guias.py (clave "cuadre_caja").
+   Listas/tablas del <article>: resumen + tabla de ejemplo + pasos = 3. #}
+{% extends "guias/base_guia.html" %}
+
+{% block cuerpo %}
+<section class="legal__section" aria-labelledby="formula">
+  <h2 class="legal__h2" id="formula">La fórmula del cuadre de caja</h2>
+  <p class="legal__p">
+    El cuadre compara dos números: el <strong>efectivo esperado</strong>, que
+    sale de sumar y restar los movimientos del turno, y el
+    <strong>efectivo contado</strong>, que es lo que hay físicamente en la caja.
+    Solo entra la plata en billetes y monedas: lo que te pagaron por Nequi,
+    Daviplata o tarjeta llega al banco y se revisa aparte.
+  </p>
+  <div class="table-scroll">
+  <table class="guia__tabla">
+    <caption>Ejemplo: cuadre de un turno de tienda</caption>
+    <thead>
+      <tr><th scope="col">Concepto</th><th scope="col">Valor</th></tr>
+    </thead>
+    <tbody>
+      <tr><th scope="row">Base con la que abriste</th><td>$100.000</td></tr>
+      <tr><th scope="row">+ Ventas en efectivo</th><td>$450.000</td></tr>
+      <tr><th scope="row">+ Abonos de fiados en efectivo</th><td>$50.000</td></tr>
+      <tr><th scope="row">− Gastos pagados con la caja</th><td>$30.000</td></tr>
+    </tbody>
+    <tfoot>
+      <tr><th scope="row">Efectivo esperado</th><td>$570.000</td></tr>
+    </tfoot>
+  </table>
+  </div>
+  <p class="legal__p">
+    Si al contar tienes $565.000, faltan $5.000. Si tienes $575.000, sobran
+    $5.000. <strong>Los dos casos son descuadres</strong>: un sobrante casi
+    siempre es una venta que no se registró, y esa venta tampoco descontó
+    inventario.
+  </p>
+</section>
+
+<section class="legal__section" aria-labelledby="pasos">
+  <h2 class="legal__h2" id="pasos">Paso a paso para cerrar la caja</h2>
+  <ol class="legal__list guia__pasos">
+    <li>Cierra el turno antes de contar, para que no entren ventas mientras cuentas.</li>
+    <li>Separa la base con la que abriste; es la misma que dejarás para mañana.</li>
+    <li>Cuenta billetes y monedas por denominación, de mayor a menor.</li>
+    <li>Suma ventas y abonos en efectivo del turno y resta los gastos que salieron de la caja.</li>
+    <li>Compara con el conteo y anota la diferencia con su explicación y quién cerró.</li>
+  </ol>
+</section>
+
+<section class="legal__section" aria-labelledby="causas">
+  <h2 class="legal__h2" id="causas">Por qué se descuadra una caja</h2>
+
+  <h3 class="legal__h3">Gastos que no se anotan</h3>
+  <p class="legal__p">
+    Pagar el domicilio, el hielo o el almuerzo con plata de la caja sin dejarlo
+    registrado produce un faltante que parece robo y no lo es. Anota cada gasto
+    en el momento, con su categoría: además de cuadrar la caja, te sirve para
+    <a class="legal__link" href="{{ url_guia('contabilidad') }}">llevar las cuentas del negocio</a>.
+  </p>
+
+  <h3 class="legal__h3">Pagos digitales mezclados con el efectivo</h3>
+  <p class="legal__p">
+    Si una transferencia se registra como venta en efectivo, el sistema espera
+    billetes que nunca entraron y la caja “falta”. Registra siempre el método de
+    pago real de cada venta.
+  </p>
+
+  <h3 class="legal__h3">Vueltos mal dados y ventas sin registrar</h3>
+  <p class="legal__p">
+    Un vuelto de más genera faltante; una venta cobrada y no registrada genera
+    sobrante. Cuando la diferencia se repite con el mismo empleado, revisa sus
+    turnos uno por uno en lugar de sumar todo el mes.
+  </p>
+</section>
+
+<section class="legal__section" aria-labelledby="no-cuadra">
+  <h2 class="legal__h2" id="no-cuadra">Qué hacer si la caja no cuadra</h2>
+  <p class="legal__p">
+    Primero, calma: <strong>un descuadre no es necesariamente un robo</strong>.
+    La mayoría son errores de registro que aparecen en minutos si los buscas en
+    orden.
+  </p>
+  <p class="legal__p">
+    <strong>Vuelve a contar</strong> antes de sacar conclusiones: un billete
+    pegado o una moneda en el cajón equivocado explican muchas diferencias
+    pequeñas. Después <strong>revisa los movimientos del turno</strong>: gastos
+    sin anotar, pagos digitales registrados como efectivo y abonos cobrados que
+    nadie registró.
+  </p>
+  <p class="legal__p">
+    Si la diferencia sigue, anótala con su explicación y con el nombre de quien
+    cerró. <strong>No la tapes con plata de tu bolsillo ni con la base de
+    mañana</strong>: esconder un descuadre garantiza que el mismo error se
+    repita.
+  </p>
+</section>
+
+<section class="legal__section" aria-labelledby="automatizar">
+  <h2 class="legal__h2" id="automatizar">Cuando la cuenta se hace sola</h2>
+  <p class="legal__p">
+    Todo lo anterior funciona con cuaderno y calculadora. Si prefieres no hacer
+    la suma cada noche, en jemPOS abres el turno con la base y cada venta en
+    efectivo, abono y gasto queda registrado a nombre de quien lo hizo.
+  </p>
+  <p class="legal__p">
+    Al cerrar solo digitas lo que contaste: el sistema calcula el efectivo
+    esperado, te dice al instante si sobra o falta y deja constancia de quién
+    abrió y cerró el turno. Como cada venta descuenta el stock, el mismo
+    registro te ayuda a
+    <a class="legal__link" href="{{ url_guia('inventario') }}">controlar el inventario</a>.
+  </p>
+</section>
+{% endblock %}

@@ -1,0 +1,95 @@
+{# Guia: control de inventario. Metadatos en app/routes/guias.py (clave "inventario").
+   Listas/tablas del <article>: resumen + tabla de stock minimo + errores = 3. #}
+{% extends "guias/base_guia.html" %}
+
+{% block cuerpo %}
+<section class="legal__section" aria-labelledby="regla">
+  <h2 class="legal__h2" id="regla">Entradas y salidas: la regla de oro</h2>
+  <p class="legal__p">
+    Si cuentas todo a fin de mes y nunca te da igual, no es falta de orden: es
+    que el método depende de que nadie olvide nada.
+    <strong>El inventario se descuadra por los movimientos que no se
+    registran.</strong>
+  </p>
+  <p class="legal__p">
+    Cada pedido del proveedor es una entrada y cada venta es una salida. Si las
+    dos quedan anotadas en el momento, el stock anotado coincide con el del
+    estante sin contar todo cada semana. Y <strong>revisa el pedido contra la
+    factura al recibirlo</strong>: es el último momento en que un faltante del
+    proveedor todavía se puede reclamar.
+  </p>
+</section>
+
+<section class="legal__section" aria-labelledby="minimo">
+  <h2 class="legal__h2" id="minimo">Cómo calcular el stock mínimo</h2>
+  <p class="legal__p">
+    El stock mínimo es la cantidad a la que debes volver a pedir. Se calcula
+    así: <strong>ventas promedio por día × días que tarda el proveedor en
+    surtir + un margen de seguridad</strong>. El margen cubre los días de más
+    venta, como quincenas o partidos.
+  </p>
+  <div class="table-scroll">
+  <table class="guia__tabla">
+    <caption>Ejemplo: gaseosa de 1,5 litros</caption>
+    <thead>
+      <tr><th scope="col">Dato</th><th scope="col">Valor</th></tr>
+    </thead>
+    <tbody>
+      <tr><th scope="row">Ventas promedio por día</th><td>6 unidades</td></tr>
+      <tr><th scope="row">Días que tarda el proveedor</th><td>3 días</td></tr>
+      <tr><th scope="row">Margen de seguridad (1 día de venta)</th><td>6 unidades</td></tr>
+    </tbody>
+    <tfoot>
+      <tr><th scope="row">Stock mínimo</th><td>24 unidades</td></tr>
+    </tfoot>
+  </table>
+  </div>
+  <p class="legal__p">
+    Cuando queden 24 unidades, haz el pedido. Revisa el cálculo cada pocos
+    meses: si el producto empieza a venderse más, el mínimo también sube.
+  </p>
+</section>
+
+<section class="legal__section" aria-labelledby="errores">
+  <h2 class="legal__h2" id="errores">Errores comunes al manejar el inventario</h2>
+  <ul class="legal__list">
+    <li>Sacar productos para la casa sin registrarlos como salida.</li>
+    <li>Recibir pedidos sin revisarlos contra la factura.</li>
+    <li>Olvidar las devoluciones y los productos vencidos.</li>
+    <li>Tener el mismo producto creado dos veces con nombres distintos.</li>
+  </ul>
+</section>
+
+<section class="legal__section" aria-labelledby="conteos">
+  <h2 class="legal__h2" id="conteos">Conteos físicos sin cerrar la tienda</h2>
+  <p class="legal__p">
+    En lugar de contar todo el último día del mes, <strong>cuenta una categoría
+    por semana</strong>: bebidas, luego aseo, luego abarrotes. Compara con lo
+    que tienes anotado y corrige de inmediato. Las diferencias que se repiten en
+    la misma categoría te dicen dónde está la fuga.
+  </p>
+  <p class="legal__p">
+    De paso, fíjate en lo que casi no se mueve. <strong>Un producto que no rota
+    es plata quieta en el estante</strong>: pide menos de él o sácalo con una
+    promoción antes de que se venza.
+  </p>
+</section>
+
+<section class="legal__section" aria-labelledby="automatizar">
+  <h2 class="legal__h2" id="automatizar">Un inventario que se descuenta solo</h2>
+  <p class="legal__p">
+    Con cuaderno, todo esto exige disciplina diaria. En jemPOS cada venta
+    descuenta el stock en el momento y el sistema te avisa cuando un producto
+    llega al mínimo que definiste.
+  </p>
+  <p class="legal__p">
+    Organizas los productos por categorías y proveedores, y la cámara del
+    celular sirve como lector de código de barras para vender o registrar
+    mercancía. Como las ventas quedan ligadas al turno, el mismo registro te
+    sirve para
+    <a class="legal__link" href="{{ url_guia('cuadre_caja') }}">hacer el cuadre de caja</a>
+    y para ver qué productos te dejan más ganancia en
+    <a class="legal__link" href="{{ url_guia('contabilidad') }}">las cuentas del negocio</a>.
+  </p>
+</section>
+{% endblock %}

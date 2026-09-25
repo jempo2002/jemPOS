@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import os
 from datetime import timedelta
 
@@ -13,7 +14,7 @@ from flask_wtf.csrf import CSRFProtect
 from app.performance import init_compresion
 from app.security import cerrar_sesion_publica, init_security
 from database import init_pool_from_app
-from app.utils.decorators import login_required, roles_required
+from app.utils.decorators import _is_api_request, log_seguridad, login_required, roles_required
 from app.utils.helpers import avatar_iniciales
 
 csrf = CSRFProtect()
@@ -21,6 +22,9 @@ server_session = Session()
 limiter = Limiter(
     key_func=get_remote_address,
     default_limits=["200 per day", "50 per hour"],
+    # memory:// cuenta por worker (gunicorn -w 2 = limites x2 y se pierden al
+    # reiniciar). En produccion: RATELIMIT_STORAGE_URI=redis://...
+    storage_uri=os.getenv("RATELIMIT_STORAGE_URI") or "memory://",
 )
 
 def _required_env(name: str, allow_empty: bool = False) -> str:
@@ -67,6 +71,10 @@ def create_app() -> Flask:
         DB_NAME=_required_env("DB_NAME"),
     )
 
+    # Los WARNING de seguridad (log_seguridad) salen por stderr: gunicorn los
+    # recoge con --error-logfile -.
+    app.logger.setLevel(logging.INFO)
+
     csrf.init_app(app)
     server_session.init_app(app)
     limiter.init_app(app)
@@ -77,6 +85,7 @@ def create_app() -> Flask:
     from app.routes.auth import auth
     from app.routes.cartera import cartera_api_bp, cartera_bp
     from app.routes.core import core_bp
+    from app.routes.guias import guias_bp
     from app.routes.inventory import inventory_api_bp, inventory_bp
     from app.routes.legal import legal_bp
     from app.routes.seo import seo_bp
@@ -84,6 +93,7 @@ def create_app() -> Flask:
 
     app.register_blueprint(auth)
     app.register_blueprint(core_bp)
+    app.register_blueprint(guias_bp)
     app.register_blueprint(cartera_bp)
     app.register_blueprint(cartera_api_bp)
     app.register_blueprint(inventory_bp)
@@ -116,6 +126,7 @@ def create_app() -> Flask:
 
     @app.errorhandler(429)
     def rate_limit_exceeded(_err):
+        log_seguridad("rate_limit")
         return (
             jsonify(
                 {
@@ -125,5 +136,20 @@ def create_app() -> Flask:
             ),
             429,
         )
+
+    @app.errorhandler(500)
+    def error_interno(_err):
+        # Flask ya dejo la traza en el log; al usuario, nada interno.
+        if _is_api_request():
+            return jsonify({"ok": False, "msg": "Error interno del servidor."}), 500
+        return "Error interno del servidor. Intenta de nuevo.", 500
+
+    @app.after_request
+    def _log_ids_ajenos(response):
+        # 404 autenticado en una API = ID inexistente o de otra tienda (los
+        # servicios filtran por id_tienda). Muchos seguidos = enumeracion.
+        if response.status_code == 404 and session.get("id_usuario") and _is_api_request():
+            log_seguridad("recurso_no_encontrado")
+        return response
 
     return app

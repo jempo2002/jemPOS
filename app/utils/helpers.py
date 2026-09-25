@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import unicodedata
 
 
 def avatar_iniciales(nombre: str) -> str:
@@ -46,3 +47,18 @@ def normalize_phone(raw_value: str | None, max_len: int = 10) -> str | None:
     """Return normalized phone digits or None when empty."""
     digits = only_digits(raw_value, max_len=max_len)
     return digits or None
+
+
+# Conectores, preposiciones y determinantes que no aportan a la URL:
+# "Control de inventario para tiendas" -> "control-inventario-tiendas".
+_STOPWORDS_SLUG = frozenset(
+    "a al ante bajo con contra de del desde durante e el en entre hacia hasta "
+    "la las lo los mediante mi mis o para por que segun sin sobre su sus tras "
+    "tu tus u un una unas unos y".split()
+)
+
+
+def slugify(texto: str) -> str:
+    """Slug semantico: minusculas, sin tildes ni stopwords, unido por guiones."""
+    plano = unicodedata.normalize("NFKD", str(texto or "")).encode("ascii", "ignore").decode().lower()
+    return "-".join(p for p in re.findall(r"[a-z0-9]+", plano) if p not in _STOPWORDS_SLUG)

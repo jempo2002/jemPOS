@@ -4,7 +4,7 @@
    (app/routes/legal.py y app/routes/seo.py): no se escriben aqui a mano. #}
 {% extends "legal/base_legal.html" %}
 
-{% block titulo_pagina %}Politica de privacidad — jemPOS, punto de venta y gestion integral{% endblock %}
+{% block titulo_pagina %}Tratamiento de datos personales y habeas data en jemPOS{% endblock %}
 {% block meta_descripcion %}Politica de tratamiento de datos personales de jemPOS: quien es el responsable, que datos recogemos, con que finalidad, cuanto los conservamos y como ejercer tus derechos de habeas data.{% endblock %}
 {% block titulo %}Politica de privacidad{% endblock %}
 
@@ -12,9 +12,10 @@
   <section class="legal__section" aria-labelledby="responsable">
     <h2 class="legal__h2" id="responsable">1. Responsable del tratamiento</h2>
     <p class="legal__p">
-      Responsable: <strong>{{ empresa.razon_social }}</strong>, NIT
-      <strong>{{ empresa.nit }}</strong>, con domicilio en
-      <strong>{{ empresa.domicilio }}</strong> ({{ empresa.ciudad }}, Colombia).
+      Responsable: <strong>{{ empresa.razon_social }}</strong>{% if empresa.nit %}, NIT
+      <strong>{{ empresa.nit }}</strong>{% endif %}. Domicilio:
+      <strong>{{ empresa.domicilio }}</strong>, sin establecimiento abierto al
+      publico.
     </p>
     <p class="legal__p">
       Canal de atencion al titular:
@@ -97,19 +98,31 @@
   <section class="legal__section" aria-labelledby="cookies">
     <h2 class="legal__h2" id="cookies">5. Cookies y almacenamiento local</h2>
     <p class="legal__p">
-      jemPOS usa unicamente cookies propias y tecnicamente necesarias:
+      jemPOS usa cookies propias y tecnicamente necesarias:
     </p>
     <ul class="legal__list">
       <li><strong>Cookie de sesion:</strong> mantiene la autenticacion mientras usas la plataforma. Se elimina al cerrar sesion y caduca por inactividad.</li>
       <li><strong>Token CSRF:</strong> protege los formularios frente a peticiones falsificadas desde otros sitios.</li>
       <li><strong>Almacenamiento local:</strong> recuerda que aceptaste este aviso y algunas preferencias de la interfaz. No sale de tu navegador.</li>
     </ul>
+    {# Depende de GA_MEASUREMENT_ID: el texto legal no puede negar una
+       analitica que si esta activa. #}
+    {% if analitica.ga_id %}
+    <p class="legal__p">
+      En las paginas publicas (inicio, guias y registro), y solo si aceptas el
+      aviso de cookies, usamos Google Analytics para contar visitas y saber que
+      paginas se leen. No se carga dentro de la plataforma ni recibe los datos
+      de tu negocio. Si no aceptas el aviso, no se activa. No usamos cookies de
+      publicidad ni de perfilado.
+    </p>
+    {% else %}
     <p class="legal__p">
       No utilizamos cookies de publicidad, de perfilado ni de analitica de
       terceros. Como todas son necesarias para que la plataforma funcione, no
       hay un panel para desactivarlas: bloquearlas desde el navegador impide
       iniciar sesion.
     </p>
+    {% endif %}
   </section>
 
   <section class="legal__section" aria-labelledby="terceros">
@@ -123,6 +136,7 @@
     <ul class="legal__list">
       <li><strong>Alojamiento de la aplicacion y de la base de datos:</strong> Railway Corp. (Estados Unidos).</li>
       <li><strong>Envio de correo transaccional:</strong> Google LLC, mediante el servicio SMTP de Gmail (Estados Unidos).</li>
+      {% if analitica.ga_id %}<li><strong>Analitica web de las paginas publicas:</strong> Google LLC, mediante Google Analytics (Estados Unidos), solo con tu consentimiento.</li>{% endif %}
     </ul>
     <p class="legal__p">
       Esto implica una transferencia internacional de datos hacia Estados

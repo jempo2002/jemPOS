@@ -356,10 +356,15 @@ app = create_app()
 app.config.update(WTF_CSRF_ENABLED=False, RATELIMIT_ENABLED=False)
 
 
+# login_required relee rol y tienda de la base: usuarios reales del volcado.
+USUARIOS_QA = {"Cajero": (8, 4), "Admin": (2, 1)}
+
+
 def sesion(cliente, rol):
+    id_usuario, id_tienda = USUARIOS_QA[rol]
     with cliente.session_transaction() as s:
-        s["id_usuario"] = 1
-        s["id_tienda"] = 1
+        s["id_usuario"] = id_usuario
+        s["id_tienda"] = id_tienda
         s["rol"] = rol
 
 

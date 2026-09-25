@@ -5,10 +5,12 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   {% include "_favicon.html" %}
-  <title>jemPOS - Registra tu negocio</title>
+  <title>Crea tu cuenta gratis en jemPOS: punto de venta en la nube</title>
   <meta name="description" content="Crea tu cuenta gratis en jemPOS y empieza a vender hoy: punto de venta, control de inventario, cartera y reportes contables en un solo sistema.">
   <meta name="robots" content="index, follow">
   <meta name="theme-color" content="#3b82f6">
+  <link rel="canonical" href="{{ url_for('auth.registro', _external=True) }}">
+  {% include "_analitica.html" %}
   <!-- Google Fonts: Inter -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -43,9 +45,10 @@
 
     <!-- LOGO TIPOGRAFICO -->
     <div class="text-center mb-5">
-      <h1 class="text-3xl font-bold tracking-tight">
+      {# El logo no es el titulo de la pagina: el <h1> es "Registra tu negocio". #}
+      <p class="text-3xl font-bold tracking-tight">
         <span class="text-ink">jem</span><span class="text-brand-500">POS</span>
-      </h1>
+      </p>
       <p class="mt-1 text-xs text-muted font-medium">Tu punto de venta, en tus manos.</p>
     </div>
 
@@ -54,7 +57,7 @@
 
       <!-- Encabezado del formulario -->
       <div class="mb-4">
-        <h2 class="text-lg font-bold text-ink">Registra tu negocio</h2>
+        <h1 class="text-lg font-bold text-ink">Registra tu negocio</h1>
         <p class="text-sm text-slate-600 mt-0.5">Completa los datos para activar tu cuenta gratuita.</p>
       </div>
 

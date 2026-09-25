@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hmac
 import re
 
 import mysql.connector
@@ -13,22 +14,35 @@ from app.services.auth_service import (
     create_reset_token,
     decode_reset_token,
     first_password_policy_error,
+    huella_clave,
     initialize_user_session,
     is_valid_email,
     liberar_datos_inactivos,
     resolve_post_login_redirect,
     send_recovery_email,
 )
-from app.utils.decorators import login_required
+from app.utils.decorators import log_seguridad, login_required
 from app.utils.validation import sanitize_optional_text, sanitize_text
 from database import get_db
 
 auth = Blueprint("auth", __name__)
 LOGIN_RATE_LIMIT = "5 per minute"
+# Por cuenta, no por IP: frena la fuerza bruta distribuida contra un correo.
+LOGIN_CUENTA_RATE_LIMIT = "10 per 15 minutes"
+# Hash valido para comparar cuando el correo no existe: iguala el tiempo de
+# respuesta y no delata que cuentas existen.
+_HASH_SENUELO = generate_password_hash("jempos-senuelo")
+_CREDENCIALES_INVALIDAS = "Correo o contrasena incorrectos."
+
+
+def _correo_login() -> str:
+    data = request.get_json(silent=True) if request.is_json else request.form
+    return "login:" + str((data or {}).get("correo", "")).strip().lower()[:150]
 
 
 @auth.route("/login", methods=["GET", "POST"])
 @limiter.limit(LOGIN_RATE_LIMIT, methods=["POST"])
+@limiter.limit(LOGIN_CUENTA_RATE_LIMIT, methods=["POST"], key_func=_correo_login)
 def login():
     if request.method == "GET":
         # Ruta publica: abrir el login destruye cualquier sesion activa en vez
@@ -74,16 +88,13 @@ def login():
     finally:
         conn.close()
 
-    if not user:
+    # Mismo mensaje y mismo coste de hash exista o no el correo.
+    clave_ok = check_password_hash(user["clave_hash"] if user else _HASH_SENUELO, contrasena)
+    if not user or not clave_ok:
+        log_seguridad("login_fallido", correo=correo, existe=bool(user))
         if request.is_json:
-            return jsonify({"ok": False, "field": "correo", "msg": "Usuario no encontrado."}), 401
-        flash("Usuario no encontrado.", "error")
-        return redirect(url_for("auth.login"))
-
-    if not check_password_hash(user["clave_hash"], contrasena):
-        if request.is_json:
-            return jsonify({"ok": False, "field": "contrasena", "msg": "Contrasena incorrecta."}), 401
-        flash("Contrasena incorrecta.", "error")
+            return jsonify({"ok": False, "field": "contrasena", "msg": _CREDENCIALES_INVALIDAS}), 401
+        flash(_CREDENCIALES_INVALIDAS, "error")
         return redirect(url_for("auth.login"))
 
     if not user["estado_activo"]:
@@ -93,6 +104,10 @@ def login():
         return redirect(url_for("auth.login"))
 
     initialize_user_session(session, user)
+    # ID de sesion nuevo al autenticarse: anula una fijacion de sesion previa.
+    # (Solo Flask-Session lo tiene; el app.py heredado usa cookie firmada.)
+    if hasattr(current_app.session_interface, "regenerate"):
+        current_app.session_interface.regenerate(session)
     # Admin must always land on dashboard after login.
     if str(user.get("rol") or "").strip().lower() == "admin":
         redirect_url = "/dashboard"
@@ -124,6 +139,7 @@ def api_logout():
 
 
 @auth.route("/registro", methods=["GET", "POST"])
+@limiter.limit("10 per hour", methods=["POST"])
 def registro():
     if request.method == "GET":
         return render_template("auth/registro.html")
@@ -196,6 +212,7 @@ def registro():
 
 @auth.route("/olvide_password", methods=["GET", "POST"])
 @auth.route("/olvide-password", methods=["GET", "POST"])
+@limiter.limit("3 per minute; 10 per hour", methods=["POST"])
 def olvide_password():
     if request.method == "POST":
         correo = str(request.form.get("correo", "")).strip().lower()
@@ -206,13 +223,16 @@ def olvide_password():
             conn = get_db()
             try:
                 cur = conn.cursor(dictionary=True)
-                cur.execute("SELECT correo FROM usuarios WHERE correo = %s LIMIT 1", (correo,))
+                cur.execute(
+                    "SELECT correo, clave_hash FROM usuarios WHERE correo = %s AND estado_activo = 1 LIMIT 1",
+                    (correo,),
+                )
                 user = cur.fetchone()
             finally:
                 conn.close()
 
             if user:
-                token = create_reset_token(current_app.secret_key, correo)
+                token = create_reset_token(current_app.secret_key, correo, user["clave_hash"])
                 enlace = url_for("auth.reset_password", token=token, _external=True)
                 # Fire-and-forget: mail is dispatched in background and failures are logged.
                 send_recovery_email(correo, enlace)
@@ -225,9 +245,10 @@ def olvide_password():
 
 @auth.route("/reset_password/<token>", methods=["GET", "POST"])
 @auth.route("/reset-password/<token>", methods=["GET", "POST"])
+@limiter.limit("10 per minute", methods=["POST"])
 def reset_password(token):
     try:
-        correo = decode_reset_token(current_app.secret_key, token)
+        correo, huella = decode_reset_token(current_app.secret_key, token)
     except (SignatureExpired, BadSignature):
         flash("Enlace inválido o expirado", "error")
         return redirect(url_for("auth.login"))
@@ -240,14 +261,18 @@ def reset_password(token):
     try:
         cur = conn.cursor(dictionary=True)
         cur.execute(
-            "SELECT id_usuario, correo, estado_activo FROM usuarios WHERE correo = %s LIMIT 1",
+            "SELECT id_usuario, correo, estado_activo, clave_hash FROM usuarios WHERE correo = %s LIMIT 1",
             (correo,),
         )
         user = cur.fetchone()
     finally:
         conn.close()
 
-    if not user or not user.get("estado_activo"):
+    if (
+        not user
+        or not user.get("estado_activo")
+        or not hmac.compare_digest(huella, huella_clave(user["clave_hash"]))
+    ):
         flash("Enlace inválido o expirado", "error")
         return redirect(url_for("auth.login"))
 

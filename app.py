@@ -13,6 +13,7 @@ from app import limiter
 from app.routes.auth import auth
 from app.routes.cartera import cartera_api_bp, cartera_bp
 from app.routes.core import core_bp
+from app.routes.guias import guias_bp
 from app.routes.inventory import inventory_api_bp, inventory_bp
 from app.routes.legal import legal_bp
 from app.routes.seo import seo_bp
@@ -57,6 +58,7 @@ init_compresion(app)
 
 app.register_blueprint(auth)
 app.register_blueprint(core_bp)
+app.register_blueprint(guias_bp)
 app.register_blueprint(cartera_bp)
 app.register_blueprint(cartera_api_bp)
 app.register_blueprint(inventory_bp)
@@ -107,4 +109,6 @@ def rate_limit_exceeded(_err):
 
 
 if __name__ == "__main__":
-    app.run(debug=True, host="0.0.0.0", port=5000)
+    from app.security import es_desarrollo
+
+    app.run(debug=es_desarrollo(), host="0.0.0.0", port=5000)

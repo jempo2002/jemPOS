@@ -532,7 +532,7 @@ def get_ventas(
             "COALESCE(c.nombre, 'Mostrador') AS nombre_cliente, "
             "u.nombre_completo AS nombre_cajero "
             "FROM ventas v "
-            "LEFT JOIN clientes c ON v.id_cliente = c.id_cliente "
+            "LEFT JOIN clientes c ON v.id_cliente = c.id_cliente AND c.id_tienda = v.id_tienda "
             "LEFT JOIN usuarios u ON v.id_cajero = u.id_usuario "
             f"WHERE {where} "
             "ORDER BY v.id_venta DESC LIMIT %s OFFSET %s",
@@ -842,31 +842,40 @@ def registrar_venta(
             raise SalesConflictError("Abre un turno antes de registrar ventas.")
         if es_fiado:
             id_cliente = _resolver_cliente_fiado(cur, id_tienda, cliente)
+        elif id_cliente is not None:
+            # Sin esto se podia colgar la venta de un cliente de otra tienda y
+            # leer su nombre despues en el historial (IDOR por enumeracion).
+            cur.execute(
+                "SELECT 1 FROM clientes WHERE id_cliente = %s AND id_tienda = %s AND estado_activo = 1 LIMIT 1",
+                (id_cliente, id_tienda),
+            )
+            if not cur.fetchone():
+                raise SalesNotFoundError("Cliente no encontrado.")
 
         lineas_validas = []
         for item in items:
             try:
                 id_producto = int(item["id"])
                 cantidad = float(item["qty"])
-                precio = float(item["price"])
             except (KeyError, TypeError, ValueError) as exc:
                 raise SalesValidationError("Detalle de item invalido.") from exc
 
             if cantidad <= 0:
                 raise SalesValidationError("La cantidad debe ser mayor a cero.")
-            if precio < 0:
-                raise SalesValidationError("El precio no puede ser negativo.")
             if id_producto <= 0:
                 raise SalesValidationError("Producto invalido.")
 
             cur.execute(
-                "SELECT id_producto, nombre, stock_actual, stock_minimo_alerta, COALESCE(es_preparado, 0) AS es_preparado "
-                "FROM productos WHERE id_producto = %s AND id_tienda = %s LIMIT 1 FOR UPDATE",
+                "SELECT id_producto, nombre, precio_venta, stock_actual, stock_minimo_alerta, COALESCE(es_preparado, 0) AS es_preparado "
+                "FROM productos WHERE id_producto = %s AND id_tienda = %s AND estado_activo = 1 LIMIT 1 FOR UPDATE",
                 (id_producto, id_tienda),
             )
             producto = cur.fetchone()
             if not producto:
                 raise SalesNotFoundError("Producto no encontrado.")
+            # El precio lo pone la base, nunca el navegador: con item["price"]
+            # un cajero podia cobrar $1 por cualquier producto.
+            precio = float(producto["precio_venta"] or 0)
 
             recetas = []
             if bool(producto.get("es_preparado") or 0):
@@ -923,6 +932,12 @@ def registrar_venta(
                     "recetas": recetas,
                 }
             )
+
+        # Totales recalculados en el servidor; los del navegador se ignoran.
+        # `descuento` no se resta: la caja no tiene descuento manual y restarlo
+        # dejaria cobrar $0 con discount=subtotal. Solo alimenta la auditoria.
+        subtotal = round(sum(l["precio"] * l["cantidad"] for l in lineas_validas), 2)
+        monto_total = subtotal
 
         # Descuento mayorista B2B: se resuelve en el servidor a partir de la
         # lista asignada al cliente. El navegador nunca decide el porcentaje.

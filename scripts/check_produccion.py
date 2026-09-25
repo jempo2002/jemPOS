@@ -137,7 +137,8 @@ with app.test_client() as c:
     r = c.post("/login", data={"correo": "noexiste@qa.test", "contrasena": "xx"}, follow_redirects=True)
     cuerpo = r.get_data(as_text=True)
     assert r.status_code == 200
-    assert "Usuario no encontrado" in cuerpo, "el flash del login se perdio al limpiar la sesion"
+    # Mensaje generico: no delata si el correo existe.
+    assert "Correo o contrasena incorrectos" in cuerpo, "el flash del login se perdio al limpiar la sesion"
     with c.session_transaction() as s:
         assert "id_usuario" not in s, "la sesion sobrevivio a un login fallido"
 

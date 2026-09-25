@@ -1,4 +1,4 @@
-"""Rutas de rastreo e indexacion: /robots.txt y /sitemap.xml.
+"""Rutas de rastreo e indexacion: /robots.txt, /sitemap.xml y /sitemap.txt.
 
 Blueprint propio y sin url_prefix, porque los rastreadores solo buscan estos dos
 archivos en la raiz del dominio.
@@ -13,15 +13,18 @@ from __future__ import annotations
 
 import json
 import os
+import re
 
 from flask import Blueprint, Response, current_app, send_from_directory, url_for
+
+from app.routes.guias import GUIAS
 
 seo_bp = Blueprint("seo_bp", __name__)
 
 # Fecha que se publica como <lastmod>. Se sube a mano cuando cambia el contenido
 # publico: usar la mtime de los archivos la movería en cada despliegue aunque no
 # hubiera cambiado nada, y eso le enseña al rastreador a desconfiar del dato.
-FECHA_ACTUALIZACION = "2026-09-23"
+FECHA_ACTUALIZACION = "2026-09-25"
 
 # URLs publicas indexables: endpoint -> (prioridad, frecuencia de cambio).
 # La landing va primera y con prioridad 1.0; las legales son contenido estable.
@@ -35,6 +38,7 @@ FECHA_ACTUALIZACION = "2026-09-23"
 PAGINAS_PUBLICAS: tuple[tuple[str, str, str], ...] = (
     ("landing", "1.0", "weekly"),
     ("auth.registro", "0.8", "monthly"),
+    ("guias_bp.indice", "0.7", "weekly"),
     ("legal_bp.aviso_legal", "0.3", "yearly"),
     ("legal_bp.politica_privacidad", "0.3", "yearly"),
 )
@@ -58,6 +62,13 @@ RUTAS_BLOQUEADAS: tuple[str, ...] = (
     "/health",
 )
 
+# Paginacion: /listado?page=2 es el mismo contenido que la pagina 1 con otro
+# orden, contenido duplicado a ojos del rastreador. Hoy solo paginan las APIs
+# privadas (ya bloqueadas); esto cubre cualquier listado publico futuro. El
+# comodin * lo entienden Google y Bing. No tocan /static/: ningun CSS o JS
+# lleva ?page=.
+PATRONES_PAGINACION: tuple[str, ...] = ("/*?page=", "/*&page=", "/page/")
+
 
 @seo_bp.get("/robots.txt")
 def robots_txt():
@@ -72,7 +83,7 @@ def robots_txt():
         # descargar el CSS ni el JS, renderiza la pagina rota y la penaliza.
         "Allow: /static/",
     ]
-    lineas += [f"Disallow: {ruta}" for ruta in RUTAS_BLOQUEADAS]
+    lineas += [f"Disallow: {ruta}" for ruta in RUTAS_BLOQUEADAS + PATRONES_PAGINACION]
     lineas += [
         "",
         f"Sitemap: {url_for('seo_bp.sitemap_xml', _external=True)}",
@@ -103,18 +114,33 @@ def paginas_indexables() -> tuple[tuple[str, str, str], ...]:
     return tuple(p for p in PAGINAS_PUBLICAS if p[0] not in _ENDPOINTS_LEGALES)
 
 
+def urls_indexables() -> list[tuple[str, str, str, str]]:
+    """(loc, lastmod, prioridad, frecuencia) de todo lo indexable.
+
+    Unica fuente de los dos sitemaps. url_for escapa el valor y ProxyFix
+    (app/security.py) garantiza el esquema https detras del proxy: nada de
+    construir URLs a mano. Ninguna lleva query string (?page= incluido).
+    """
+    urls = [
+        (url_for(endpoint, _external=True), FECHA_ACTUALIZACION, prioridad, frecuencia)
+        for endpoint, prioridad, frecuencia in paginas_indexables()
+    ]
+    urls += [
+        (url_for("guias_bp.guia", slug=g["slug"], _external=True), g["actualizada"], "0.7", "monthly")
+        for g in GUIAS
+    ]
+    return urls
+
+
 @seo_bp.get("/sitemap.xml")
 def sitemap_xml():
     """sitemap.xml segun el protocolo sitemaps.org 0.9."""
     urls = []
-    for endpoint, prioridad, frecuencia in paginas_indexables():
-        # url_for escapa el valor y ProxyFix (app/security.py) garantiza el
-        # esquema https detras del proxy: nada de construir URLs a mano.
-        loc = url_for(endpoint, _external=True)
+    for loc, lastmod, prioridad, frecuencia in urls_indexables():
         urls.append(
             "  <url>\n"
             f"    <loc>{_escapar(loc)}</loc>\n"
-            f"    <lastmod>{FECHA_ACTUALIZACION}</lastmod>\n"
+            f"    <lastmod>{lastmod}</lastmod>\n"
             f"    <changefreq>{frecuencia}</changefreq>\n"
             f"    <priority>{prioridad}</priority>\n"
             "  </url>"
@@ -127,6 +153,14 @@ def sitemap_xml():
         + "\n</urlset>\n"
     )
     return Response(xml, mimetype="application/xml")
+
+
+@seo_bp.get("/sitemap.txt")
+def sitemap_txt():
+    """Respaldo en texto plano: una URL absoluta por linea, UTF-8 (formato que
+    aceptan Google y Bing). No se declara en robots.txt para no anunciar dos
+    veces las mismas URLs: se envia a mano en Search Console si hace falta."""
+    return Response("\n".join(u[0] for u in urls_indexables()) + "\n", mimetype="text/plain")
 
 
 @seo_bp.get("/favicon.ico")
@@ -189,16 +223,141 @@ CONTACTO = {
 }
 
 
+# Horario de atencion (soporte por WhatsApp y correo), formato schema.org.
+# Fuente unica: sale en el JSON-LD (contactPoint.hoursAvailable), en el footer
+# y en la respuesta de soporte del FAQ, siempre derivado de esta cadena.
+HORARIO_ATENCION = "Mo-Sa 09:00-21:00"
+
+_DIAS = ("Mo", "Tu", "We", "Th", "Fr", "Sa", "Su")
+_DIAS_EN = ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
+_DIAS_ES = ("lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo")
+
+
+def _partes_horario(horario: str) -> tuple[list[int], str, str]:
+    """"Mo-Sa 09:00-21:00" -> ([0..5], "09:00", "21:00")."""
+    dias, horas = horario.split()
+    desde, hasta = (_DIAS.index(d) for d in dias.split("-"))
+    abre, cierra = horas.split("-")
+    return list(range(desde, hasta + 1)), abre, cierra
+
+
+def _hora_12(hhmm: str) -> str:
+    hh, mm = (int(x) for x in hhmm.split(":"))
+    return f"{(hh - 1) % 12 + 1}:{mm:02d} {'a. m.' if hh < 12 else 'p. m.'}"
+
+
+def horario_schema(horario: str) -> dict:
+    dias, abre, cierra = _partes_horario(horario)
+    return {
+        "@type": "OpeningHoursSpecification",
+        "dayOfWeek": [_DIAS_EN[d] for d in dias],
+        "opens": abre,
+        "closes": cierra,
+    }
+
+
+def horario_visible(horario: str) -> str:
+    dias, abre, cierra = _partes_horario(horario)
+    return f"{_DIAS_ES[dias[0]]} a {_DIAS_ES[dias[-1]]}, de {_hora_12(abre)} a {_hora_12(cierra)}"
+
+
+CONTACTO["horario"] = horario_visible(HORARIO_ATENCION)
+
+# Preguntas frecuentes del landing. Fuente unica: la seccion #faq se pinta con
+# esta lista y el FAQPage del JSON-LD sale de la misma, asi que Google nunca ve
+# una respuesta distinta a la visible. Texto plano (sin HTML): va igual al DOM
+# y al JSON. Cada respuesta se apoya en algo que la app hace de verdad o que
+# dicen los textos legales.
+PREGUNTAS_FRECUENTES: tuple[dict, ...] = (
+    {
+        "pregunta": "¿Necesito internet para usar jemPOS?",
+        "respuesta": (
+            "Sí, jemPOS funciona en la nube. Pero si la conexión se cae en plena "
+            "venta, la caja guarda la venta en tu celular y la sincroniza sola "
+            "cuando vuelve la señal, así que no pierdes ventas por un corte."
+        ),
+    },
+    {
+        "pregunta": "¿Qué necesito para empezar?",
+        "respuesta": (
+            "Un celular, tablet o computador con navegador. No hay que instalar "
+            "nada ni comprar equipos: la cámara del celular sirve como lector de "
+            "código de barras."
+        ),
+    },
+    {
+        "pregunta": "¿Mis datos y los de mi negocio están seguros?",
+        "respuesta": (
+            "Las contraseñas se guardan cifradas con hash, todo viaja por HTTPS, "
+            "la sesión se cierra por inactividad y cada negocio solo ve su propia "
+            "información. Los accesos quedan registrados en una auditoría interna."
+        ),
+    },
+    {
+        "pregunta": "¿Puedo cancelar cuando quiera?",
+        "respuesta": (
+            f"Sí. Escríbenos a {CONTACTO['correo']} y cancelamos tu cuenta. Después "
+            "tienes 30 días para pedir una copia de tu información antes de que "
+            "se elimine."
+        ),
+    },
+    {
+        "pregunta": "¿Cuánto cuesta y hay prueba gratis?",
+        "respuesta": (
+            "El plan Negocio vale $49.900 al mes y el plan Empresa $99.900 al mes. "
+            "Puedes empezar con una prueba gratis de 14 días, sin tarjeta de crédito."
+        ),
+    },
+    {
+        "pregunta": "¿Cómo me dan soporte?",
+        "respuesta": (
+            f"Por WhatsApp al {CONTACTO['telefono_visible']} y por correo a "
+            f"{CONTACTO['correo']}, de {CONTACTO['horario']}. Te ayudamos a "
+            "configurar tu negocio desde el primer día."
+        ),
+    },
+)
+
+# Google Analytics 4 y Search Console. Vacios = no se inyecta nada.
+_GA_ID_RE = re.compile(r"^G-[A-Z0-9]{4,20}$")
+
+# CSP de las paginas publicas (landing, legales, guias). Con GA activo se abren
+# solo los dominios que Google documenta para gtag.js; sin GA queda 'self'.
+_CSP_BASE = "default-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'"
+_CSP_GA = (
+    "; script-src 'self' https://*.googletagmanager.com"
+    "; img-src 'self' https://*.google-analytics.com https://*.googletagmanager.com"
+    "; connect-src 'self' https://*.google-analytics.com"
+    " https://*.analytics.google.com https://*.googletagmanager.com"
+)
+
+
+def analitica() -> dict:
+    """IDs de GA4 y Search Console desde el entorno. Un GA mal escrito se
+    ignora: mejor sin analitica que con un <script> apuntando a basura."""
+    ga = (os.getenv("GA_MEASUREMENT_ID") or "").strip().upper()
+    return {
+        "ga_id": ga if _GA_ID_RE.match(ga) else "",
+        "gsc": (os.getenv("GOOGLE_SITE_VERIFICATION") or "").strip(),
+    }
+
+
 @seo_bp.app_context_processor
 def _inyectar_jsonld():
-    """Expone `jsonld_landing()` y `contacto` a las plantillas.
+    """Expone JSON-LD, contacto, FAQ, analitica y la CSP publica a las plantillas.
 
     El JSON-LD se inyecta como funcion, no como diccionario ya construido: asi
     solo se calcula en la plantilla que lo usa y no en cada render del area POS.
-    `contacto` si va como diccionario porque es una constante del modulo: no
-    hay nada que calcular.
+    `contacto` y `faq` si van tal cual porque son constantes del modulo.
     """
-    return {"jsonld_landing": datos_estructurados_landing, "contacto": CONTACTO}
+    datos_analitica = analitica()
+    return {
+        "jsonld_landing": datos_estructurados_landing,
+        "contacto": CONTACTO,
+        "faq": PREGUNTAS_FRECUENTES,
+        "analitica": datos_analitica,
+        "csp_publica": _CSP_BASE + (_CSP_GA if datos_analitica["ga_id"] else ""),
+    }
 
 
 def datos_estructurados_landing() -> list[dict]:
@@ -260,7 +419,7 @@ def datos_estructurados_landing() -> list[dict]:
             "Reportes contables automaticos",
             "Listas de precios mayoristas para clientes B2B",
         ],
-        "screenshot": url_for("static", filename="img/og-cover.jpg", _external=True),
+        "screenshot": url_for("static", filename="img/punto-de-venta-jempos.jpg", _external=True),
         "publisher": {"@id": f"{url_landing}#organizacion"},
         # Los precios coinciden con la seccion #precios del landing: Google
         # exige que los datos estructurados reflejen el contenido visible.
@@ -274,9 +433,29 @@ def datos_estructurados_landing() -> list[dict]:
         },
     }
 
+    # Sin LocalBusiness a proposito: jemPOS opera 100% en la nube, y Google
+    # exige una direccion fisica visitable para las fichas locales. El horario
+    # es de atencion al cliente, asi que va en el ContactPoint, no en la
+    # organizacion (openingHours es propiedad de LocalBusiness).
+    organizacion["contactPoint"]["hoursAvailable"] = horario_schema(HORARIO_ATENCION)
+
+    faq = {
+        "@type": "FAQPage",
+        "@id": f"{url_landing}#faq",
+        "mainEntity": [
+            {
+                "@type": "Question",
+                "name": p["pregunta"],
+                "acceptedAnswer": {"@type": "Answer", "text": p["respuesta"]},
+            }
+            for p in PREGUNTAS_FRECUENTES
+        ],
+    }
+
     return [
         {"@context": "https://schema.org", **aplicacion},
         {"@context": "https://schema.org", **organizacion},
+        {"@context": "https://schema.org", **faq},
     ]
 
 

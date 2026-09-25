@@ -8,8 +8,13 @@
      antes del primer pintado. -->
 <div class="cookies" data-cookies role="region" aria-label="Aviso de cookies">
   <p class="cookies__texto">
+    {% if analitica.ga_id %}
+    Usamos cookies propias para mantener tu sesion y, si aceptas, cookies de
+    Google Analytics para medir las visitas al sitio.
+    {% else %}
     Usamos cookies propias para mantener tu sesion y recordar tus preferencias.
     No compartimos tus datos con terceros.
+    {% endif %}
     <a class="cookies__enlace" href="{{ url_for('legal_bp.politica_privacidad') }}">Ver politica de privacidad</a>
   </p>
   <button class="cookies__btn" type="button" data-cookies-aceptar>Aceptar</button>

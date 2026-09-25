@@ -3,7 +3,7 @@
    (app/routes/legal.py y app/routes/seo.py): no se escriben aqui a mano. #}
 {% extends "legal/base_legal.html" %}
 
-{% block titulo_pagina %}Aviso legal — jemPOS, punto de venta y gestion integral{% endblock %}
+{% block titulo_pagina %}Condiciones de uso de jemPOS: planes, cuenta y responsabilidades{% endblock %}
 {% block meta_descripcion %}Aviso legal y condiciones de uso de jemPOS, el sistema de punto de venta y gestion integral para MiPyMEs: titularidad, cuenta de usuario, planes, propiedad intelectual y responsabilidad.{% endblock %}
 {% block titulo %}Aviso legal{% endblock %}
 
@@ -12,9 +12,10 @@
     <h2 class="legal__h2" id="titularidad">1. Titularidad del sitio</h2>
     <p class="legal__p">
       Este sitio y la plataforma jemPOS son operados por
-      <strong>{{ empresa.razon_social }}</strong>, identificado con NIT
-      <strong>{{ empresa.nit }}</strong> y domicilio en
-      <strong>{{ empresa.domicilio }}</strong> ({{ empresa.ciudad }}, Colombia).
+      <strong>{{ empresa.razon_social }}</strong>{% if empresa.nit %}, identificado con NIT
+      <strong>{{ empresa.nit }}</strong>{% endif %}. Domicilio:
+      <strong>{{ empresa.domicilio }}</strong>. No hay establecimiento abierto
+      al publico: toda la atencion se presta por los canales digitales de abajo.
     </p>
     <p class="legal__p">
       Canales de atencion:

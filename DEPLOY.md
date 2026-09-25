@@ -20,7 +20,7 @@ administra el despliegue (tu). Asume un solo servicio web + un MySQL en Railway.
   @jempos__ y jemposoporte@gmail.com. De ahi salen a la vez el JSON-LD que lee
   Google (con `sameAs` al perfil de Instagram) y la columna Contacto del footer
   del landing y de las paginas legales, asi que no pueden desincronizarse.
-- **Imagen de previsualizacion** `static/img/og-cover.jpg` (1200x630): antes
+- **Imagen de previsualizacion** `static/img/punto-de-venta-jempos.jpg` (1200x630): antes
   `og:image` apuntaba a un archivo inexistente y compartir el enlace por
   WhatsApp no generaba tarjeta.
 - **Textos legales definitivos**: el aviso legal y la politica de privacidad ya
@@ -275,7 +275,7 @@ Con el dominio ya activo:
   `.railway.app`, ProxyFix no esta viendo las cabeceras `X-Forwarded-*` y los
   enlaces del correo de recuperacion de contrasena saldrian mal.
 - `https://jempos.app/sitemap.xml` -> las URLs publicas con el dominio real.
-- `https://jempos.app/static/img/og-cover.jpg` -> la imagen de previsualizacion
+- `https://jempos.app/static/img/punto-de-venta-jempos.jpg` -> la imagen de previsualizacion
   (1200x630). Se genera con `python scripts/generar_og_cover.py` y esta
   versionada; solo hay que volver a correrlo si cambia el texto o el logo.
 - El footer muestra WhatsApp, Instagram y el correo, y los tres enlaces abren.

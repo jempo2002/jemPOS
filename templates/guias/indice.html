@@ -1,0 +1,46 @@
+{# Ruta: templates/guias/indice.html
+   Indice de guias: el hub del cluster. Enlaza a cada guia y cada guia vuelve
+   aqui desde las migas de pan. #}
+{% extends "legal/base_legal.html" %}
+
+{% block titulo_pagina %}Guías para administrar tu negocio: caja, inventario y cuentas | jemPOS{% endblock %}
+{% block meta_descripcion %}Guías gratis para dueños de tiendas y negocios de barrio: cómo cuadrar la caja, controlar el inventario y llevar las cuentas sin ser contador.{% endblock %}
+{% block robots %}index, follow{% endblock %}
+
+{% block encabezado %}
+<h1 class="legal__title">Aprende a administrar tu tienda, paso a paso</h1>
+<p class="legal__meta">Guías prácticas del equipo de jemPOS</p>
+{% endblock %}
+
+{% block contenido %}
+<p class="guia__intro">
+  Estas guías responden las tres preguntas que más se hace el dueño de una
+  tienda o negocio de barrio: cómo cuadrar la caja al final del día, cómo saber
+  qué hay en el inventario sin contarlo todo y cómo llevar las cuentas para
+  saber si el negocio realmente gana plata. Cada una trae un ejemplo con números
+  y se puede aplicar con cuaderno o con un sistema.
+</p>
+<p class="guia__cta">
+  <a class="btn btn--primary" href="{{ url_for('auth.registro') }}">Prueba jemPOS gratis 14 días</a>
+</p>
+
+<section aria-labelledby="todas-titulo">
+  <h2 class="legal__h2" id="todas-titulo">Todas las guías</h2>
+  <ul class="relacionadas__lista" role="list">
+    {% for g in guias %}
+    <li>
+      <a class="relacionadas__card" href="{{ url_for('guias_bp.guia', slug=g.slug) }}">
+        <strong>{{ g.titulo }}</strong>
+        <span>{{ g.descripcion }}</span>
+      </a>
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+
+{% with compartir_url=request.base_url, compartir_texto="Guías gratis para administrar tu negocio" %}
+  {% include "_compartir.html" %}
+{% endwith %}
+{% endblock %}
+
+{% block scripts_extra %}<script src="{{ url_for('static', filename='js/compartir.js') }}" defer></script>{% endblock %}

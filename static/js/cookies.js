@@ -51,6 +51,8 @@
     aceptar.addEventListener('click', () => {
       guardar();
       RAIZ.setAttribute('data-cookies-ok', '');
+      /* analitica.js espera este evento para cargar Google Analytics. */
+      document.dispatchEvent(new CustomEvent('jempos:cookies-aceptadas'));
       /* Que el foco no quede en un boton que acaba de desaparecer. */
       if (banner.contains(document.activeElement)) {
         document.activeElement.blur();

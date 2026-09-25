@@ -10,9 +10,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   {% include "_favicon.html" %}
 
-  {# Misma CSP restrictiva que la landing: estas paginas no cargan nada externo. #}
-  <meta http-equiv="Content-Security-Policy"
-        content="default-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
+  {# Misma CSP que la landing (csp_publica en app/routes/seo.py): solo 'self',
+     mas los dominios de Google Analytics si GA_MEASUREMENT_ID esta definido. #}
+  <meta http-equiv="Content-Security-Policy" content="{{ csp_publica }}">
+  {% include "_analitica.html" %}
 
   <title>{% block titulo_pagina %}Informacion legal — jemPOS{% endblock %}</title>
   <meta name="description" content="{% block meta_descripcion %}Informacion legal de jemPOS, el sistema de punto de venta y gestion integral para MiPyMEs.{% endblock %}">
@@ -33,12 +34,13 @@
   <meta property="og:site_name" content="jemPOS">
   <meta property="og:locale" content="es_CO">
   <meta property="og:url" content="{{ request.base_url }}">
-  <meta property="og:image" content="{{ url_for('static', filename='img/og-cover.jpg', _external=True) }}">
+  <meta property="og:image" content="{{ url_for('static', filename='img/punto-de-venta-jempos.jpg', _external=True) }}">
 
   {# Sin defer: cookies.js marca <html data-cookies-ok> antes del primer frame
      para que el aviso no parpadee a quien ya lo acepto. #}
   <script src="/static/js/cookies.js"></script>
   <link rel="stylesheet" href="/static/css/landing.css">
+  {% block head_extra %}{% endblock %}
 </head>
 <body>
 
@@ -98,6 +100,8 @@
         <ul role="list">
           <li><a class="footer__link" href="{{ url_for('landing') }}#ventajas">Ventajas</a></li>
           <li><a class="footer__link" href="{{ url_for('landing') }}#precios">Precios</a></li>
+          <li><a class="footer__link" href="{{ url_for('guias_bp.indice') }}">Guías</a></li>
+          <li><a class="footer__link" href="{{ url_for('landing') }}#faq">Preguntas frecuentes</a></li>
           <li><a class="footer__link" href="{{ url_for('auth.login') }}">Iniciar sesion</a></li>
         </ul>
       </nav>
@@ -126,13 +130,17 @@
           <li>
             <a class="footer__link" href="mailto:{{ contacto.correo }}">{{ contacto.correo }}</a>
           </li>
+          {# Mismo horario que contactPoint.hoursAvailable del JSON-LD. #}
+          <li class="footer__link">Atención: {{ contacto.horario }}</li>
         </ul>
       </nav>
     </div>
     <p class="footer__copy">&copy; 2026 jemPOS. Todos los derechos reservados.</p>
   </footer>
 
+  {% include "_cta_movil.html" %}
   {% include "_cookies.html" %}
 
+  {% block scripts_extra %}{% endblock %}
 </body>
 </html>

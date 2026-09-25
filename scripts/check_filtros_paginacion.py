@@ -269,10 +269,12 @@ app = create_app()
 app.config.update(WTF_CSRF_ENABLED=False, RATELIMIT_ENABLED=False)
 
 
-def sesion(cliente, rol, id_usuario=1):
+def sesion(cliente, rol, id_usuario=1, id_tienda=1):
+    # login_required relee rol y tienda de la base: la sesion tiene que ser de
+    # un usuario real (1 = Master de la tienda 1, 8 = Cajero de la tienda 4).
     with cliente.session_transaction() as s:
         s["id_usuario"] = id_usuario
-        s["id_tienda"] = 1
+        s["id_tienda"] = id_tienda
         s["rol"] = rol
 
 
@@ -347,7 +349,7 @@ with app.test_client() as c:
         assert c.get(ruta).status_code == 200, ruta
 
 with app.test_client() as c:
-    sesion(c, "Cajero")
+    sesion(c, "Cajero", id_usuario=8, id_tienda=4)
     # El Cajero no puede ampliar su ventana con la capsula ni con la fecha.
     for qs in ("filtro=todas", "filtro=mes", "fecha=2020-01-01"):
         d = c.get(f"/pos/api/ventas?{qs}").get_json()

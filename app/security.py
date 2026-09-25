@@ -35,8 +35,8 @@ _ENTORNOS_DEV = {"development", "dev", "local", "testing", "test"}
 # navegador pide /favicon.ico en cada pagina, asi que marcarlo no-store lo
 # obligaria a redescargarlo siempre y anularia su propio cache de 30 dias.
 _PREFIJOS_PUBLICOS = (
-    "/static/", "/landing", "/legal/",
-    "/favicon.ico", "/robots.txt", "/sitemap.xml", "/site.webmanifest",
+    "/static/", "/landing", "/legal/", "/guias/",
+    "/favicon.ico", "/robots.txt", "/sitemap.xml", "/sitemap.txt", "/site.webmanifest",
 )
 
 
@@ -115,6 +115,10 @@ def init_security(app) -> None:
         # mantiene su propia CSP restrictiva via <meta>.
         content_security_policy=None,
     )
+
+    # Talisman solo pone Secure dentro de su before_request (perezoso). Se fija
+    # aqui para que la config sea cierta desde el arranque.
+    app.config["SESSION_COOKIE_SECURE"] = not desarrollo
 
     @app.after_request
     def _no_cachear_paginas_privadas(response):

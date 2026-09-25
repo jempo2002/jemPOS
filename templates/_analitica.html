@@ -1,0 +1,10 @@
+{# Ruta: templates/_analitica.html
+   Search Console + Google Analytics 4 para las paginas publicas. Se incluye en
+   el <head> de landing, legales, guias y registro. Los valores salen de las
+   variables de entorno GOOGLE_SITE_VERIFICATION y GA_MEASUREMENT_ID (ver
+   analitica() en app/routes/seo.py); vacias, no se pinta nada.
+
+   GA no se carga aqui: analitica.js lo inyecta solo cuando el visitante acepto
+   el aviso de cookies. Sin <script> inline: la CSP publica lo bloquearia. #}
+{% if analitica.gsc %}<meta name="google-site-verification" content="{{ analitica.gsc }}">{% endif %}
+{% if analitica.ga_id %}<script src="{{ url_for('static', filename='js/analitica.js') }}" data-ga-id="{{ analitica.ga_id }}" defer></script>{% endif %}

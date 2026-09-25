@@ -1,4 +1,4 @@
-"""Genera static/img/og-cover.jpg, la imagen de previsualizacion al compartir.
+"""Genera static/img/punto-de-venta-jempos.jpg, la imagen de previsualizacion al compartir.
 
 Sin este archivo, las etiquetas og:image y twitter:image del landing apuntan a
 un 404 y WhatsApp, Instagram o X comparten el enlace sin tarjeta: solo la URL
@@ -97,11 +97,11 @@ def main() -> int:
         print(f"ERROR: no existe {DESTINO}")
         return 1
 
-    ruta = os.path.join(DESTINO, "og-cover.jpg")
+    ruta = os.path.join(DESTINO, "punto-de-venta-jempos.jpg")
     # quality=88 + optimize: por debajo de 200 kB, que es el limite practico
     # para que WhatsApp genere la miniatura sin recomprimir.
     construir().save(ruta, format="JPEG", quality=88, optimize=True, progressive=True)
-    print(f"  {os.path.getsize(ruta):>7} B  static/img/og-cover.jpg  ({ANCHO}x{ALTO})")
+    print(f"  {os.path.getsize(ruta):>7} B  static/img/punto-de-venta-jempos.jpg  ({ANCHO}x{ALTO})")
     return 0
 
 

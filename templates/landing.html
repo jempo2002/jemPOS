@@ -9,9 +9,11 @@
   <!-- Content-Security-Policy: mitigación básica de XSS. Como se entrega
        vía <meta>, el navegador ignora frame-ancestors/report-to aquí; si
        se necesita protección anti-clickjacking real, debe añadirse
-       X-Frame-Options / CSP también como cabecera HTTP (app/__init__.py). -->
-  <meta http-equiv="Content-Security-Policy"
-        content="default-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
+       X-Frame-Options / CSP también como cabecera HTTP (app/__init__.py).
+       La cadena sale de csp_publica (app/routes/seo.py): 'self' y, solo si
+       GA_MEASUREMENT_ID esta definido, los dominios de Google Analytics. -->
+  <meta http-equiv="Content-Security-Policy" content="{{ csp_publica }}">
+  {% include "_analitica.html" %}
 
   <title>jemPOS — Punto de venta y contabilidad en la nube para tu negocio</title>
   <meta name="description"
@@ -28,7 +30,7 @@
   <meta property="og:locale" content="es_CO">
   <meta property="og:url" content="{{ url_for('landing', _external=True) }}">
   <!-- 1200x630. Se genera con scripts/generar_og_cover.py y se versiona. -->
-  <meta property="og:image" content="{{ url_for('static', filename='img/og-cover.jpg', _external=True) }}">
+  <meta property="og:image" content="{{ url_for('static', filename='img/punto-de-venta-jempos.jpg', _external=True) }}">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
   <!-- og:image:alt lo leen los lectores de pantalla de las redes al compartir. -->
@@ -38,12 +40,13 @@
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="jemPOS — Tu negocio en la palma de tu mano">
   <meta name="twitter:description" content="POS, inventario, contabilidad y gestión de personal en una sola app en la nube.">
-  <meta name="twitter:image" content="{{ url_for('static', filename='img/og-cover.jpg', _external=True) }}">
+  <meta name="twitter:image" content="{{ url_for('static', filename='img/punto-de-venta-jempos.jpg', _external=True) }}">
   <meta name="twitter:image:alt" content="jemPOS: punto de venta, inventario y contabilidad en la nube.">
 
   <!-- ============================================================
        DATOS ESTRUCTURADOS (JSON-LD)
-       SoftwareApplication (el producto) + Organization (quien lo publica),
+       SoftwareApplication (el producto) + Organization (quien lo publica,
+       con horario de atencion en su ContactPoint) + FAQPage (la seccion #faq),
        enlazados por @id. El contenido lo genera
        app/routes/seo.py::datos_estructurados_landing() y Jinja lo serializa
        con `tojson`, que escapa comillas y < > &: escribir el JSON a mano en la
@@ -99,6 +102,7 @@
         <ul class="header__links" role="list">
           <li><a class="header__link" href="#ventajas">Ventajas</a></li>
           <li><a class="header__link" href="#precios">Precios</a></li>
+          <li><a class="header__link" href="{{ url_for('guias_bp.indice') }}">Guías</a></li>
           <li><a class="header__link" href="#faq-footer">Contacto</a></li>
         </ul>
         <div class="header__auth">
@@ -121,7 +125,7 @@
         <div class="hero__copy reveal">
           <p class="hero__eyebrow">POS + Contabilidad en la nube</p>
           <h1 class="hero__title" id="hero-titulo">
-            Tu negocio merece,<br>
+            Tu negocio merece<br>
             <span class="hero__title-accent">dejar el cuaderno atrás.</span>
           </h1>
           <p class="hero__subtitle">
@@ -364,12 +368,60 @@
       </div>
     </section>
 
+    <!-- ============================================================
+         GUIAS: la landing es la pagina pilar del cluster de contenidos;
+         cada guia enlaza de vuelta aqui (ver app/routes/guias.py).
+         ============================================================ -->
+    <section class="guias-home" id="guias" aria-labelledby="guias-titulo">
+      <header class="guias-home__header reveal">
+        <p class="pricing__eyebrow">Aprende gratis</p>
+        <h2 class="pricing__title" id="guias-titulo">Guías para administrar mejor tu negocio</h2>
+      </header>
+      <ul class="guias-home__grid" role="list">
+        {% for g in guias %}
+        <li>
+          <article class="guia-card">
+            <h3 class="guia-card__titulo">
+              <a class="guia-card__enlace" href="{{ url_for('guias_bp.guia', slug=g.slug) }}">{{ g.titulo }}</a>
+            </h3>
+            <p class="guia-card__texto">{{ g.descripcion }}</p>
+            <span class="guia-card__mas" aria-hidden="true">Leer guía →</span>
+          </article>
+        </li>
+        {% endfor %}
+      </ul>
+    </section>
+
+    <!-- ============================================================
+         PREGUNTAS FRECUENTES
+         Se pintan desde PREGUNTAS_FRECUENTES (app/routes/seo.py), la misma
+         lista que genera el FAQPage del JSON-LD: nunca se desincronizan.
+         <details> nativo: acordeon sin JavaScript (la CSP no deja inline).
+         ============================================================ -->
+    <section class="faq" id="faq" aria-labelledby="faq-titulo">
+      <header class="faq__header reveal">
+        <p class="pricing__eyebrow">Resolvemos tus dudas</p>
+        <h2 class="pricing__title" id="faq-titulo">Preguntas frecuentes sobre jemPOS</h2>
+      </header>
+      <div class="faq__lista">
+        {% for p in faq %}
+        <details class="faq__item"{% if loop.first %} open{% endif %}>
+          <summary class="faq__pregunta"><h3 class="faq__h3">{{ p.pregunta }}</h3></summary>
+          <p class="faq__respuesta">{{ p.respuesta }}</p>
+        </details>
+        {% endfor %}
+      </div>
+    </section>
+
     <!-- CTA final -->
     <section class="cta-final reveal" aria-labelledby="cta-final-titulo">
       <div class="cta-final__card">
         <h2 class="cta-final__title" id="cta-final-titulo">Tu negocio merece dejar el cuaderno atrás</h2>
         <p class="cta-final__text">Únete a los negocios que ya venden, cuadran caja y duermen tranquilos con jemPOS.</p>
         <a class="btn btn--inverse btn--lg" href="{{ url_for('auth.registro') }}">Solicitar prueba gratis</a>
+        {% with compartir_url=url_for('landing', _external=True), compartir_texto="jemPOS: punto de venta y contabilidad en la nube para tu negocio" %}
+          {% include "_compartir.html" %}
+        {% endwith %}
       </div>
     </section>
 
@@ -390,6 +442,8 @@
         <ul role="list">
           <li><a class="footer__link" href="#ventajas">Ventajas</a></li>
           <li><a class="footer__link" href="#precios">Precios</a></li>
+          <li><a class="footer__link" href="{{ url_for('guias_bp.indice') }}">Guías</a></li>
+          <li><a class="footer__link" href="#faq">Preguntas frecuentes</a></li>
           <li><a class="footer__link" href="{{ url_for('auth.login') }}">Iniciar sesión</a></li>
         </ul>
       </nav>
@@ -425,14 +479,18 @@
           <li>
             <a class="footer__link" href="mailto:{{ contacto.correo }}">{{ contacto.correo }}</a>
           </li>
+          {# Mismo horario que contactPoint.hoursAvailable del JSON-LD. #}
+          <li class="footer__link">Atención: {{ contacto.horario }}</li>
         </ul>
       </nav>
     </div>
     <p class="footer__copy">© 2026 jemPOS. Todos los derechos reservados.</p>
   </footer>
 
+  {% include "_cta_movil.html" %}
   {% include "_cookies.html" %}
 
   <script src="/static/js/landing.js" defer></script>
+  <script src="/static/js/compartir.js" defer></script>
 </body>
 </html>

@@ -140,12 +140,22 @@ $('form-crear-usuario').addEventListener('submit', async (e) => {
   window.location.reload();
 });
 
+// Escapa texto para innerHTML. El correo no se sanea al guardarlo y el nombre
+// llega ya escapado: se decodifica primero para no mostrar &amp;amp;.
+function esc(value) {
+  return unescapeHtml(String(value ?? '')).replace(/[&<>"']/g, (c) => (
+    { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+  ));
+}
+
+const adminRow = (a) => `<button type="button" data-pick="${esc(JSON.stringify({ id: a.id_usuario, name: a.nombre_completo }))}" class="w-full text-left p-3 hover:bg-slate-50 border-b border-slate-100 text-sm">${esc(a.nombre_completo)} <span class="text-slate-500">(${esc(a.correo)})</span></button>`;
+
 // Live search Admins (create/edit tienda)
 bindLiveSearch(
   'ct-owner-search',
   'ct-owner-dropdown',
   '/api/master/admins',
-  (a) => `<button type="button" data-pick='${JSON.stringify({ id: a.id_usuario, name: a.nombre_completo }).replace(/'/g, '&apos;')}' class="w-full text-left p-3 hover:bg-slate-50 border-b border-slate-100 text-sm">${a.nombre_completo} <span class="text-slate-500">(${a.correo})</span></button>`,
+  adminRow,
   (pick) => {
     $('ct-owner-search').value = pick.name;
     $('ct-owner-id').value = pick.id;
@@ -156,7 +166,7 @@ bindLiveSearch(
   'et-owner-search',
   'et-owner-dropdown',
   '/api/master/admins',
-  (a) => `<button type="button" data-pick='${JSON.stringify({ id: a.id_usuario, name: a.nombre_completo }).replace(/'/g, '&apos;')}' class="w-full text-left p-3 hover:bg-slate-50 border-b border-slate-100 text-sm">${a.nombre_completo} <span class="text-slate-500">(${a.correo})</span></button>`,
+  adminRow,
   (pick) => {
     $('et-owner-search').value = pick.name;
     $('et-owner-id').value = pick.id;
@@ -168,7 +178,7 @@ bindLiveSearch(
   'sus-tienda-search',
   'sus-tienda-dropdown',
   '/api/tiendas',
-  (t) => `<button type="button" data-pick='${JSON.stringify({ id: t.id_tienda, name: t.nombre_negocio }).replace(/'/g, '&apos;')}' class="w-full text-left p-3 hover:bg-slate-50 border-b border-slate-100 text-sm">${t.nombre_negocio}</button>`,
+  (t) => `<button type="button" data-pick="${esc(JSON.stringify({ id: t.id_tienda, name: t.nombre_negocio }))}" class="w-full text-left p-3 hover:bg-slate-50 border-b border-slate-100 text-sm">${esc(t.nombre_negocio)}</button>`,
   (pick) => {
     $('sus-tienda-search').value = pick.name;
     $('sus-id-tienda').value = pick.id;

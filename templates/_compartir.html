@@ -1,0 +1,13 @@
+{# Ruta: templates/_compartir.html
+   Botones para compartir. Antes del include: {% set compartir_url = ... %} y
+   {% set compartir_texto = ... %}.
+   Los enlaces funcionan sin JavaScript. compartir.js muestra ademas el boton
+   nativo (Web Share API: abre la hoja de compartir del celular) donde exista. #}
+<div class="compartir" data-compartir data-url="{{ compartir_url }}" data-texto="{{ compartir_texto }}">
+  <span class="compartir__titulo">Compartir</span>
+  <button class="compartir__btn compartir__btn--nativo" type="button" data-compartir-nativo hidden>Compartir…</button>
+  <a class="compartir__btn" href="https://wa.me/?text={{ (compartir_texto ~ ' ' ~ compartir_url) | urlencode }}" target="_blank" rel="noopener">WhatsApp</a>
+  <a class="compartir__btn" href="https://www.facebook.com/sharer/sharer.php?u={{ compartir_url | urlencode }}" target="_blank" rel="noopener">Facebook</a>
+  <a class="compartir__btn" href="https://www.linkedin.com/sharing/share-offsite/?url={{ compartir_url | urlencode }}" target="_blank" rel="noopener">LinkedIn</a>
+  <a class="compartir__btn" href="https://x.com/intent/post?url={{ compartir_url | urlencode }}&amp;text={{ compartir_texto | urlencode }}" target="_blank" rel="noopener">X</a>
+</div>

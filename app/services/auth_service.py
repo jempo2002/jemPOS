@@ -1,14 +1,16 @@
 from __future__ import annotations
 
-import os
+import hashlib
 import re
 
-from itsdangerous import URLSafeTimedSerializer
+from itsdangerous import BadSignature, URLSafeTimedSerializer
 
 from app.utils.mail import send_recovery_email_async
 from database import get_db
 
-_EMAIL_RE = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
+# Charset cerrado: el anterior ([^\s@]+) aceptaba "<img/src=x/onerror=...>@a.co"
+# y ese correo terminaba pintado en el Panel Master (XSS almacenado).
+_EMAIL_RE = re.compile(r"^[a-z0-9._%+-]+@[a-z0-9-]+(\.[a-z0-9-]+)*\.[a-z]{2,}$")
 _PWD_UPPER_RE = re.compile(r"[A-Z]")
 _PWD_LOWER_RE = re.compile(r"[a-z]")
 _PWD_NUMBER_RE = re.compile(r"\d")
@@ -75,9 +77,16 @@ def resolve_post_login_redirect(rol: str) -> str:
     return "/pos/turno"
 
 
-def create_reset_token(secret_key: str, email: str, salt: str = "password-reset-salt") -> str:
+def huella_clave(clave_hash: str) -> str:
+    """Huella del hash actual. Va dentro del token de reset: al cambiar la
+    contrasena la huella cambia y el enlace deja de servir (antes se podia
+    reusar durante 30 min, incluso despues de usarlo)."""
+    return hashlib.sha256(str(clave_hash or "").encode()).hexdigest()[:16]
+
+
+def create_reset_token(secret_key: str, email: str, clave_hash: str, salt: str = "password-reset-salt") -> str:
     serializer = URLSafeTimedSerializer(secret_key)
-    return serializer.dumps(str(email or "").strip().lower(), salt=salt)
+    return serializer.dumps([str(email or "").strip().lower(), huella_clave(clave_hash)], salt=salt)
 
 
 def decode_reset_token(
@@ -85,9 +94,13 @@ def decode_reset_token(
     token: str,
     salt: str = "password-reset-salt",
     max_age: int = 1800,
-) -> str:
+) -> tuple[str, str]:
+    """(correo, huella). Lanza BadSignature/SignatureExpired si no vale."""
     serializer = URLSafeTimedSerializer(secret_key)
-    return serializer.loads(token, salt=salt, max_age=max_age)
+    datos = serializer.loads(token, salt=salt, max_age=max_age)
+    if not (isinstance(datos, list) and len(datos) == 2):
+        raise BadSignature("Formato de token antiguo.")
+    return str(datos[0]), str(datos[1])
 
 
 def send_recovery_email(destinatario: str, enlace: str) -> bool:

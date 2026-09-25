@@ -1,0 +1,72 @@
+{# Ruta: templates/guias/base_guia.html
+   Layout de cada guia. Reutiliza legal/base_legal.html (header, footer, CTA
+   movil, cookies, landing.css), igual que la 404.
+
+   El orden de arriba lo fija esta plantilla, no cada guia:
+     1. <h1> (distinto del <title>, ver app/routes/guias.py)
+     2. parrafo que responde la busqueda (guia.intro)
+     3. CTA
+     4. resumen en 5 puntos (lista 1 de maximo 3 dentro del <article>)
+     5. cuerpo propio de la guia (bloque `cuerpo`)
+   Despues del <article>: compartir y guias relacionadas (el cluster). #}
+{% extends "legal/base_legal.html" %}
+
+{% block titulo_pagina %}{{ guia.titulo }} | jemPOS{% endblock %}
+{% block meta_descripcion %}{{ guia.descripcion }}{% endblock %}
+{% block robots %}index, follow{% endblock %}
+{% block head_extra %}<script type="application/ld+json">{{ jsonld | tojson }}</script>{% endblock %}
+
+{% block encabezado %}
+<nav class="migas" aria-label="Ruta de navegacion">
+  <a class="legal__link" href="{{ url_for('landing') }}">Inicio</a>
+  <span aria-hidden="true">›</span>
+  <a class="legal__link" href="{{ url_for('guias_bp.indice') }}">Guías</a>
+</nav>
+<h1 class="legal__title">{{ guia.h1 }}</h1>
+<p class="legal__meta">Actualizado el {{ fecha }} · Equipo de jemPOS</p>
+{% endblock %}
+
+{% block contenido %}
+<article class="guia">
+  <p class="guia__intro">{{ guia.intro }}</p>
+  <p class="guia__cta">
+    <a class="btn btn--primary" href="{{ url_for('auth.registro') }}">{{ guia.cta }}</a>
+  </p>
+
+  <aside class="guia__resumen" aria-labelledby="resumen-titulo">
+    <h2 class="guia__resumen-titulo" id="resumen-titulo">Resumen en 5 puntos</h2>
+    <ul class="legal__list">
+      {% for punto in guia.puntos %}<li>{{ punto }}</li>
+      {% endfor %}
+    </ul>
+  </aside>
+
+  {% block cuerpo %}{% endblock %}
+</article>
+
+{% with compartir_url=request.base_url, compartir_texto=guia.titulo %}
+  {% include "_compartir.html" %}
+{% endwith %}
+
+<nav class="relacionadas" aria-labelledby="relacionadas-titulo">
+  <h2 class="legal__h2" id="relacionadas-titulo">Guías relacionadas</h2>
+  <ul class="relacionadas__lista" role="list">
+    {% for r in relacionadas %}
+    <li>
+      <a class="relacionadas__card" href="{{ url_for('guias_bp.guia', slug=r.slug) }}">
+        <strong>{{ r.titulo }}</strong>
+        <span>{{ r.descripcion }}</span>
+      </a>
+    </li>
+    {% endfor %}
+    <li>
+      <a class="relacionadas__card" href="{{ url_for('landing') }}#ventajas">
+        <strong>Conoce jemPOS</strong>
+        <span>Punto de venta, inventario y contabilidad en la nube, desde tu celular.</span>
+      </a>
+    </li>
+  </ul>
+</nav>
+{% endblock %}
+
+{% block scripts_extra %}<script src="{{ url_for('static', filename='js/compartir.js') }}" defer></script>{% endblock %}

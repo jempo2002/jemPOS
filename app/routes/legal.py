@@ -18,28 +18,27 @@ legal_bp = Blueprint("legal_bp", __name__, url_prefix="/legal")
 # Fecha de la ultima revision del texto legal. Se muestra en ambas paginas.
 # Se sube a mano cuando cambia el contenido: si cambian las finalidades del
 # tratamiento o los encargados, hay que actualizarla y avisar a los usuarios.
-ULTIMA_ACTUALIZACION = "23 de septiembre de 2026"
+ULTIMA_ACTUALIZACION = "25 de septiembre de 2026"
 
 # ---------------------------------------------------------------------------
-# FALTA COMPLETAR ANTES DE PUBLICAR
+# RESPONSABLE DEL SERVICIO
 # ---------------------------------------------------------------------------
 # La Ley 1581 de 2012 obliga a identificar al responsable del tratamiento con
-# nombre y datos de contacto reales. Estos cuatro valores no se pueden inventar
-# desde el codigo: salen del RUT o de la cedula de quien opera el servicio.
+# nombre y datos de contacto reales (Decreto 1377 de 2013, art. 13). Una marca
+# sin registrar no es una persona: cuando haya RUT o empresa, poner aqui el
+# nombre legal y el NIT.
 #
-# Si operas como persona natural: razon_social = tu nombre completo y
-# nit = tu cedula. Si constituiste empresa, los del certificado de Camara de
-# Comercio.
+# jemPOS opera 100% en la nube, sin establecimiento abierto al publico.
+# `nit` vacio = aun sin registrar: las plantillas omiten la frase del NIT en vez
+# de pintar "NIT ," a medias. Cuando exista, basta con escribirlo aqui.
 #
-# Mientras alguno siga con el texto "POR DEFINIR", ambas paginas legales se
-# publican con <meta name="robots" content="noindex"> (ver
-# templates/legal/base_legal.html): es preferible que Google no indexe un aviso
-# legal a medias a que lo indexe y quede en cache.
+# Si algun valor vuelve a "POR DEFINIR", ambas paginas legales se publican con
+# <meta name="robots" content="noindex"> (ver templates/legal/base_legal.html).
 EMPRESA = {
-    "razon_social": "POR DEFINIR",
-    "nit": "POR DEFINIR",
-    "domicilio": "POR DEFINIR",
-    "ciudad": "POR DEFINIR",
+    "razon_social": "jemPOS",
+    "nit": "",
+    "domicilio": "Operación 100% en la nube, Colombia",
+    "ciudad": "Colombia",
 }
 
 

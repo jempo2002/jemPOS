@@ -1,0 +1,95 @@
+{# Guia: contabilidad basica. Metadatos en app/routes/guias.py (clave "contabilidad").
+   Listas/tablas del <article>: resumen + tabla de ganancia + reglas de fiados = 3. #}
+{% extends "guias/base_guia.html" %}
+
+{% block cuerpo %}
+<section class="legal__section" aria-labelledby="ganancia">
+  <h2 class="legal__h2" id="ganancia">Ganancia bruta y ganancia neta</h2>
+  <p class="legal__p">
+    No necesitas saber de contabilidad para esto: basta con sumar y restar.
+    Lo importante es entender que <strong>vender mucho no significa ganar
+    mucho</strong>.
+  </p>
+  <p class="legal__p">
+    La <strong>ganancia bruta</strong> es
+    lo que queda de las ventas después de pagar la mercancía que vendiste. La
+    <strong>ganancia neta</strong> es lo que queda después de restar también los
+    gastos del negocio: arriendo, servicios, domicilios, sueldos. La neta es la
+    que dice si el negocio da plata.
+  </p>
+  <div class="table-scroll">
+  <table class="guia__tabla">
+    <caption>Ejemplo: un mes de una tienda de barrio</caption>
+    <thead>
+      <tr><th scope="col">Concepto</th><th scope="col">Valor</th></tr>
+    </thead>
+    <tbody>
+      <tr><th scope="row">Ventas del mes</th><td>$12.000.000</td></tr>
+      <tr><th scope="row">− Costo de la mercancía vendida</th><td>$8.400.000</td></tr>
+      <tr><th scope="row">= Ganancia bruta</th><td>$3.600.000</td></tr>
+      <tr><th scope="row">− Gastos (arriendo, servicios, domicilios)</th><td>$1.900.000</td></tr>
+    </tbody>
+    <tfoot>
+      <tr><th scope="row">Ganancia neta</th><td>$1.700.000</td></tr>
+    </tfoot>
+  </table>
+  </div>
+  <p class="legal__p">
+    Para calcular el costo de la mercancía necesitas saber a cuánto compraste
+    cada producto. Por eso conviene registrar el precio de costo al
+    <a class="legal__link" href="{{ url_guia('inventario') }}">controlar el inventario</a>,
+    no solo el precio de venta.
+  </p>
+</section>
+
+<section class="legal__section" aria-labelledby="fiados">
+  <h2 class="legal__h2" id="fiados">Cómo manejar los fiados sin perder plata</h2>
+  <p class="legal__p">
+    Un fiado es una venta que ya salió del inventario pero cuya plata todavía no
+    entró. Si no se registra, se olvida; y <strong>lo que se olvida no se
+    cobra</strong>.
+  </p>
+  <ul class="legal__list">
+    <li>Fía solo a clientes registrados con nombre y teléfono.</li>
+    <li>Pon un tope de deuda por cliente y respétalo.</li>
+    <li>Registra cada abono en el momento y dile al cliente cuánto le queda.</li>
+    <li>Revisa cada semana quién lleva más días sin pagar.</li>
+  </ul>
+</section>
+
+<section class="legal__section" aria-labelledby="separar">
+  <h2 class="legal__h2" id="separar">Separa la plata del negocio de la personal</h2>
+  <p class="legal__p">
+    Si sacas de la caja para el mercado de la casa, las cuentas del negocio
+    nunca van a cuadrar. <strong>Asígnate un pago fijo</strong>, semanal o
+    mensual, y regístralo como un gasto más. Así sabes cuánto gana el negocio y
+    cuánto te llevas tú.
+  </p>
+</section>
+
+<section class="legal__section" aria-labelledby="semana">
+  <h2 class="legal__h2" id="semana">Qué revisar cada semana</h2>
+  <p class="legal__p">
+    <strong>Diez minutos a la semana bastan.</strong> Compara las ventas con la
+    semana anterior, mira en qué se fue la plata de los gastos, revisa cuánto te
+    deben en fiados y qué cuentas con proveedores vencen pronto.
+  </p>
+  <p class="legal__p">
+    Si una semana cierra con faltantes en caja, revisa
+    <a class="legal__link" href="{{ url_guia('cuadre_caja') }}">cómo hacer el cuadre de caja</a>
+    turno por turno.
+  </p>
+</section>
+
+<section class="legal__section" aria-labelledby="automatizar">
+  <h2 class="legal__h2" id="automatizar">Las cuentas al día sin hojas de cálculo</h2>
+  <p class="legal__p">
+    Si hoy llevas todo en un cuaderno, ya tienes lo más difícil: el hábito.
+    jemPOS registra cada venta y cada gasto con su categoría, lleva los fiados
+    de cada cliente con sus abonos y saldo pendiente, y guarda las cuentas por
+    pagar a proveedores con su fecha de vencimiento. El tablero te muestra
+    ventas, ganancia, gastos y quién te debe más, sin armar una sola hoja de
+    cálculo. Para tus impuestos, tu contador parte de esos mismos datos.
+  </p>
+</section>
+{% endblock %}
